@@ -43,6 +43,7 @@ docs/
   05-risk-register.md        scored risks + the Rosetta-27 exit plan
   06-legal-and-policy.md     GPTK licence, VAC policy, what is and isn't allowed
   07-benchmark-protocol.md   how to produce an FPS number that means something
+  08-cost-and-dependencies.md  licence tiers: why users pay nothing, and what that costs us
   reference/target-machine.md  measured state of this Mac, incl. the 60 GB stuck download
 research/
   steam-vac-findings.md              primary-source research (Steam appinfo, Steamworks, VAC)

@@ -244,6 +244,10 @@ assumed D3DMetal and skipped this.
    **no geometry shaders and no `VK_EXT_transform_feedback`**. CS2 falls back to DX11 if Vulkan init fails — check
    the console so you don't benchmark DX11 while believing you're on Vulkan.
 3. Cross the winner with **MSync vs ESync**.
+3b. **Record a licence column alongside FPS.** This experiment decides the project's distribution tier
+   (`docs/08-cost-and-dependencies.md`): DXMT/MSync/Wine are **LGPL-2.1** → free stack, monetisable, no Apple
+   entanglement; D3DMetal → free to users but binds the project to **non-commercial forever**. A backend 10 % slower
+   but LGPL may be the correct product choice.
 4. Record not just FPS but **hitch count** (frametime > 50 ms) — a backend that wins on average and loses on hitches
    loses outright for a tapping game.
 **Deliverable:** `docs/reference/backend-bakeoff.md` — full table + a one-line verdict for this machine.
