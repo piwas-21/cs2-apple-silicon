@@ -92,7 +92,7 @@ whether D3DMetal may be redistributed.
 **§2A(iii)** grants the right to *"distribute the Apple Software solely for non-commercial purposes"*, and **§2C**
 states *"the Framework in its entirety or any part of the Redistributables may be distributed separately from the
 Apple Software"* — subject to the non-commercial restriction, Apple-branded hardware only, and no reverse
-engineering. Gcenx ships exactly this via `brew install --cask game-porting-toolkit`.
+engineering. Gcenx ships exactly this via `brew trust gcenx/wine && brew install --cask gcenx/wine/game-porting-toolkit`.
 
 This **contradicts the widely repeated claim** that GPTK is evaluation-only and can never be redistributed. But it
 also imposes a hard constraint the prior doc never states: **the moment this project is monetised, the right

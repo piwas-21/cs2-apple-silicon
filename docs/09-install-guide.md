@@ -29,6 +29,9 @@ Honesty about provenance is the point of this project, so every claim below is t
 | CS2 runs playably on Apple Silicon through Wine | **INFERRED** from other people's machines: a documented M5 Pro at 190 avg / 140 1 % low, an M1 Pro Wine player holding a 15,000 Premier rating ([07-benchmark-protocol.md](07-benchmark-protocol.md)) |
 | ~100-125 avg FPS at 1080p medium on an M2 Pro | **INFERRED** by interpolation. Nobody has measured it yet - see [compatibility-matrix.md](compatibility-matrix.md), where every unmeasured cell says `not measured` |
 | The black-screen, audio-crackle, Retina and `-vulkan` fixes in step 8 | **MEASURED by others**, CONFIRMED from multiple independent reports ([../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md)) |
+| Wine 11.15 staging + DXMT v0.80 install cleanly from tarballs, and DXMT loads as a Wine **builtin** and initialises Metal | **MEASURED** on the machine of record 2026-08-24, with the exact commands and checksums in step 3 ([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md)) |
+| Whether DXMT renders CS2 *correctly* | **UNKNOWN.** Loading is not rendering. Nobody has run the game on this machine yet - step 9 is the gate |
+| The Homebrew install route this guide used to print | **DEAD, MEASURED.** The cask was deleted 2026-04-16; the remaining Wine casks are disabled 2026-09-01 (same file; R-15/R-16 in [05-risk-register.md](05-risk-register.md)) |
 | VAC's behaviour under Wine | **UNKNOWN.** Structural argument for low risk in [06-legal-and-policy.md](06-legal-and-policy.md) section 2; no Valve statement exists |
 | How long this will keep working | **Through macOS 27**, then unknown. Apple retires general-purpose Rosetta 2 after macOS 27 and this whole stack is x86-64 ([rosetta-watch.md](rosetta-watch.md)) |
 
@@ -37,7 +40,7 @@ Honesty about provenance is the point of this project, so every claim below is t
 | | |
 |---|---|
 | Money | **EUR 0.** Every component is free software. Do not buy CrossOver; do not buy Prime yet. |
-| Time | ~2 hours of your attention, plus a 5-60 GB download. |
+| Time | ~2 hours of your attention, plus a 5-60 GB game download. The toolchain itself is a ~202 MB download and no admin password - everything lives under `~/CS2`. |
 | Disk | **>= 85 GiB free** if you already have the macOS CS2 assets and the reuse route works; **~150 GiB** for a clean install ([reference/target-machine.md](reference/target-machine.md), disk budget). |
 | Requirements | Apple Silicon (M1 or later), macOS 14 or later, a Steam account, the Steam Guard mobile authenticator. |
 
@@ -100,33 +103,89 @@ Then re-run `bash scripts/preflight.sh` and confirm **>= 85 GiB free** with the 
 Global Offensive/game/csgo/` tree still present. If you cannot reach 85 GiB, uninstall the macOS CS2 copy entirely and
 plan for the clean route (~150 GiB, ~60 GB of downloading).
 
-## Step 3 - Install the free stack (1 h) - T-004
+## Step 3 - Install the free stack: two tarballs, two checksums (30 min) - T-004
 
 Four components, all free software: Rosetta 2, Wine, DXMT (DirectX 11 to Metal), MSync (synchronisation).
 
+> **This guide used to say `brew install --cask gcenx/wine/wine-crossover`. Do not use it.** That cask was
+> **deleted** from its tap on 2026-04-16, Homebrew now refuses third-party casks without `brew trust`, and the last
+> version it shipped was **wine-8.0.1**, not the "11.x" we claimed. Homebrew's own `wine-stable` and `wine@staging`
+> casks are **deprecated and will be disabled on 2026-09-01** for failing the macOS Gatekeeper check. All CONFIRMED
+> on the machine of record, 2026-08-24
+> ([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md)).
+> **No Homebrew route to Wine survives this month.** The tarballs below need no Homebrew, no admin password and no
+> Gatekeeper argument, and they are pinned by checksum, so you get exactly the bytes this guide was written against.
+
 ```bash
+# Rosetta 2 first: everything below Wine in this stack is x86-64 code.
 softwareupdate --install-rosetta --agree-to-license
 
-brew tap gcenx/wine
-brew install --cask --no-quarantine gcenx/wine/wine-crossover
-wine --version                    # must print 11.x or later
+mkdir -p ~/CS2/downloads && cd ~/CS2/downloads
+
+# Wine 11.15 staging - Gcenx, released 2026-08-08, 193561920 bytes (~185 MiB)
+curl -fLO https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/wine-staging-11.15-osx64.tar.xz
+
+# DXMT v0.80 - the published "builtin" build, released 2026-04-23, 18681669 bytes (~18 MiB)
+curl -fLO https://github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz
 ```
 
-Then fetch the latest **DXMT** release archive from <https://github.com/3Shain/DXMT/releases>, unpack it, and record
-the URL and its `shasum -a 256` in [reference/toolchain.md](reference/toolchain.md). That file is the reproducibility
-record: a stack you cannot reproduce cannot be debugged by anyone else.
+**Verify before you extract.** Run this and compare both lines by eye - if either differs, stop and re-download:
+
+```bash
+shasum -a 256 wine-staging-11.15-osx64.tar.xz dxmt-v0.80-builtin.tar.gz
+```
+
+```
+a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-11.15-osx64.tar.xz
+8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d  dxmt-v0.80-builtin.tar.gz
+```
+
+Now extract, and put Wine on your `PATH`:
+
+```bash
+mkdir -p ~/CS2/wine ~/CS2/dxmt
+tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine   # -> ~/CS2/wine/Wine Staging.app
+tar -xzf dxmt-v0.80-builtin.tar.gz       -C ~/CS2/dxmt   # -> ~/CS2/dxmt/v0.80 (the archive carries the version dir)
+
+export WINE_ROOT="$HOME/CS2/wine/Wine Staging.app/Contents/Resources/wine"
+export PATH="$WINE_ROOT/bin:$PATH"
+wine --version
+```
+
+That last command must print:
+
+```
+wine-11.15 (Staging)
+```
+
+`$WINE_ROOT` is the **wine root** - the directory holding `bin/` and `lib/wine/`. Write it down; step 4 needs it,
+because **DXMT installs into the Wine tree, not into your bottle**. Add both `export` lines to your shell profile if
+you do not want to retype them.
+
+Record the two URLs and the two checksums in [reference/toolchain.md](reference/toolchain.md). That file is the
+reproducibility record: a stack you cannot reproduce cannot be debugged by anyone else.
 
 Notes that save an hour:
 
 * Wine 11 has **one `wine` binary**; there is no separate `wine64` any more. Guides that say `wine64` are older than
   Wine 11.
-* `--no-quarantine` is not optional - without it Gatekeeper quarantines the binaries and Wine fails in confusing ways.
+* **Do not copy the DXMT files by hand.** Which directory they belong in depends on how DXMT was built, and getting
+  it wrong fails *silently* - the game runs, slowly, on the wrong graphics backend. `cs2kit bottle create` in step 4
+  does it from the recipe.
+* If you already installed a Wine cask, remove it before continuing - two Wines on `PATH` is a confusing afternoon.
+* Gcenx's release page lists **GStreamer.framework** as a requirement (Wine's media backend). This guide does not
+  install it: Wine 11.15, DXMT and the step-4 smoke test all ran without it on the machine of record, and CS2 plays
+  no video once `-novid` is set. Whether anything later needs it is **UNKNOWN** - if audio or video misbehaves in a
+  way [10-troubleshooting.md](10-troubleshooting.md) does not explain, install it and say so in an issue.
+* **Use `curl`, not your browser.** A `curl` download carries no quarantine attribute (MEASURED: `xattr -p
+  com.apple.quarantine` finds none), so Gatekeeper never gets involved. If you downloaded through a browser and Wine
+  refuses to start, clear it once: `xattr -dr com.apple.quarantine ~/CS2/wine`.
 * Do **not** install CrossOver (EUR 74), Whisky (archived by its author on 2025-05-11), Heroic or Porting Kit. They
   are different ways to run the same Wine and they are not what this guide configures
   ([02-architecture.md](02-architecture.md)).
-* Do **not** install Apple's Game Porting Toolkit / D3DMetal. This project ships and configures DXMT instead, which
-  keeps the licensing clean ([06-legal-and-policy.md](06-legal-and-policy.md)). It stays available as a fallback you
-  install yourself if measurement ever demands it.
+* Do **not** install Apple's Game Porting Toolkit / D3DMetal. This project configures DXMT instead, which keeps the
+  licensing clean ([06-legal-and-policy.md](06-legal-and-policy.md)). It stays available as a fallback you install
+  yourself if measurement ever demands it - and note that it now needs `brew trust gcenx/wine` first.
 
 ## Step 4 - Create the bottle (15 min) - T-006 / T-025
 
@@ -135,13 +194,64 @@ declarative recipe, `profiles/bottle-recipe.yaml`, so that the result is reprodu
 
 ```bash
 export WINEPREFIX="$HOME/CS2/prefix"
-cs2kit bottle create --dxmt /path/to/extracted-dxmt
+cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"
 cs2kit bottle diff                  # must report no drift from the recipe
 ```
 
-`bottle create` initialises a 64-bit Windows 10 prefix, installs the DXMT DLLs, sets the `d3d11`/`dxgi` overrides to
-`native`, and enables MSync. Anything you later change by hand belongs **in the recipe**, or the next machine cannot
-reproduce it: `cs2kit bottle diff` tells you what has drifted and `cs2kit bottle repair` puts it back.
+`bottle create` initialises a 64-bit Windows 10 prefix, places DXMT, and enables MSync. Anything you later change by
+hand belongs **in the recipe**, or the next machine cannot reproduce it: `cs2kit bottle diff` tells you what has
+drifted and `cs2kit bottle repair` puts it back.
+
+**Why `--wine-root` is not optional-looking cruft.** DXMT's published release is the *builtin*
+(`-Dwine_builtin_dll=true`) build, so its files go into the **Wine tree**, not into your bottle:
+
+| File | Goes to |
+|---|---|
+| `winemetal.so` | `$WINE_ROOT/lib/wine/x86_64-unix/` |
+| `d3d11.dll`, `dxgi.dll`, `d3d10core.dll`, `winemetal.dll` | `$WINE_ROOT/lib/wine/x86_64-windows/` |
+| `winemetal.dll` (again) | `$WINEPREFIX/drive_c/windows/system32/` |
+
+and **no DLL overrides are set at all.** DXMT's own installation guide says it verbatim: *"Ensure these dlls are
+**NOT** set overrides `native,builtin`."* If you set `d3d11`/`dxgi` to `native`, Wine goes looking for a *native*
+DLL, does not find one, and quietly falls back to its own Direct3D - you lose DXMT and nothing tells you. (Only an
+unpublished `-Dwine_builtin_dll=false` build goes into the prefix and needs the overrides; that is `dxmt.build:
+prefix` in the recipe, and it is not what you downloaded.)
+
+### Prove DXMT is live - before Steam exists
+
+You do not have to wait for a game to find out whether the graphics backend works. Ask Wine to load `d3d11.dll` and
+deliberately fail to find an entry point: the load happens first, and the trace names which implementation won.
+
+```bash
+WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry
+```
+
+Among the output you must see all three of these, every one tagged **`builtin`**:
+
+```
+	Metal Shading Language 3.1
+		GPU Family Metal 3
+00d4:trace:loaddll:build_module Loaded L"C:\windows\system32\winemetal.dll" at 00006FFFFE850000: builtin
+00d4:trace:loaddll:build_module Loaded L"C:\windows\system32\DXGI.DLL" at 00006FFFFE090000: builtin
+00d4:trace:loaddll:build_module Loaded L"C:\windows\system32\d3d11.dll" at 00006FFFFE200000: builtin
+info:  Failed to set Metal cache path, fallback to system default
+00d4:err:rundll32:wWinMain Unable to find the entry point L"NoSuchEntry" in L"d3d11.dll"
+```
+
+Reading it:
+
+* **`builtin` on all three lines** is the whole point. `native` means you have overrides set that you should not -
+  see [10-troubleshooting.md](10-troubleshooting.md) entry 17.
+* `info:  Failed to set Metal cache path…` is **DXMT's own log line**. Seeing it means DXMT ran its initialisation,
+  which is what you are testing. It is a known open question (T-013), not a failure.
+* The `err:rundll32 … Unable to find the entry point` line is **expected and required** - `NoSuchEntry` does not
+  exist. The DLL had to load before it could fail.
+* MoltenVK reporting **Metal Shading Language 3.1 / GPU Family Metal 3** means the Metal side came up.
+
+MEASURED on the machine of record, 2026-08-24, on stock Wine 11.15 staging with no CrossOver anywhere
+([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §5).
+**This proves DXMT loads and initialises Metal. It does not prove CS2 renders** - that is step 9, and it is still
+the gate.
 
 ## Step 5 - Install the Windows Steam client inside the bottle (1-3 h) - T-007
 

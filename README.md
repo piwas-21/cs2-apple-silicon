@@ -13,13 +13,16 @@ CLI that makes the setup reproducible, diagnosable and measurable.
 ```
 cs2.exe (Windows x64)
    └─ Windows Steam client        ← runs INSIDE the bottle; macOS Steam cannot serve CS2
-        └─ Wine 11.x  (Gcenx build, LGPL-2.1)
-             ├─ DXMT   (LGPL-2.1)  DirectX 11 → Metal
+        └─ Wine 11.15 staging  (Gcenx tarball, LGPL-2.1)
+             ├─ DXMT   (MIT ≤ v0.80, LGPL after)  DirectX 11 → Metal
              └─ MSync  (LGPL-2.1)  synchronisation
                   └─ Rosetta 2 → Metal 4 → Apple M2 Pro
 ```
 
-Every component is free software, so `CS2Kit` can ship a complete working stack with no licence entanglement.
+Every component is free software. `CS2Kit` redistributes **none** of it — the user fetches Wine and DXMT with two
+`curl` commands ([docs/reference/toolchain.md](docs/reference/toolchain.md), checksums included), so no licence
+follows our code at all. **Homebrew is not the route:** the cask the plan used to name was deleted upstream on
+2026-04-16, and Homebrew's own Wine casks are disabled on 2026-09-01 for failing Gatekeeper.
 Apple's proprietary **D3DMetal is deliberately excluded**; if T-012 ever shows DXMT is inadequate on some machine,
 the user installs GPTK themselves — we never redistribute it.
 
@@ -83,8 +86,8 @@ authentication, never implements graphics, never touches VAC.
 Full surface: [docs/cs2kit-spec.md](docs/cs2kit-spec.md). Install from zero:
 [docs/09-install-guide.md](docs/09-install-guide.md). When it breaks:
 [docs/10-troubleshooting.md](docs/10-troubleshooting.md). Contributing:
-[CONTRIBUTING.md](CONTRIBUTING.md). Licence: **GPL-3.0** ([LICENSE](LICENSE)) — the LGPL-2.1 components
-(Wine, DXMT, MSync) stay unmodified and dynamically linked.
+[CONTRIBUTING.md](CONTRIBUTING.md). Licence: **GPL-3.0** ([LICENSE](LICENSE)). We redistribute nothing:
+Wine and MSync are LGPL-2.1, DXMT is **MIT through v0.80** (LGPL from v0.81), and the user downloads both.
 
 ## Disclosure
 

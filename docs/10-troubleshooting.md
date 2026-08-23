@@ -28,6 +28,10 @@ cs2kit doctor --json   # the same thing for an issue report
 | 11 | Game launches to a black window with software-slow rendering (DXMT) | [11](#11-dxmt-is-not-actually-in-use) |
 | 12 | Steam says CS2 is installed but there is no `cs2.exe` | [12](#12-steam-says-cs2-is-installed-but-there-is-no-cs2exe) |
 | 13 | `cs2kit launch` refuses to start the game | [13](#13-cs2kit-launch-refuses-integrity) |
+| 14 | `brew`: "Cask 'wine-crossover' is unavailable" | [14](#14-brew-cask-wine-crossover-is-unavailable) |
+| 15 | `brew`: "Refusing to load cask ... from untrusted tap" | [15](#15-brew-refusing-to-load-cask--from-untrusted-tap) |
+| 16 | Your Wine cask is "deprecated ... disabled on 2026-09-01" | [16](#16-brew-says-your-wine-cask-is-deprecated-and-will-be-disabled-on-2026-09-01) |
+| 17 | DXMT's DLLs load as `native` instead of `builtin` | [17](#17-dxmts-dlls-load-as-native-instead-of-builtin) |
 
 ---
 
@@ -273,30 +277,49 @@ budget; risk R-6 (*"already occurring"*) in [05-risk-register.md](05-risk-regist
 
 ## 11. DXMT is not actually in use
 
-**Cause.** The `d3d11`/`dxgi` DLL overrides are missing from the prefix, or the DXMT DLLs were never copied into it,
-so you are falling back to Wine's own Direct3D path. Symptoms range from a black window to a technically-running game
-that is far slower than the reference field would predict.
+**Cause.** DXMT's files are not where the build you downloaded expects them, so Wine is falling back to its own
+Direct3D path. Symptoms range from a black window to a technically-running game that is far slower than the reference
+field would predict. The published release is the **builtin** build, and its files go into the **Wine tree**, not into
+your bottle:
+
+| File | `dxmt.build: builtin` (what upstream ships) |
+|---|---|
+| `winemetal.so` | `<wine>/lib/wine/x86_64-unix/` |
+| `d3d11.dll`, `dxgi.dll`, `d3d10core.dll`, `winemetal.dll` | `<wine>/lib/wine/x86_64-windows/` |
+| `winemetal.dll` (again) | `<prefix>/drive_c/windows/system32/` |
+| DLL overrides | **none** - see entry 17 |
+
+A second, quieter cause: `cs2kit` could not find the **wine root** (the directory holding `bin/` and `lib/wine/`), so
+there was nowhere to put them. `cs2kit doctor` reports that as a `Wine tree` WARN.
 
 **Check.**
 
 ```bash
-cs2kit doctor            # the 'DXMT' check
+cs2kit doctor            # the 'DXMT' and 'Wine tree' checks
 cs2kit bottle diff       # drift between profiles/bottle-recipe.yaml and the prefix
+WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry
 ```
+
+The last command is the direct answer: `d3d11.dll`, `DXGI.DLL` and `winemetal.dll` must all load, all tagged
+**`builtin`**, followed by DXMT's own `info:` line. The `err:rundll32 ... Unable to find the entry point` at the end
+is expected - see step 4 of [09-install-guide.md](09-install-guide.md).
 
 **Fix.**
 
 ```bash
-cs2kit bottle repair                                  # re-apply the recipe
-cs2kit bottle create --dxmt /path/to/extracted-dxmt   # or install DXMT into a fresh bottle
+cs2kit bottle repair                                                       # re-apply the recipe
+cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"      # or a fresh bottle
 ```
 
 Record the DXMT release you used in [reference/toolchain.md](reference/toolchain.md) - a benchmark whose graphics
 backend version is unrecorded cannot be compared with anything.
 
-**Evidence.** DXMT is the project's chosen backend and its critical dependency
-([02-architecture.md](02-architecture.md)); community data shows 10x swings between backends across machines, which
-is why T-012 measures rather than assumes (risk R-5, [05-risk-register.md](05-risk-register.md)).
+**Evidence.** The layout and the "no overrides" rule are CONFIRMED from DXMT's own installation guide and were
+verified on the machine of record 2026-08-24 -
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4.
+DXMT is the project's chosen backend and its critical dependency ([02-architecture.md](02-architecture.md));
+community data shows 10x swings between backends across machines, which is why T-012 measures rather than assumes
+(risk R-5, [05-risk-register.md](05-risk-register.md)).
 
 ## 12. Steam says CS2 is installed but there is no `cs2.exe`
 
@@ -350,6 +373,149 @@ Steam restore the original files before you play online again.
 **Evidence.** T-021 and absolute rule 1 - [06-legal-and-policy.md](06-legal-and-policy.md); post-update drill in
 [03-development-plan.md](03-development-plan.md) T-030.
 
+## 14. `brew`: "Cask 'wine-crossover' is unavailable"
+
+```
+Warning: Cask 'wine-crossover' is unavailable: '/opt/homebrew/Library/Taps/gcenx/homebrew-wine/Casks/wine-crossover.rb' does not exist.
+Error: No casks found for wine-crossover.
+```
+
+**Cause.** The cask was **deleted from its tap on 2026-04-16** (commit `f201026`, "Delete Casks/wine-crossover.rb").
+Only `game-porting-toolkit` remains in that tap. You are almost certainly reading an old copy of this guide, an old
+blog post, or the tap's **own README** - which still advertises the cask four months after deleting it. A README is
+not a package index.
+
+**Check.**
+
+```bash
+ls /opt/homebrew/Library/Taps/gcenx/homebrew-wine/Casks/     # only game-porting-toolkit.rb
+git -C /opt/homebrew/Library/Taps/gcenx/homebrew-wine log --oneline -3
+```
+
+**Fix.** Stop using Homebrew for Wine. Use the tarball in step 3 of
+[09-install-guide.md](09-install-guide.md) - two `curl`s, two checksums, one `tar`. There is nothing to salvage
+here: even when the cask existed it shipped **wine-8.0.1** (crossover-sources-23.7.1), not the "Wine 11.x" our own
+plan claimed. If you did install it before it disappeared, you were running a Wine three major versions behind this
+guide.
+
+**Evidence.** CONFIRMED on the machine of record 2026-08-24, from the tap's own git history -
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §1;
+risk R-16 in [05-risk-register.md](05-risk-register.md).
+
+## 15. `brew`: "Refusing to load cask ... from untrusted tap"
+
+```
+Error: Refusing to load cask gcenx/wine/game-porting-toolkit from untrusted tap gcenx/wine.
+Run `brew trust --cask gcenx/wine/game-porting-toolkit` or `brew trust gcenx/wine` to trust it.
+```
+
+**Cause.** Homebrew now refuses casks from third-party taps until you explicitly trust the tap. Nothing is broken and
+nothing has been removed - it is a deliberate supply-chain gate, and it is why guides written before it landed stop
+working at their first command.
+
+**Check.**
+
+```bash
+brew info --cask gcenx/wine/game-porting-toolkit    # reproduces the message without installing anything
+```
+
+**Fix.** For **Wine: do not**. This guide does not use a cask for Wine at all (entry 14). For **Apple's Game Porting
+Toolkit**, which is only relevant as the T-012 fallback and only if measurement demands it:
+
+```bash
+brew trust gcenx/wine
+brew install --cask gcenx/wine/game-porting-toolkit
+```
+
+Trusting a tap means you accept whatever that tap's maintainer publishes, now and later. Read it as the security
+decision it is; this project does not need you to make it.
+
+**Evidence.** CONFIRMED, reproduced 2026-08-24 -
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §1d.
+
+## 16. `brew` says your Wine cask is "deprecated" and will be "disabled on 2026-09-01"
+
+```
+==> wine@staging (WineHQ-staging): 11.15
+Deprecated because it does not pass the macOS Gatekeeper check! It will be disabled on 2026-09-01.
+```
+
+**Cause.** Both official WineHQ macOS casks - `wine-stable` (11.0_1) and `wine@staging` (11.15) - are deprecated for
+failing Homebrew's Gatekeeper/notarisation check, and **both are disabled on 2026-09-01**. The Wine *software* is
+fine; the *delivery mechanism* is what expires. After that date `brew install --cask wine-stable` will refuse to run.
+
+**Check.**
+
+```bash
+brew info --cask wine-stable | head -4
+brew info --cask wine@staging | head -4
+wine --version                 # which Wine is actually on your PATH right now?
+```
+
+**Fix.** Move to the tarball (step 3 of [09-install-guide.md](09-install-guide.md)). It is the **same upstream** -
+Gcenx builds the official WineHQ macOS packages - delivered as an archive rather than a cask, so there is no
+Gatekeeper check to fail, no admin password, and a SHA-256 you can pin. Then remove the cask so you do not end up
+with two Wines on `PATH`:
+
+```bash
+brew uninstall --cask wine-stable        # or wine@staging, whichever you installed
+wine --version                           # must now print wine-11.15 (Staging)
+```
+
+**Evidence.** CONFIRMED, both `brew info` outputs read on the machine of record 2026-08-24 -
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §2;
+risk **R-15** in [05-risk-register.md](05-risk-register.md), the second dated risk in this project after Rosetta-27.
+
+## 17. DXMT's DLLs load as `native` instead of `builtin`
+
+**Cause.** **You set DLL overrides you should not have set.** Almost every DXVK/DXMT guide on the internet tells you
+to set `d3d11`, `dxgi` and `d3d10core` to `native,builtin` - and for the *published* DXMT release that is exactly
+wrong. The release is the `-Dwine_builtin_dll=true` ("builtin") build: its DLLs are Wine **builtins** living in the
+Wine tree. Marking them `native` tells Wine to prefer a native DLL, and what happens next depends on what is lying
+around in your `system32`:
+
+* nothing there → Wine falls back to **its own Direct3D**, and you lose DXMT entirely, silently;
+* an old hand-copied DXMT DLL there → Wine loads **that** one, so you are running whatever version you copied months
+  ago rather than the one you just installed.
+
+Either way the game usually still starts, which is what makes this expensive: the frame rate is wrong and nothing
+says why.
+
+**Check.**
+
+```bash
+WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry
+```
+
+Every `d3d11.dll` / `DXGI.DLL` / `winemetal.dll` line must end in **`builtin`**. If any says `native`, this is your
+entry. Also look for DXMT's own `info:` line - if it is absent, DXMT never initialised.
+
+```bash
+cs2kit bottle diff       # the recipe pins 'no overrides' for dxmt.build: builtin
+```
+
+**Fix.** Remove the overrides and let the recipe re-apply the correct state:
+
+```bash
+cs2kit bottle repair
+WINEPREFIX="$HOME/CS2/prefix" winecfg    # Libraries tab: remove d3d11, dxgi, d3d10core if present
+unset WINEDLLOVERRIDES                   # and delete it from any launch script or shell profile
+```
+
+Then delete any hand-copied `d3d11.dll`, `dxgi.dll` or `d3d10core.dll` from
+`$WINEPREFIX/drive_c/windows/system32/`. `winemetal.dll` is the **one** DXMT DLL that legitimately belongs there -
+leave it. (Stray native copies are inert while no override names them, but they become live the moment somebody sets
+an override "to be safe", so remove them.)
+
+**The one case where overrides are correct** is a `-Dwine_builtin_dll=false` build, which upstream does not publish.
+That is `dxmt.build: prefix` in `profiles/bottle-recipe.yaml`, and it needs
+`WINEDLLOVERRIDES="dxgi,d3d11,d3d10core=n,b;"`. If you did not build DXMT yourself, this is not you.
+
+**Evidence.** CONFIRMED - DXMT's installation guide states verbatim *"Ensure these dlls are **NOT** set overrides
+`native,builtin`"*, and the `builtin` load was measured with no overrides set on the machine of record 2026-08-24 -
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4-§5.
+This project's own v0 recipe had it backwards; entry 11 is the same fault seen from the performance side.
+
 ---
 
 ## Known defects with no fix
@@ -363,6 +529,7 @@ Recorded so that you do not spend an evening on them. All are cosmetic or upstre
 | Leaf/foliage flickering | LIKELY, long-standing | research item 8 |
 | Changing Display Mode in-game causes UI bugs | LIKELY - leave it windowed / windowed-fullscreen | research item 11 |
 | Whether a CS2 update has ever broken a working bottle | **UNKNOWN** - no source found either way; T-030 generates this data | research item 15 |
+| `info:  Failed to set Metal cache path, fallback to system default` on every DXMT start | **CONFIRMED it happens, UNKNOWN why** - it is a DXMT log line, not an error, and DXMT still initialises. The obvious explanation (a missing weak-linked Metal symbol) was tested and **ruled out**: `MTLSetShaderCachePath` is present on this macOS, in both architectures. It matters because T-013's whole subject is where the shader cache lives. Not a fix you are missing. | [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §6 |
 | External-monitor behaviour | **UNKNOWN** - no CS2-specific report exists; T-014 generates it | research item 16 |
 
 Items are in [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md),

@@ -160,7 +160,7 @@ about your particular machine.
 ## T-034 - Quarterly upstream tracking
 
 Four dependencies, one review per quarter, one dated row each. **DXMT is the critical one:** it is the graphics path,
-it is LGPL-2.1, and it moves fast ([02-architecture.md](02-architecture.md)).
+it is **MIT through v0.80 and LGPL from v0.81**, and it moves fast ([02-architecture.md](02-architecture.md)).
 
 | Project | Why it matters | What to check | Trigger to act |
 |---|---|---|---|
@@ -182,7 +182,7 @@ share most of their sources.
 
 | date | DXMT | Wine | MSync | MoltenVK | Action taken |
 |---|---|---|---|---|---|
-| 2026-08-23 | v0.80 line, actively developed (LGPL-2.1); nothing installed on the machine of record yet | Gcenx **11.15** (2026-08-08), built `--enable-archs=i386,x86_64` - x86-64 only, Rosetta required | 2026 community consensus; ESync being removed from CrossOver | 1.4.2 (2026-07-24): Vulkan 1.4 available, **geometry shaders and `VK_EXT_transform_feedback` still absent** | none - baseline entry; `-vulkan` stays rejected, T-012 not revisited |
+| 2026-08-23 | v0.80 line, actively developed (MIT through v0.80; LGPL from v0.81); **v0.80 installed and proven on the machine of record 2026-08-24** | Gcenx **11.15** (2026-08-08), built `--enable-archs=i386,x86_64` - x86-64 only, Rosetta required | 2026 community consensus; ESync being removed from CrossOver | 1.4.2 (2026-07-24): Vulkan 1.4 available, **geometry shaders and `VK_EXT_transform_feedback` still absent** | none - baseline entry; `-vulkan` stays rejected, T-012 not revisited |
 
 <!-- Append the next quarterly review immediately below this comment, newest last. -->
 

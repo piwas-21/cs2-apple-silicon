@@ -67,9 +67,8 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
     out = []
     version = stable["wine_version"]
     if not version:
-        out.append(Check("wine", "Wine", FAIL, "not installed",
-                         "brew tap gcenx/wine && brew install --cask --no-quarantine "
-                         "gcenx/wine/wine-crossover", "T-004"))
+        out.append(Check("wine", "Wine", FAIL, "not installed (the old brew cask is gone)",
+                         bottle.INSTALL_HINT, "T-004"))
     else:
         major = 0
         for part in version.replace("wine-", "").split("."):
@@ -99,6 +98,13 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
                          f"not installed where a '{build}' build must live: {where}",
                          "cs2kit bottle create --dxmt <extracted DXMT release> "
                          "[--wine-root <wine installation>]", "T-004"))
+    stale = [name for name in ("d3d11.dll", "dxgi.dll", "d3d10core.dll")
+             if (prefix / "drive_c" / "windows" / "system32" / name).is_file()]
+    if build == "builtin" and stale:
+        out.append(Check("dxmt-stale", "Stale DXMT DLLs in the prefix", WARN,
+                         f"{', '.join(stale)} in system32 while the builtin build is in use",
+                         f"rm {prefix}/drive_c/windows/system32/{{{','.join(stale)}}} - inert today, "
+                         "but they go live the moment anyone adds a DLL override", "T-004"))
     if build == "builtin" and not volatile.get("wine_root"):
         out.append(Check("wine-root", "Wine tree", WARN, "cannot locate the Wine installation",
                          "pass --wine-root, or set wine.root in profiles/bottle-recipe.yaml; DXMT's "

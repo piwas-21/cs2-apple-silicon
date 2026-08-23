@@ -7,7 +7,7 @@ else can reproduce it.
 
 | | |
 |---|---|
-| **Stack** | Wine 11.x (Gcenx) + **DXMT** + **MSync** — all LGPL-2.1 |
+| **Stack** | Wine **11.15 staging** (Gcenx tarball) + **DXMT v0.80** + **MSync** — Wine/MSync LGPL-2.1, DXMT MIT through v0.80 (LGPL after). Installed and proven on the machine of record 2026-08-24; **not** via Homebrew (that cask was deleted upstream) |
 | **Cost to us** | €0 |
 | **Cost to every future user** | **€0** (CS2 is free-to-play; Prime is optional at $14.99) |
 | **Excluded** | CrossOver (€74), D3DMetal (non-commercial licence), DXVK-macOS (frozen 2023), `-vulkan`, VMs, Boot Camp |
@@ -25,7 +25,8 @@ else can reproduce it.
 3. **It already works well.** CodeWeavers rates CS2 **"Runs Well" (4/5)**; measured M5 Pro **190 avg / 140 1%-low**
    @1080p, M4 Pro 122, M1 Air 50. Expect **~100–125** on this M2 Pro at 1080p medium.
 4. **The whole toolchain is free software.** DXMT and MSync — assumed by most to be CrossOver-exclusive — are both
-   **LGPL-2.1**. Only Apple's D3DMetal is encumbered, and we simply don't use it.
+   free software (Wine/MSync **LGPL-2.1**, DXMT **MIT** through v0.80), and we redistribute none of it — the user
+   fetches it. Only Apple's D3DMetal is encumbered, and we simply don't use it.
 5. **Anti-cheat risk is Medium, not existential.** CS2 ships a **native Linux build with VAC**; Valve serves CS2
    through GeForce NOW VMs; Valve's VAC FAQ says hardware/driver configuration doesn't trigger bans; an M1 Pro Wine
    player holds a **15,000 Premier CS Rating**. No credible Wine-caused ban found. **But Valve has never published a

@@ -21,6 +21,14 @@ from cs2kit.util import (EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, C
 
 WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
 
+#: The one true install line. `brew install --cask gcenx/wine/wine-crossover` is
+#: DEAD - the cask was deleted from the tap on 2026-04-16 and had shipped Wine
+#: 8.0.1 anyway - and Homebrew's own wine casks are disabled on 2026-09-01 for
+#: failing Gatekeeper. A tarball has neither problem and needs no admin rights.
+INSTALL_HINT = ("curl -fL -O https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/"
+                "wine-staging-11.15-osx64.tar.xz && mkdir -p ~/CS2/wine && "
+                "tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine  (docs/reference/toolchain.md)")
+
 
 class BottleError(RuntimeError):
     pass
@@ -56,8 +64,9 @@ class WineRunner:
         if self.dry_run:
             return Proc(0, "", "")
         if not self.wine:
-            raise BottleError("wine is not installed - T-004: brew install --cask "
-                              "--no-quarantine gcenx/wine/wine-crossover")
+            raise BottleError(
+                "wine is not installed - T-004. The Homebrew cask this project used to name was "
+                "deleted upstream on 2026-04-16; install the tarball instead:\n  " + INSTALL_HINT)
         return run(cmd, timeout=timeout, env=self._env())
 
     # --- registry -----------------------------------------------------------
@@ -163,6 +172,54 @@ DXMT_ARCH_DIRS = {
 }
 
 
+#: Where the Wine DLLs that DXMT replaces are kept, so the swap is reversible.
+BACKUP_DIR = Path("lib") / "wine" / ".cs2kit-original"
+
+
+def backup_path(dest: Path) -> Optional[Path]:
+    """The backup slot for a file DXMT is about to overwrite in the Wine tree."""
+    parts = dest.parts
+    if "wine" not in parts or dest.parent.parent.name != "wine":
+        return None                      # not <wine-root>/lib/wine/<abi>/<file>
+    root = dest.parent.parent.parent.parent   # .../lib/wine/<abi>/x -> wine root
+    return root / BACKUP_DIR / dest.parent.name / dest.name
+
+
+def backup(dest: Path) -> Optional[Path]:
+    """Copy Wine's own DLL aside before DXMT replaces it - once, never twice.
+
+    Installing DXMT's builtin build *overwrites* Wine's `d3d11.dll`/`dxgi.dll`.
+    Without this, "is DXMT the problem?" cannot be answered without
+    re-downloading the Wine tarball - which is exactly the position CS2Kit's
+    author ended up in on 2026-08-24 when Steam's window came up black."""
+    slot = backup_path(dest)
+    if slot is None or not dest.is_file() or slot.exists():
+        return None
+    slot.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(dest, slot)
+    return slot
+
+
+def restore_wine_dlls(wine: Optional[Path] = None, dry_run: bool = False) -> List[str]:
+    """Put Wine's original DLLs back - the other half of the A/B lever."""
+    wine = Path(wine or wine_root() or "")
+    backups = wine / BACKUP_DIR
+    if not backups.is_dir():
+        raise BottleError(
+            f"no CS2Kit backup of Wine's own DLLs under {backups} - either DXMT was never installed "
+            "by cs2kit, or it was installed before backups existed; re-extract the Wine tarball")
+    restored: List[str] = []
+    for slot in sorted(backups.rglob("*")):
+        if not slot.is_file():
+            continue
+        dest = wine / "lib" / "wine" / slot.parent.name / slot.name
+        restored.append(str(dest))
+        if not dry_run:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(slot, dest)
+    return restored
+
+
 def install_dxmt(rec: recipe_mod.Recipe, source: Path, prefix: Path,
                  wine: Optional[Path] = None, dry_run: bool = False) -> List[str]:
     """Place DXMT's unmodified binaries. We never patch them - we copy them.
@@ -215,6 +272,7 @@ def install_dxmt(rec: recipe_mod.Recipe, source: Path, prefix: Path,
         if dry_run:
             return
         dest.parent.mkdir(parents=True, exist_ok=True)
+        backup(dest)
         shutil.copy2(src, dest)
 
     system32 = prefix / "drive_c" / "windows" / "system32"
@@ -419,6 +477,25 @@ def cmd_repair(args) -> int:
     return EXIT_OK
 
 
+def cmd_restore_wine(args) -> int:
+    """The A/B lever: run the stack without DXMT to find out whether DXMT is the
+    thing that is broken. `bottle create --dxmt ...` puts it back."""
+    try:
+        restored = restore_wine_dlls(Path(args.wine_root) if args.wine_root else None,
+                                     dry_run=args.dry_run)
+    except BottleError as exc:
+        return emit_error("bottle restore-wine", str(exc), json_mode=args.json)
+    if args.json:
+        print(json.dumps({"restored": restored, "dry_run": args.dry_run}, indent=2, sort_keys=True))
+        return EXIT_OK
+    print(f"Restored {len(restored)} Wine DLL(s){' (dry run)' if args.dry_run else ''}:")
+    for path in restored:
+        print(f"  {path}")
+    print("\nDXMT is now OUT of the picture. Reinstall it with:")
+    print("  cs2kit bottle create --dxmt <extracted DXMT release>")
+    return EXIT_OK
+
+
 def cmd_library(args) -> int:
     prefix = Path(args.prefix or wineprefix())
     target = Path(args.path).expanduser() if args.path else Path(steam_root())
@@ -460,6 +537,12 @@ def register(subparsers) -> None:
             p.add_argument("--wine-root", help="the Wine installation (holds bin/ and lib/wine/); "
                                                "derived from `which wine` when omitted")
         p.set_defaults(func=func)
+
+    rest = sub.add_parser("restore-wine", help="put Wine's own d3d11/dxgi back (undo DXMT)")
+    rest.add_argument("--wine-root", help="the Wine installation to restore")
+    rest.add_argument("--dry-run", action="store_true")
+    rest.add_argument("--json", action="store_true")
+    rest.set_defaults(func=cmd_restore_wine)
 
     lib = sub.add_parser("library", help="map a macOS Steam library into the bottle (T-008)")
     lib.add_argument("--path", help="the directory containing steamapps "

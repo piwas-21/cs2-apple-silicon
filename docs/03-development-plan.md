@@ -3,15 +3,21 @@
 **Stack is decided. No comparisons, no trials, no paid software.**
 
 ```
-cs2.exe (Windows x64)  →  Windows Steam client  →  Wine 11.15 (Gcenx, LGPL-2.1)
-                                                    + DXMT (LGPL-2.1, DX11→Metal)
+cs2.exe (Windows x64)  →  Windows Steam client  →  Wine 11.15 staging (Gcenx tarball, LGPL-2.1)
+                                                    + DXMT v0.80 (MIT, DX11→Metal)
                                                     + MSync (LGPL-2.1)
                                                     →  Rosetta 2  →  Metal 4  →  M2 Pro
 ```
 
 Everything is free software. Nothing here costs money. `CS2Kit` may be licensed however we like.
-**Fallback, only if T-012 shows DXMT is unusable:** the user installs Apple's D3DMetal themselves via
-`brew install --cask game-porting-toolkit`. We do not redistribute it, so the Apple licence never binds this project.
+**Both components are downloaded as signed-by-nobody tarballs and pinned by SHA-256 — no Homebrew** (T-004; the
+cask route died on 2026-04-16 and Homebrew's own Wine casks are disabled on 2026-09-01,
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md)).
+
+**Fallback, only if T-012 shows DXMT is unusable:** the user installs Apple's D3DMetal themselves. That is
+`brew trust gcenx/wine && brew install --cask gcenx/wine/game-porting-toolkit` — the `brew trust` is not optional,
+Homebrew refuses third-party casks by default as of 2026-08-24. We do not redistribute it, so the Apple licence
+never binds this project.
 
 ---
 
@@ -22,7 +28,7 @@ Do these seven, in order, and stop. Everything after is measurement and producti
 | # | Task | Time |
 |---|---|---|
 | 1 | **T-001** Free the disk / keep the 58 GB of assets | 30 min |
-| 2 | **T-004** Install the free stack (`brew`) | 1 h |
+| 2 | **T-004** Install the free stack (two tarballs, two checksums) | 1 h |
 | 3 | **T-006** Create the bottle | 1 h |
 | 4 | **T-007** Windows Steam inside the bottle | 3 h |
 | 5 | **T-008** CS2 via the 4.99 GB depot gap | 1 h + download |
@@ -74,29 +80,80 @@ exactly what the Windows install needs**, so we keep it and close a 4.99 GB gap 
 **Why:** decided already — free stack, so no Apple entanglement. Write it down once so it is never re-litigated.
 **Steps**
 1. `LICENSE` = **GPL-3.0** for our own code (compatible with the LGPL-2.1 components we link against).
-2. Record: we redistribute **Wine, DXMT, MSync** (LGPL-2.1 — ship licence texts, keep them unmodified and dynamically
-   linked). We **never** redistribute D3DMetal; if a user wants it, they install GPTK themselves.
+2. Record: we redistribute **no third-party binaries at all** — the user downloads Wine (LGPL-2.1) and DXMT
+   (**MIT** through v0.80, LGPL from v0.81) from the URLs in T-004 and CS2Kit only places files they already have.
+   If we ever do ship them, the LGPL rules apply: licence texts, unmodified, dynamically linked. We **never**
+   redistribute D3DMetal; if a user wants it, they install GPTK themselves.
 3. Write the absolute rules (see `docs/06-legal-and-policy.md`): never modify game files, never touch VAC, never wrap
    Steam authentication.
 **Acceptance:** `LICENSE` exists; `docs/06` §Distribution model has one box ticked and no open questions.
 **Effort:** 1 h · **Risk:** low.
 
-## T-004 · Install the free stack
-**Why:** these four commands are the entire toolchain.
+## T-004 · Install the free stack — two tarballs, two checksums, no Homebrew
+**Why:** this is the entire toolchain, and the version of this task we shipped **could not be executed**. It said
+`brew install --cask --no-quarantine gcenx/wine/wine-crossover   # Wine 11.x`. That cask was **deleted from its tap
+on 2026-04-16** (commit `f201026`), Homebrew now **refuses third-party casks** without `brew trust`, and the last
+version it ever shipped was **wine-8.0.1**, not 11.x. Homebrew's own `wine-stable` (11.0_1) and `wine@staging`
+(11.15) are **deprecated and disabled on 2026-09-01** for failing the Gatekeeper check. All CONFIRMED on the machine
+of record 2026-08-24 — [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md).
+**No Homebrew route to Wine survives the month.** A tarball has no cask to delete, no tap to trust and no quarantine
+attribute, and it can be pinned by checksum.
+
 **Steps**
 ```bash
-# Rosetta 2 (already present on this machine — verify)
+# 0. Rosetta 2 - the whole stack below is x86-64 (already present on this machine; verify)
 softwareupdate --install-rosetta --agree-to-license
 
-brew tap gcenx/wine
-brew install --cask --no-quarantine gcenx/wine/wine-crossover   # Wine 11.x, LGPL-2.1
-# DXMT: download the latest release DLLs from github.com/3Shain/DXMT/releases (LGPL-2.1)
+mkdir -p ~/CS2/downloads && cd ~/CS2/downloads
+
+# 1. Wine 11.15 staging (Gcenx tarball, LGPL-2.1, released 2026-08-08, 193561920 bytes)
+curl -fLO https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/wine-staging-11.15-osx64.tar.xz
+
+# 2. DXMT v0.80, the published *builtin* build (MIT, released 2026-04-23, 18681669 bytes)
+curl -fLO https://github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz
+
+# 3. Verify BEFORE extracting. Both lines must match exactly.
+shasum -a 256 wine-staging-11.15-osx64.tar.xz dxmt-v0.80-builtin.tar.gz
+# a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-11.15-osx64.tar.xz
+# 8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d  dxmt-v0.80-builtin.tar.gz
+
+# 4. Extract. Wine lands as an .app bundle; the "wine root" is inside it.
+mkdir -p ~/CS2/wine ~/CS2/dxmt
+tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine   # -> ~/CS2/wine/Wine Staging.app
+tar -xzf dxmt-v0.80-builtin.tar.gz       -C ~/CS2/dxmt   # -> ~/CS2/dxmt/v0.80 (the archive carries the version dir)
+
+export WINE_ROOT="$HOME/CS2/wine/Wine Staging.app/Contents/Resources/wine"
+export PATH="$WINE_ROOT/bin:$PATH"
+wine --version                                  # -> wine-11.15 (Staging)
+
+# 5. This is T-006's command, run here so the acceptance test below has a prefix
+#    to load DXMT into. The recipe knows the builtin layout; your fingers do not.
+export WINEPREFIX="$HOME/CS2/prefix"
+cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"
 ```
-1. Verify `wine --version`.
-2. Fetch DXMT's release archive; note that Wine 11 dropped the separate `wine64` binary — there is one `wine` loader.
-3. Record every download URL + SHA-256 in `docs/reference/toolchain.md` so the stack is reproducible.
+1. Verify `wine --version` prints **11.15 (Staging)**. Wine 11 has **one `wine` loader** — there is no `wine64`;
+   guides that say `wine64` predate Wine 11.
+2. **Do not place the DXMT files by hand.** The published archive is the `-Dwine_builtin_dll=true` build, so its
+   DLLs go into the **Wine tree** (`$WINE_ROOT/lib/wine/…`), *not* the prefix, and the `d3d11`/`dxgi` overrides must
+   stay **off** — DXMT's wiki, verbatim: *"Ensure these dlls are **NOT** set overrides `native,builtin`."* Getting
+   this backwards fails **silently**: Wine hunts for a native DLL, finds none, and falls back to its own Direct3D.
+   `cs2kit bottle create` (T-006) implements the correct layout from `dxmt.build` in the recipe.
+3. Record every download URL + SHA-256 in `docs/reference/toolchain.md` so the stack is reproducible. The URLs and
+   checksums above are the record as of 2026-08-24.
 4. Do **not** install CrossOver, Whisky (archived 2025-05-11), Heroic or Porting Kit. They are not part of this plan.
-**Acceptance:** `wine --version` prints ≥ 11.0 and a DXMT archive is on disk with a recorded checksum.
+5. **Fallback, not the path:** DXMT's wiki asks for a FOSS **CrossOver Wine 24+** built from source. That
+   requirement was written against DXMT **v0.41**. On v0.80, `nm -m winemetal.so` shows **zero** symbols bound to
+   `winemac.so` and one Wine import (`_NtSetEvent` from `ntdll.so`), and DXMT was measured initialising Metal under
+   stock Wine 11.15. Build CrossOver sources only if a future DXMT re-introduces the dependency.
+
+**Acceptance (binary, both halves — run after step 5):**
+```bash
+wine --version                                          # major version >= 11
+WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry 2>&1 | grep -E 'd3d11.dll.*builtin'
+```
+The first must print ≥ 11. The second must show `Loaded L"C:\windows\system32\d3d11.dll" … builtin` — i.e. DXMT's
+DLL, loaded as a Wine builtin, with no override set. `Failed to set Metal cache path, fallback to system default`
+in the same output is DXMT's own log line and is expected here (it is a T-013 lead, not a failure).
 **Effort:** 1 h · **Risk:** medium — this is the step CrossOver would have made trivial; budget debugging time here,
 not later.
 
@@ -114,12 +171,23 @@ macOS updates** for the project's duration.
 
 ## T-006 · Create the bottle
 **Steps**
-1. `export WINEPREFIX="$HOME/CS2/prefix"; wineboot --init` (64-bit; Windows 10).
-2. Install **DXMT** into the prefix per its README (place the DLLs, set the `d3d11`/`dxgi` overrides to `native`).
+1. `export WINEPREFIX="$HOME/CS2/prefix"` and build it from the recipe:
+   `cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"` (64-bit; Windows 10). It is the same
+   command as T-004 step 5 — running it twice is safe and is how you re-apply a corrected recipe.
+2. **DXMT placement, per its wiki and per `dxmt.build: builtin` in the recipe:** `winemetal.so` →
+   `<wine>/lib/wine/x86_64-unix/`; `d3d11.dll`, `dxgi.dll`, `d3d10core.dll`, `winemetal.dll` →
+   `<wine>/lib/wine/x86_64-windows/`; `winemetal.dll` **also** → `<prefix>/drive_c/windows/system32/`.
+   **Set no DLL overrides.** DXMT's wiki, verbatim: *"Ensure these dlls are **NOT** set overrides `native,builtin`."*
+   Only the unpublished `-Dwine_builtin_dll=false` build goes into the prefix and needs
+   `WINEDLLOVERRIDES="dxgi,d3d11,d3d10core=n,b;"` — that is `dxmt.build: prefix`, and it is not what upstream ships.
+   *(The v0 recipe did the opposite of both and would have lost DXMT silently — corrected 2026-08-24,
+   [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4.)*
 3. Enable **MSync** (`WINEMSYNC=1`).
 4. Record every deviation from defaults — this file becomes the machine-readable recipe in T-025.
-**Deliverable:** `profiles/bottle-recipe.yaml` v0.
-**Acceptance:** `winecfg` opens; `wine cmd` runs; DXMT overrides present in the registry.
+**Deliverable:** `profiles/bottle-recipe.yaml` v1 (schema carries `wine.root` and `dxmt.build`).
+**Acceptance:** `winecfg` opens; `wine cmd` runs; `cs2kit bottle diff` reports no drift; and
+`WINEDEBUG=+loaddll wine rundll32 d3d11.dll,NoSuchEntry` shows `d3d11.dll … builtin` with **no** override in
+`Software\Wine\DllOverrides`.
 **Effort:** 1 h · **Risk:** medium.
 
 ## T-007 · Windows Steam inside the bottle
@@ -353,7 +421,7 @@ Ingest `cs2kit report` bundles; publish the aggregate. The ecosystem has no 1 %-
 project's most durable contribution. **Acceptance:** ≥ 10 external bundles.
 
 ## T-034 · Quarterly upstream tracking
-**DXMT** (our critical dependency — active, LGPL-2.1), Wine, MSync, MoltenVK (if geometry shaders or
+**DXMT** (our critical dependency — active; **MIT through v0.80, LGPL from v0.81**), Wine, MSync, MoltenVK (if geometry shaders or
 `VK_EXT_transform_feedback` ever land, revisit T-012).
 **Acceptance:** one dated review per quarter.
 

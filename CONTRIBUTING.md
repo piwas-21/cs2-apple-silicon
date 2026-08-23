@@ -159,5 +159,6 @@ evidence and the risk. CI runs the same four checks on Linux and macOS with Pyth
 ## Licence
 
 CS2Kit is **GPL-3.0-or-later** ([LICENSE](LICENSE)). By contributing you agree your contribution is licensed under
-it. We link against LGPL-2.1 components (Wine, DXMT, MSync) and keep them unmodified and dynamically linked; we
+it. We redistribute no third-party binary at all - the user downloads Wine/MSync (LGPL-2.1) and DXMT (MIT through
+v0.80, LGPL after) themselves, unmodified; we
 **never** redistribute Apple's D3DMetal ([docs/06-legal-and-policy.md](docs/06-legal-and-policy.md)).

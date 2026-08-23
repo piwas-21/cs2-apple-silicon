@@ -25,9 +25,11 @@ we ship no Apple software, so this project never reaches the question. It is rec
 to bundle D3DMetal re-opens it deliberately, with counsel, rather than by accident.
 
 ### Distribution model — DECIDED (T-002)
-- [x] **Tier 1: ship only LGPL-2.1 components (Wine + DXMT + MSync). We do NOT bundle D3DMetal**, so §2A(iii) and the
-      §2A(i) use-grant grey zone below **do not apply to this project**. Users who want D3DMetal install Apple's GPTK
-      themselves. Our own code is GPL-3.0. LGPL obligations: ship the licence texts, keep the libraries unmodified
+- [x] **Tier 1: we redistribute nothing but our own GPL-3.0 code.** The user downloads Wine (**LGPL-2.1**) and DXMT
+      (**MIT** — see below) themselves from the pinned URLs in [09-install-guide.md](09-install-guide.md); CS2Kit
+      only places files the user already has. **We do NOT bundle D3DMetal**, so §2A(iii) and the §2A(i) use-grant
+      grey zone below **do not apply to this project**. Users who want D3DMetal install Apple's GPTK themselves.
+      Should we ever bundle an LGPL library, the obligations attach then: ship the licence text, keep it unmodified
       and dynamically linked.
 - [ ] ~~Non-commercial, open source, bundling D3DMetal.~~ **Not taken.** Never monetised — no paid tier, no donations tied to
       binaries, no sponsored builds. (This is why CodeWeavers needs a *separate bilateral agreement* with Apple to
@@ -39,6 +41,21 @@ this, and `CS2Kit` is GPL-3.0, so the rule binds every downstream fork too.
 
 Wine itself is **LGPL-2.1** and freely redistributable (Apple's GPTK Wine half is CrossOver 22.1.1 sources).
 **DXMT / DXVK / MoltenVK** are open source — no equivalent restriction.
+
+### DXMT's licence — corrected 2026-08-24
+Earlier drafts of this file and of [08-cost-and-dependencies.md](08-cost-and-dependencies.md) called DXMT
+**LGPL-2.1**. That is **wrong**. DXMT's own v0.80 release notes say, verbatim:
+
+> *"We are changing the license of DXMT from MIT to LGPL. **v0.80 will be the last release distributed in MIT
+> license.**"*
+
+So the release this project ships instructions for — **v0.80** — is **MIT**; **v0.81 onward will be LGPL**.
+CONFIRMED from the release notes, fetched 2026-08-24
+([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §7).
+
+**The conclusion does not move.** MIT is strictly more permissive than LGPL-2.1 — attribution, no copyleft, no
+relinking obligation — so nothing that was permitted becomes forbidden. And it is moot in practice: **we redistribute
+no third-party binaries at all.** When DXMT flips to LGPL at v0.81 it will still be the user's download, not ours.
 
 ## 2. Valve, VAC and this project
 

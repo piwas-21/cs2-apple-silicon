@@ -197,3 +197,29 @@ def test_link_library_maps_a_drive_and_refuses_nonsense(sandbox, tmp_path):
     with pytest.raises(bottle.BottleError) as exc:
         bottle.link_library(sandbox.prefix, plain, "t")
     assert "steamapps" in str(exc.value)
+
+
+def test_dxmt_install_backs_up_the_wine_dlls_it_replaces(sandbox, tmp_path):
+    """Without a backup, "is DXMT the problem?" needs a fresh Wine download."""
+    source, wine = fake_release(tmp_path), fake_wine(tmp_path)
+    original = wine / "lib" / "wine" / "x86_64-windows" / "d3d11.dll"
+    original.write_bytes(b"WINE-OWN-D3D11")
+
+    bottle.install_dxmt(rec(sandbox), source, sandbox.prefix, wine=wine)
+    assert original.read_bytes() == b"dll64"                      # DXMT is in place
+    slot = wine / bottle.BACKUP_DIR / "x86_64-windows" / "d3d11.dll"
+    assert slot.read_bytes() == b"WINE-OWN-D3D11"                 # Wine's own is safe
+
+    # a second install must not overwrite the backup with DXMT's own copy
+    bottle.install_dxmt(rec(sandbox), source, sandbox.prefix, wine=wine)
+    assert slot.read_bytes() == b"WINE-OWN-D3D11"
+
+    restored = bottle.restore_wine_dlls(wine)
+    assert original.read_bytes() == b"WINE-OWN-D3D11"
+    assert str(original) in restored
+
+
+def test_restore_without_a_backup_explains_itself(sandbox, tmp_path):
+    with pytest.raises(bottle.BottleError) as exc:
+        bottle.restore_wine_dlls(fake_wine(tmp_path))
+    assert "re-extract the Wine tarball" in str(exc.value)
