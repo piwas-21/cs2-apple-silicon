@@ -44,7 +44,7 @@ or the configuration is wrong — investigate before celebrating or despairing.
 ## Three traps this protocol exists to prevent
 1. **Benchmarking a cold shader cache** → invents a 1 %-low problem that warm-up would remove.
 2. **Benchmarking at Retina backing-store resolution by accident** → ~4× cost (M2 Max: 23 FPS).
-3. **Benchmarking DX11 while believing you're on Vulkan** → CS2 falls back to DX11 when Vulkan init fails. Check the
+3. **Benchmarking DX11 while believing you're on Vulkan** (only relevant to T-012's single control run) → CS2 falls back to DX11 when Vulkan init fails. Check the
    console output, not the launch option.
 
 ## Input latency (T-015) — separate protocol

@@ -179,7 +179,8 @@ failures** every CS2-on-Mac user hits, so the plan would rediscover them:
   proposes it.
 * **CS2 *is* on GeForce NOW** (NVIDIA's own catalogue JSON: appid 730, `AVAILABLE`, `isFullyOptimized: true`).
   The prior doc mentions cloud gaming only as a NO-GO consolation prize. It is in fact a legitimate, zero-engineering
-  competitive path and must be benchmarked **against** the bottle, not after it. → **T-003**, **T-030**.
+  competitive path. We have deliberately chosen to build the bottle anyway, but GeForce NOW remains the honest
+  fallback recommendation if the T-020 competitive gate fails.
 
 ---
 

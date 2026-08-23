@@ -1,52 +1,65 @@
 # 00 — Executive summary
 
-**Question:** can Counter-Strike 2 be made suitable for Apple Silicon MacBooks, and what should be built?
+**Goal:** play Counter-Strike 2 on an Apple Silicon MacBook using only free software, and ship `CS2Kit` so anyone
+else can reproduce it.
 
-**Answer:** yes for *running* it — that is largely a solved problem in 2026 and the remaining work is integration,
-measurement and maintenance. No for *porting* it — Valve dropped macOS on 2023-10-10 and a first-party Apple Silicon
-build should be treated as **0 % probability** (no mention in Valve's own appid-730 news feed 2023-09 → 2026-01; the
-only "active Mac depot" on SteamDB is CS:GO Legacy).
+## The decision
 
-## The five facts that determine the design
+| | |
+|---|---|
+| **Stack** | Wine 11.x (Gcenx) + **DXMT** + **MSync** — all LGPL-2.1 |
+| **Cost to us** | €0 |
+| **Cost to every future user** | **€0** (CS2 is free-to-play; Prime is optional at $14.99) |
+| **Excluded** | CrossOver (€74), D3DMetal (non-commercial licence), DXVK-macOS (frozen 2023), `-vulkan`, VMs, Boot Camp |
+| **Time to a playable game** | **~2 days** (7 tasks — the ⚡ Fast path) |
+| **Time to a validated competitive setup** | ~7 days |
+| **Time to `CS2Kit` v0.1** | +8 days |
 
-1. **appid 730 is `oslist = "windows,linux"`.** macOS Steam cannot install or launch CS2. Anything that says
-   "just use `steam://run/730`" is wrong. **The Windows Steam client must live inside the Wine bottle.** (CONFIRMED —
-   Valve appinfo + storefront API + the stalled 60 GB download on this very Mac, explained byte-for-byte in G-1.)
-2. **It already works well.** CodeWeavers rates CS2 **"Runs Well" (4/5)** on CrossOver 26.3.0 — the **#9 most-ranked
-   app** in their entire database. Measured: M5 Pro **190 avg / 140 1%-low @1080p**; M4 Pro 122; M4 Max 160–200 @1440p;
-   M1 Air 50. The M2 Pro/32 GB target should land ~100–125 @1080p medium.
-3. **Anti-cheat is a manageable risk, not a wall.** CS2 ships a **native Linux build with VAC**, Valve serves CS2
-   through GeForce NOW VMs, Valve's VAC FAQ says hardware/driver configuration does not trigger bans, and a documented
-   M1 Pro CrossOver player holds a **15,000 Premier CS Rating**. No credible Wine-caused ban was found. **But Valve has
-   never written a Wine policy** — that stays UNKNOWN and unfixable by engineering.
-4. **The graphics backend is a per-machine measurement, not a constant.** D3DMetal vs DXMT vs DXVK swings **10× in
-   both directions** across machines. Assuming D3DMetal is the 2024 answer.
-5. **Rosetta 2 ends as a general-purpose tool after macOS 27** (Apple's own wording), and the whole stack is x86-64.
-   The escape hatch (ARM64EC Wine + FEX) is blocked by Apple Silicon's 16 KB page size. **This project has a shelf life
-   and must say so out loud.**
+## The five facts that produced it
 
-## What to build
+1. **appid 730 is `oslist = "windows,linux"`.** macOS Steam cannot install or launch CS2. **Proven here:** this Mac
+   has a "complete" 66 GB CS2 install (`StateFlags 4`, `LastPlayed` set) with **no `cs2.exe`** — `InstalledDepots`
+   omits depot **2347771**, which holds every `.exe`/`.dll`. *Verify integrity cannot fix it.* The Windows Steam
+   client must run **inside** the bottle.
+2. **The 58 GB already on disk is reusable.** Depot 2347770 has no OS filter, so the gap is **4.99 GB, not 72 GB**.
+3. **It already works well.** CodeWeavers rates CS2 **"Runs Well" (4/5)**; measured M5 Pro **190 avg / 140 1%-low**
+   @1080p, M4 Pro 122, M1 Air 50. Expect **~100–125** on this M2 Pro at 1080p medium.
+4. **The whole toolchain is free software.** DXMT and MSync — assumed by most to be CrossOver-exclusive — are both
+   **LGPL-2.1**. Only Apple's D3DMetal is encumbered, and we simply don't use it.
+5. **Anti-cheat risk is Medium, not existential.** CS2 ships a **native Linux build with VAC**; Valve serves CS2
+   through GeForce NOW VMs; Valve's VAC FAQ says hardware/driver configuration doesn't trigger bans; an M1 Pro Wine
+   player holds a **15,000 Premier CS Rating**. No credible Wine-caused ban found. **But Valve has never published a
+   Wine policy** — that stays UNKNOWN and cannot be fixed by engineering.
 
-Not a port, not an emulator, not a VM, not a Steam replacement, and — correcting the prior analysis — **not a
-patcher**. Build **`CS2Kit`**: a CLI that creates a reproducible bottle from a declarative recipe, diagnoses the
-environment, verifies game-file integrity (and refuses to run if files were modified), benchmarks to a protocol, and
-produces a redacted shareable report. Everything else is documentation of measurements.
+## What we build
+
+Not a port, not an emulator, not a VM, not a Steam replacement, and **not a patcher**. Just **`CS2Kit`**: a CLI that
+builds a reproducible bottle from a declarative recipe, diagnoses the environment, verifies game-file integrity
+(refusing to launch if Valve's files were touched), benchmarks to a protocol, and emits a redacted shareable report.
+Roughly 2 000 lines. Everything else in this repo is documented measurement.
 
 ## Definition of success
 
-> 10 consecutive VAC-protected matches (5 Competitive + 5 Premier) across ≥ 3 days with zero anti-cheat kicks and zero
-> account warnings, at **1 % lows ≥ 60 FPS**, with working microphone comms, measured input latency published, and a
-> fresh bottle reproducible from `profiles/bottle-recipe.yaml` with no manual step.
+> 10 consecutive VAC-protected matches (5 Competitive + 5 Premier) across ≥ 3 days, **zero** anti-cheat kicks and
+> **zero** account warnings, at **1 % lows ≥ 60 FPS**, with working microphone comms, published input-latency
+> numbers, and a fresh bottle reproducible from `profiles/bottle-recipe.yaml` with **no manual step**.
 
-## Go / no-go
+## The two gates
 
-* **Do not start** until **T-003** proves GeForce NOW / Moonlight streaming fails *your measured* latency bar. CS2 is
-  on GFN today, fully optimized, with zero engineering effort. Building a bottle when a cheaper path suffices is the
-  most likely way to waste this project.
-* **Stop at T-020** if competitive matches systematically kick you. That is a policy wall; do not engineer around it.
-* **Plan the exit at T-031.** macOS 27 is the horizon, not a rumour.
+* **T-010 — does it run?** 30 minutes of bot play across three maps without a crash. Failure means the free stack
+  isn't viable on this machine and the only remaining lever is a user-installed D3DMetal.
+* **T-020 — does it count?** The competitive/VAC validation. If matches are systematically kicked, **stop** — that is
+  a policy wall, not an engineering one, and GeForce NOW becomes the honest recommendation.
 
-## Effort
+## The risk we cannot engineer around
 
-~1.5 days to decide · ~2 days to first bot match · ~3 days to a tuned configuration · ~2 days + soak to validate
-competitive · ~8 days to ship `CS2Kit` v0.1 · then ongoing quarterly maintenance.
+Apple retires general-purpose **Rosetta 2 after macOS 27**, keeping only *"a subset … aimed at supporting older
+unmaintained gaming titles"* — and CS2 is actively maintained, so it likely doesn't qualify. This entire stack is
+x86-64. The escape route (ARM64EC Wine + FEX) is blocked by Apple Silicon's 16 KB page size. **The project has a
+shelf life and says so out loud** (T-031, R-1).
+
+## Honest unknowns going in
+
+Cross-platform Steam library reuse (T-008) is **undocumented** — timeboxed to 2 h with a known-good fallback.
+Whether a CS2 update has ever broken a bottle is **UNKNOWN**. No ms-level input-latency measurement for CS2 under
+Wine on Apple Silicon exists publicly — T-015 will be the first.

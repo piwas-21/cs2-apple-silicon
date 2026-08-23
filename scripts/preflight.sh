@@ -36,24 +36,31 @@ case "$CHIP" in *Air*) chk WARN "Chassis" "fanless - expect 30-40 FPS sustained"
 say ""; say "-- macOS --"
 if [ "$OSMAJ" -ge 27 ] 2>/dev/null; then chk FAIL "Rosetta horizon" "macOS $OSMAJ >= 27 - general-purpose Rosetta is retired (risk R-1)"
 else chk PASS "Rosetta horizon" "macOS $OSMAJ - supported through macOS 27"; fi
-say ""; say "-- disk (need ~150 GiB free to start Phase 1) --"
-if   [ "$FREEGB" -ge 150 ]; then chk PASS "Free space" "${FREEGB} GiB"
-elif [ "$FREEGB" -ge 80  ]; then chk WARN "Free space" "${FREEGB} GiB - enough to install, no headroom"
+say ""; say "-- disk (reuse route needs ~85 GiB free; clean route ~150 GiB) --"
+if   [ "$FREEGB" -ge 85 ]; then chk PASS "Free space" "${FREEGB} GiB - enough for the T-008 reuse route"
+elif [ "$FREEGB" -ge 75 ]; then chk WARN "Free space" "${FREEGB} GiB - tight; uninstall the macOS CS2 copy if T-008 reuse fails"
 else chk FAIL "Free space" "${FREEGB} GiB - insufficient"; fi
 if [ -d "$STEAM/steamapps/downloading/730" ]; then
   D=$(du -sg "$STEAM/steamapps/downloading/730" 2>/dev/null | awk '{print $1}')
   chk FAIL "Dead CS2 download (T-001)" "${D:-?} GiB in steamapps/downloading/730 - macOS Steam omits the win64 exe depot; DELETE IT"
 else chk PASS "Dead CS2 download (T-001)" "absent"; fi
-[ -f "$STEAM/steamapps/appmanifest_730.acf" ] && chk WARN "macOS appmanifest_730" "present - macOS Steam cannot install CS2; remove with T-001" \
+[ -f "$STEAM/steamapps/appmanifest_730.acf" ] && chk WARN "macOS appmanifest_730" "present - macOS Steam install has no cs2.exe (depot 2347771 absent); see T-001/T-008" \
                                               || chk PASS "macOS appmanifest_730" "absent"
-say ""; say "-- runtime host (T-004) --"
+say ""; say "-- free stack: Wine + DXMT + MSync (T-004/T-006) --"
 HOST=none
-for a in /Applications/CrossOver.app /Applications/Sikarugir.app /Applications/Heroic.app /Applications/Whisky.app; do
-  [ -d "$a" ] && { HOST=$(basename "$a" .app); chk PASS "Runtime host" "$a"; }
-done
-command -v wine >/dev/null && { HOST="wine"; chk PASS "wine on PATH" "$(wine --version 2>/dev/null)"; }
-[ "$HOST" = none ] && chk WARN "Runtime host" "none found - see docs/03-development-plan.md T-004"
-[ -d /Applications/Whisky.app ] && chk WARN "Whisky" "archived 2025-05-11 - migrate to CrossOver or Sikarugir"
+if command -v wine >/dev/null 2>&1; then
+  WV=$(wine --version 2>/dev/null); HOST="$WV"
+  case "$WV" in wine-1[1-9]*|wine-[2-9][0-9]*) chk PASS "Wine" "$WV";; *) chk WARN "Wine" "$WV - plan targets Wine 11.x";; esac
+else
+  chk WARN "Wine" "not installed - T-004: brew install --cask gcenx/wine/wine-crossover"
+fi
+if [ -n "${WINEPREFIX:-}" ] && [ -d "${WINEPREFIX:-/nonexistent}" ]; then
+  if ls "$WINEPREFIX"/drive_c/windows/system32/d3d11.dll >/dev/null 2>&1; then chk PASS "Bottle" "$WINEPREFIX"
+  else chk WARN "Bottle" "$WINEPREFIX exists but no d3d11 override yet (T-006)"; fi
+else
+  chk WARN "Bottle" "WINEPREFIX unset - T-006"
+fi
+[ -d /Applications/Whisky.app ] && chk WARN "Whisky" "archived 2025-05-11 - not part of this plan"
 say ""; say "-- environment hygiene --"
 if system_profiler SPAirPortDataType 2>/dev/null | grep -qi 'awdl'; then chk WARN "AWDL" "AirDrop/Handoff can add Wi-Fi jitter (R-12)"; fi
 pmset -g 2>/dev/null | grep -q 'lowpowermode.*1' && chk WARN "Low Power Mode" "ON - disable before benchmarking" || chk PASS "Low Power Mode" "off"

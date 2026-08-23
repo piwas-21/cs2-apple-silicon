@@ -21,39 +21,18 @@ anything.** But that outcome has to be *engineered for* — it depends on which 
 LGPL-2.1.** CrossOver bundles them; it does not own them. Everything in the stack is free software **except
 D3DMetal**, which is the one Apple-proprietary piece.
 
-## The three viable distribution tiers
+## The decision (locked)
 
-| Tier | Stack | User pays | Project may monetise? | Risk |
-|---|---|---|---|---|
-| **T1 — fully free & unencumbered** ⭐ | Wine + **DXMT** + MSync (all LGPL/Zlib/Apache) | **€0** | ✅ yes | DXMT must perform well enough on the target machine |
-| **T2 — free to user, non-commercial project** | Wine + **D3DMetal** + MSync | **€0** | ❌ never | Apple SLA §2A(iii) binds the project to non-commercial forever |
-| **T3 — bring-your-own-CrossOver** | user's own CrossOver 26.3.0 | **€74** | ✅ | Best-supported config; but a paid wall for every user |
+**We ship Tier 1: Wine + DXMT + MSync — LGPL-2.1 throughout.** Users pay nothing, the project carries no Apple
+licence obligations, and `CS2Kit` may be relicensed or monetised later without renegotiating anything.
 
-`CS2Kit` should **target T1, support T3, and treat T2 as the fallback.**
+Rejected: **CrossOver** (€74 per user — and the components that matter, DXMT and MSync, are free anyway) and
+**D3DMetal** (free to download, but redistributable only non-commercially, with a use grant worded for
+"developing, testing, or evaluating"). D3DMetal survives only as a **user-installed local fallback** if T-012 shows
+DXMT is inadequate on a given machine — we never ship it, so its licence never binds us.
 
-## Why T-012 is a licensing decision, not just a performance one
-
-The backend bake-off decides which tier is available:
-
-* If **DXMT wins** → T1. Zero cost to users, no Apple licence entanglement, the project may be monetised later,
-  and `CS2Kit` can ship a complete working stack. Community data makes this plausible: on one M3/8 GB,
-  **DXMT ≈ 120 FPS vs D3DMetal ≈ 11 FPS**. DXMT is also the actively developed one.
-* If **D3DMetal wins decisively** → T2. Users still pay nothing (Apple's GPTK is a free download and §2C permits
-  redistributing the framework whole), but the project is **permanently non-commercial**.
-* If **neither is adequate** → T3, and the honest README line becomes "buy CrossOver."
-
-So run T-012 with the licence column in the results table, not just FPS. A backend that is 10 % slower but LGPL may
-be the correct product choice.
-
-## What CrossOver is actually for here
-
-A **paid reference implementation** for development only:
-1. It is the configuration CodeWeavers rates **"Runs Well"** for CS2 — a known-good target to reproduce.
-2. Its 14-day trial is free, and one seat covers the whole T-004→T-012 investigation.
-3. If the free stack misbehaves, CrossOver isolates *"is this Wine, or is this my assembly of Wine?"* in minutes.
-
-**T-004's exit condition should therefore be explicit: reproduce the CrossOver-verified configuration on the free
-stack before Phase 4.** If that fails, `CS2Kit` degrades to T3 and must say so on the tin.
+**T-012 therefore confirms a decision rather than making one.** Run it on DXMT, record hitch counts as well as FPS,
+and only reach for GPTK if the 1 % lows are unacceptable.
 
 ## What a user pays, end to end (T1 or T2)
 

@@ -8,6 +8,7 @@ Result codes: **P** pass · **F** fail · **W** works with caveat · **–** not
 ## A. Install & client
 | ⚡ | Test | Acceptance | Task |
 |---|---|---|---|
+| ⚡ | `wine --version` ≥ 11.0, DXMT DLLs overridden | free stack present | T-004 |
 | ⚡ | In-bottle Steam login (incl. Steam Guard) | reaches library < 60 s | T-007 |
 |  | Steam client self-update | completes, client relaunches | T-007 |
 |  | CS2 install includes depot 2347771 | `game/bin/win64/cs2.exe` exists | T-008 |
@@ -32,7 +33,7 @@ Result codes: **P** pass · **F** fail · **W** works with caveat · **–** not
 | Ancient benchmark, 5 runs after 3 warm-ups | median avg + median 1 % low recorded | T-011 |
 | **1 % low at chosen resolution** | **≥ 60 FPS** | T-014 |
 | Hitch count (frametime > 50 ms) per 10 min | trending to 0 after warm-up | T-013 |
-| Backend bake-off: D3DMetal / DXMT / DXVK / `-vulkan` | ranked, ≥ 5 runs each | T-012 |
+| DXMT confirmed as backend (+1 `-vulkan` control run) | ranked, ≥ 5 runs each | T-012 |
 | MSync vs ESync | winner recorded | T-012 |
 | 2 h soak: minute 5 vs minute 90 | < 15 % sustained drop | T-017 |
 | On battery vs plugged in | both documented | T-017 |
@@ -90,5 +91,5 @@ Result codes: **P** pass · **F** fail · **W** works with caveat · **–** not
 | Integrity guard | refuses to launch on modified game file | T-021 |
 
 ## I. Regression triggers
-Run the full matrix when: CS2 `buildid` changes · macOS updates · CrossOver/Wine/D3DMetal/DXMT updates · bottle recipe
+Run the full matrix when: CS2 `buildid` changes · macOS updates · Wine / DXMT / MSync updates · bottle recipe
 changes · any hardware change.

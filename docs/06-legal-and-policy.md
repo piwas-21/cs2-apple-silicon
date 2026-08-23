@@ -23,8 +23,12 @@ evaluating video games for use on Apple-branded products."* A tool whose purpose
 outside that wording even though the **distribution** grant in §2A(iii) is broader. Flag this to counsel; do not
 hand-wave it.
 
-### Distribution model — decide in T-002 and record here
-- [ ] **Non-commercial, open source, may bundle D3DMetal.** Never monetised — no paid tier, no donations tied to
+### Distribution model — DECIDED (T-002)
+- [x] **Tier 1: ship only LGPL-2.1 components (Wine + DXMT + MSync). We do NOT bundle D3DMetal**, so §2A(iii) and the
+      §2A(i) use-grant grey zone below **do not apply to this project**. Users who want D3DMetal install Apple's GPTK
+      themselves. Our own code is GPL-3.0. LGPL obligations: ship the licence texts, keep the libraries unmodified
+      and dynamically linked.
+- [ ] ~~Non-commercial, open source, bundling D3DMetal.~~ Never monetised — no paid tier, no donations tied to
       binaries, no sponsored builds. (This is why CodeWeavers needs a *separate bilateral agreement* with Apple to
       ship D3DMetal in the €74 CrossOver.)
 - [ ] **Any commercial element →** must **not** bundle D3DMetal; depend on the user's own CrossOver licence or on
