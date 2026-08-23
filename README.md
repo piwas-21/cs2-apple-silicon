@@ -47,11 +47,34 @@ stack is x86-64.
 
 ```bash
 bash scripts/preflight.sh          # grades the machine, finds the disk trap
+./bin/cs2kit doctor                # the same grade, plus the bottle, the game and the integrity guard
 ```
+
+`bin/cs2kit` runs from a checkout with the **system `python3`** — no `pip`, no venv, no dependencies.
+On the machine of record it currently reports **3 FAIL / 7 WARN / 8 PASS**, and the FAILs are exactly the
+three things Phase 0–1 exists to fix: no Wine, no bottle, no `cs2.exe`.
 
 Then read [docs/00-executive-summary.md](docs/00-executive-summary.md) and work
 [docs/03-development-plan.md](docs/03-development-plan.md) from **T-001**.
 The **⚡ Fast path** at the top of that file is seven tasks to a playable game in ~2 days.
+
+## CS2Kit
+
+```
+cs2kit doctor                       grade machine + bottle + game; one fix line per fault   T-024
+cs2kit env --save <file>            freeze the environment of record                        T-005
+cs2kit bottle create --dxmt <dir>   build the prefix from profiles/bottle-recipe.yaml        T-006/T-025
+cs2kit bottle diff | repair         report and undo drift from the recipe                    T-025
+cs2kit config list | apply <name>   situational profiles (env, launch options, cvars)        T-027
+cs2kit verify baseline | check      SHA-256 guard on game/bin/win64                          T-021
+cs2kit launch                       integrity-guarded start via the in-bottle Steam client   T-021
+cs2kit bench run | compare          the T-011 protocol, and regression detection             T-011/T-026
+cs2kit report                       a redacted bundle you can share                          T-028
+cs2kit watch check | drill          CS2 buildid watch + the regression drill                 T-030
+```
+
+**Scope rule:** CS2Kit *configures and diagnoses*. It never patches the game, never wraps Steam
+authentication, never implements graphics, never touches VAC.
 
 ## Repo map
 
@@ -66,9 +89,17 @@ docs/
   06-legal-and-policy.md       licences, VAC policy, absolute rules
   07-benchmark-protocol.md     how to produce an FPS number that means something
   08-cost-and-dependencies.md  every component's licence; why users pay nothing
-  reference/target-machine.md  measured state of this Mac
+  09-install-guide.md          bare Mac to a bot match, copy-pasteable
+  10-troubleshooting.md        every known failure mode, keyed to a cs2kit command
+  cs2kit-spec.md               the CLI surface, exit codes, file layout
+  compatibility-matrix.md      measured rows, one per machine/buildid
+  rosetta-watch.md             the quarterly R-1 log and the decommission notice
+  reference/                   target-machine.md, toolchain checksums, env-snapshot-0.json
 research/                      URL-cited primary-source findings + the prior analysis
 scripts/preflight.sh           machine grader (run this first)
+cs2kit/                        the CLI (stdlib only, Python 3.9+)
+profiles/                      bottle-recipe.yaml + the three situational profiles
+tests/                         pytest suite: `uv run pytest`
 ```
 
 Every claim in `docs/` traces to a URL-cited entry in `research/`, tagged **CONFIRMED** (vendor/primary),
