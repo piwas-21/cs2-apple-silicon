@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from cs2kit import recipe as recipe_mod
 from cs2kit.util import (EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, Check,
-                         Proc, emit_error, run, which, wineprefix, write_json)
+                         Proc, emit_error, run, steam_root, which, wineprefix, write_json)
 
 WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
 
@@ -76,6 +76,35 @@ class WineRunner:
         return None
 
 
+def link_library(prefix: Path, target: Path, letter: str = "s") -> Dict[str, Any]:
+    """Expose a macOS Steam library to the in-bottle Windows Steam client (T-008).
+
+    This is how the 58 GB content depot already on disk gets reused instead of
+    re-downloaded: Wine drives are just symlinks in `dosdevices`, so pointing one
+    at the macOS Steam directory lets the Windows client add it as a library
+    folder and fetch only the missing ~4.99 GB win64 depot."""
+    prefix, target = Path(prefix), Path(target).expanduser()
+    letter = letter.rstrip(":").lower()
+    if len(letter) != 1 or not letter.isalpha():
+        raise BottleError(f"drive letter must be a single letter, got {letter!r}")
+    if letter in ("c", "z"):
+        raise BottleError(f"{letter}: is Wine's own drive - pick another letter")
+    if not target.is_dir():
+        raise BottleError(f"{target} does not exist - point --path at the directory that "
+                          "CONTAINS steamapps (usually ~/Library/Application Support/Steam)")
+    if not (target / "steamapps").is_dir():
+        raise BottleError(f"{target} has no steamapps/ - that is not a Steam library folder")
+    dosdevices = prefix / "dosdevices"
+    if not dosdevices.is_dir():
+        raise BottleError(f"{prefix} is not a Wine prefix - run `cs2kit bottle create` first")
+    link = dosdevices / f"{letter}:"
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(target)
+    return {"letter": f"{letter.upper()}:", "target": str(target), "link": str(link),
+            "windows_path": f"{letter.upper()}:\\", "steamapps": f"{letter.upper()}:\\steamapps"}
+
+
 def state_file(prefix: Path) -> Path:
     return Path(prefix) / ".cs2kit" / "state.json"
 
@@ -107,38 +136,110 @@ def desired_registry(rec: recipe_mod.Recipe) -> List[Tuple[str, str, str]]:
     return out
 
 
+def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
+    """The Wine *installation* (the directory holding `bin/` and `lib/wine/`).
+
+    DXMT's published build installs into this tree, not into the prefix, so
+    CS2Kit has to know where Wine itself lives - not merely that `wine` is on
+    PATH. A Gcenx tarball puts it at
+    `<app>/Contents/Resources/wine`; a Homebrew cask or a source build puts it
+    somewhere else entirely, which is why this is derived, never assumed."""
+    if explicit:
+        path = Path(explicit).expanduser()
+        return path if (path / "lib" / "wine").is_dir() else None
+    binary = which("wine")
+    if not binary:
+        return None
+    root = Path(binary).resolve().parent.parent
+    return root if (root / "lib" / "wine").is_dir() else None
+
+
+#: DXMT ships one directory per Wine ABI; these are the ones a 64-bit CS2 plus a
+#: 32-bit Steam client need.
+DXMT_ARCH_DIRS = {
+    "x86_64-unix": Path("lib") / "wine" / "x86_64-unix",
+    "x86_64-windows": Path("lib") / "wine" / "x86_64-windows",
+    "i386-windows": Path("lib") / "wine" / "i386-windows",
+}
+
+
 def install_dxmt(rec: recipe_mod.Recipe, source: Path, prefix: Path,
-                 dry_run: bool = False) -> List[str]:
-    """Copy DXMT's DLLs into the prefix. We *place* upstream's unmodified,
-    dynamically linked binaries (LGPL-2.1) - we never patch them."""
+                 wine: Optional[Path] = None, dry_run: bool = False) -> List[str]:
+    """Place DXMT's unmodified binaries. We never patch them - we copy them.
+
+    Where they go depends on how DXMT was built, and getting it wrong fails
+    silently (Wine just loads something else):
+
+    * `builtin` - the published `dxmt-vX-builtin.tar.gz`: every file goes into
+      the *Wine tree* under `lib/wine/<abi>/`, and `winemetal.dll` additionally
+      into the prefix's `system32`. DLL overrides must stay off.
+    * `prefix` - a `-Dwine_builtin_dll=false` build: the Direct3D DLLs go into
+      the prefix's `system32` and the overrides must be on. `winemetal.so` still
+      belongs in the Wine tree, because only Wine's unix side can load it.
+    """
     source, prefix = Path(source), Path(prefix)
     if not source.is_dir():
         raise BottleError(f"DXMT source directory not found: {source}")
-    system32 = prefix / "drive_c" / "windows" / "system32"
-    syswow64 = prefix / "drive_c" / "windows" / "syswow64"
-    wanted = rec.dxmt_files or ["d3d11.dll", "dxgi.dll"]
-    found = {p.name: p for p in source.rglob("*") if p.is_file() and p.name in wanted}
-    missing = [name for name in wanted if name not in found]
+    build = rec.dxmt_build
+    wanted = set(rec.dxmt_files or ["d3d11.dll", "dxgi.dll", "winemetal.dll", "winemetal.so"])
+
+    # {abi: {filename: path}} from the extracted release
+    available: Dict[str, Dict[str, Path]] = {abi: {} for abi in DXMT_ARCH_DIRS}
+    for path in sorted(source.rglob("*")):
+        if not path.is_file():
+            continue
+        abi = path.parent.name
+        if abi in available and path.name in wanted | set(rec.dxmt_prefix_files):
+            available[abi][path.name] = path
+    if not any(available.values()):
+        raise BottleError(
+            f"{source}: no x86_64-unix/x86_64-windows/i386-windows directory with DXMT files - "
+            "extract the release archive and pass the directory that contains them (T-004)")
+
+    missing = sorted(wanted - set(available["x86_64-unix"]) - set(available["x86_64-windows"]))
     if missing:
-        raise BottleError(f"{source}: DXMT archive is missing {', '.join(missing)} "
-                          "- check you extracted the x64 build (T-004)")
+        raise BottleError(f"{source}: DXMT archive is missing {', '.join(missing)}")
+
+    if build == "builtin":
+        wine = wine or wine_root(rec.wine_root)
+        if not wine:
+            raise BottleError(
+                "dxmt.build is 'builtin', which installs into the Wine tree, but the Wine "
+                "installation could not be located - pass --wine-root <dir containing bin/ and "
+                "lib/wine/> or set wine.root in the recipe (T-004)")
+
     copied: List[str] = []
-    for name, src in sorted(found.items()):
-        for dest_dir in (system32, syswow64):
-            if dry_run:
-                copied.append(str(dest_dir / name))
+
+    def place(src: Path, dest: Path) -> None:
+        copied.append(str(dest))
+        if dry_run:
+            return
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+
+    system32 = prefix / "drive_c" / "windows" / "system32"
+    for abi, rel in DXMT_ARCH_DIRS.items():
+        for name, src in sorted(available[abi].items()):
+            windows_dll = abi.endswith("windows") and name.lower().endswith(".dll")
+            if build == "prefix" and windows_dll and name != "winemetal.dll":
+                if abi == "x86_64-windows":
+                    place(src, system32 / name)
+                else:
+                    place(src, prefix / "drive_c" / "windows" / "syswow64" / name)
                 continue
-            if not dest_dir.is_dir():
-                continue
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest_dir / name)
-            copied.append(str(dest_dir / name))
+            if wine:
+                place(src, Path(wine) / rel / name)
+    for name in rec.dxmt_prefix_files or (["winemetal.dll"] if build == "builtin" else []):
+        src = available["x86_64-windows"].get(name)
+        if src:
+            place(src, system32 / name)
     return copied
 
 
 def create(rec: recipe_mod.Recipe, prefix: Optional[Path] = None,
            dxmt_source: Optional[Path] = None, dry_run: bool = False,
-           runner: Optional[WineRunner] = None) -> Dict[str, Any]:
+           runner: Optional[WineRunner] = None,
+           wine: Optional[Path] = None) -> Dict[str, Any]:
     rec.require_valid()
     prefix = Path(prefix or wineprefix())
     runner = runner or WineRunner(prefix=prefix, env=rec.env, dry_run=dry_run)
@@ -156,15 +257,18 @@ def create(rec: recipe_mod.Recipe, prefix: Optional[Path] = None,
             raise BottleError(f"reg add {key} {name} failed: {proc.err or proc.out}")
 
     dxmt_copied: List[str] = []
+    wine = Path(wine) if wine else wine_root(rec.wine_root)
     if dxmt_source:
-        dxmt_copied = install_dxmt(rec, Path(dxmt_source), prefix, dry_run=dry_run)
+        dxmt_copied = install_dxmt(rec, Path(dxmt_source), prefix, wine=wine, dry_run=dry_run)
 
     state = {
         "recipe_name": rec.name,
         "recipe_hash": rec.hash(),
         "recipe_source": rec.source,
         "dxmt_version": rec.dxmt.get("release") if dxmt_source else read_state(prefix).get("dxmt_version"),
+        "dxmt_build": rec.dxmt_build,
         "dxmt_files": dxmt_copied,
+        "wine_root": str(wine) if wine else None,
         "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "env": rec.env,
         "launch_options": rec.launch_options,
@@ -247,7 +351,8 @@ def cmd_create(args) -> int:
     try:
         rec = _resolve(args)
         result = create(rec, prefix=args.prefix, dxmt_source=args.dxmt,
-                        dry_run=args.dry_run)
+                        dry_run=args.dry_run,
+                        wine=Path(args.wine_root) if args.wine_root else None)
     except (recipe_mod.RecipeError, BottleError) as exc:
         return emit_error("bottle create", str(exc), json_mode=args.json)
     if args.json:
@@ -257,7 +362,8 @@ def cmd_create(args) -> int:
     print(f"  recipe        {rec.name} ({rec.hash()})")
     print(f"  windows       {rec.windows_version}; cs2.exe -> "
           f"{rec.app_defaults.get('cs2.exe', {}).get('windows_version', 'default')}")
-    print(f"  overrides     {', '.join(f'{k}={v}' for k, v in sorted(rec.dll_overrides.items()))}")
+    print(f"  overrides     {', '.join(f'{k}={v}' for k, v in sorted(rec.dll_overrides.items())) or 'none (dxmt build: ' + rec.dxmt_build + ')'}")
+    print(f"  wine tree     {result['state'].get('wine_root') or 'not located'}")
     print(f"  env           {', '.join(f'{k}={v}' for k, v in sorted(rec.env.items()))}")
     if result["dxmt_copied"]:
         print(f"  dxmt          {len(result['dxmt_copied'])} file(s) placed")
@@ -313,6 +419,27 @@ def cmd_repair(args) -> int:
     return EXIT_OK
 
 
+def cmd_library(args) -> int:
+    prefix = Path(args.prefix or wineprefix())
+    target = Path(args.path).expanduser() if args.path else Path(steam_root())
+    try:
+        result = link_library(prefix, target, args.letter)
+    except BottleError as exc:
+        return emit_error("bottle library", str(exc), json_mode=args.json)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return EXIT_OK
+    print(f"Mapped {result['letter']} -> {result['target']}")
+    print("\nIn the in-bottle Steam client (T-008):")
+    print("  Steam > Settings > Storage > the + tile > Add Library Folder > "
+          f"{result['windows_path']}")
+    print("  Then install appid 730. It should recognise depot 2347770 (58 GB of maps, models and")
+    print("  sounds, no OS filter) as present and fetch only depot 2347771 (~4.99 GB of win64 code).")
+    print("  Timebox this to 2 h: if Steam insists on re-downloading everything, let it or uninstall")
+    print("  the macOS copy first - the fallback always works.")
+    return EXIT_OK
+
+
 def register(subparsers) -> None:
     parser = subparsers.add_parser(
         "bottle", help="create, inspect and repair the Wine prefix (T-006/T-025)",
@@ -330,6 +457,17 @@ def register(subparsers) -> None:
         p.add_argument("--json", action="store_true", help="machine-readable output")
         if name == "create":
             p.add_argument("--dxmt", help="directory of an extracted DXMT release (T-004)")
+            p.add_argument("--wine-root", help="the Wine installation (holds bin/ and lib/wine/); "
+                                               "derived from `which wine` when omitted")
         p.set_defaults(func=func)
 
-    parser.set_defaults(func=cmd_diff, recipe=None, prefix=None, dry_run=False, json=False)
+    lib = sub.add_parser("library", help="map a macOS Steam library into the bottle (T-008)")
+    lib.add_argument("--path", help="the directory containing steamapps "
+                                    "(default: ~/Library/Application Support/Steam)")
+    lib.add_argument("--letter", default="s", help="drive letter to use (default: s)")
+    lib.add_argument("--prefix", help="WINEPREFIX to operate on")
+    lib.add_argument("--json", action="store_true")
+    lib.set_defaults(func=cmd_library)
+
+    parser.set_defaults(func=cmd_diff, recipe=None, prefix=None, dry_run=False, json=False,
+                        wine_root=None)

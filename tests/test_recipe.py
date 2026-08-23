@@ -8,12 +8,12 @@ kind: bottle
 name: t
 wine:
   windows_version: win10
-  dll_overrides:
-    d3d11: "native,builtin"
-    dxgi: "native,builtin"
+  dll_overrides: {}
   app_defaults:
     cs2.exe:
       windows_version: win8
+dxmt:
+  build: builtin
 env:
   WINEMSYNC: 1
 game:
@@ -30,6 +30,8 @@ def test_shipped_bottle_recipe_is_valid(sandbox):
     assert rec.kind == "bottle"
     assert rec.app_defaults["cs2.exe"]["windows_version"] == "win8"   # the audio fix (T-009)
     assert "-vulkan" not in rec.launch_options
+    # The published DXMT release is the builtin build: no overrides, ever.
+    assert rec.dxmt_build == "builtin" and rec.dll_overrides == {}
 
 
 @pytest.mark.parametrize("name", ["balanced-1080p", "competitive-lowest-latency", "thermal-limited"])
@@ -40,10 +42,29 @@ def test_shipped_profiles_are_valid_and_carry_provenance(sandbox, name):
     assert rec.data["provenance"], "T-027 requires provenance naming the measuring task"
 
 
-def test_builtin_override_is_rejected():
-    bad = GOOD.replace('d3d11: "native,builtin"', 'd3d11: builtin')
+def test_overriding_a_builtin_dxmt_build_is_rejected():
+    """DXMT's wiki: for the published builtin build these DLLs must NOT be
+    overridden native - do it anyway and Wine silently loads something else."""
+    bad = GOOD.replace("  dll_overrides: {}",
+                       '  dll_overrides:\n    d3d11: "native,builtin"')
     problems = recipe_mod.loads(bad).validate()
-    assert any("d3d11" in p for p in problems)
+    assert any("builtin" in p and "d3d11" in p for p in problems)
+    worse = GOOD.replace("  WINEMSYNC: 1", '  WINEMSYNC: 1\n  WINEDLLOVERRIDES: "d3d11,dxgi=n,b"')
+    assert any("WINEDLLOVERRIDES" in p for p in recipe_mod.loads(worse).validate())
+
+
+def test_a_prefix_build_must_have_the_overrides_on():
+    prefix_build = GOOD.replace("  build: builtin", "  build: prefix")
+    problems = recipe_mod.loads(prefix_build).validate()
+    assert any("d3d11" in p and "native" in p for p in problems)
+    fixed = prefix_build.replace("  dll_overrides: {}",
+                                 '  dll_overrides:\n    d3d11: "native,builtin"\n    dxgi: "native,builtin"')
+    assert recipe_mod.loads(fixed).validate() == []
+
+
+def test_unknown_dxmt_build_is_rejected():
+    assert any("dxmt.build" in p
+               for p in recipe_mod.loads(GOOD.replace("build: builtin", "build: magic")).validate())
 
 
 def test_forbidden_launch_option_is_rejected():

@@ -1,130 +1,104 @@
-# Reference - toolchain of record (T-004)
+# T-004 — Toolchain of record
 
-**Status: TEMPLATE. Nothing below the "to be filled in on first run" markers has been executed on hardware yet.**
-Every machine-specific value in this file reads **UNRECORDED** until a human runs the procedure on the machine of
-record ([target-machine.md](target-machine.md)) and pastes the real output in. **Never write a checksum, a version
-string or a URL into this file that you did not read off your own terminal.** A fabricated SHA-256 is worse than a
-missing one: it makes an unreproducible stack look reproducible.
+Everything here was **downloaded, checksummed and installed on the machine of record on 2026-08-24**.
+Nothing in this file is a plan: if a value is here, it was measured on that machine. Reproduce the stack by
+running the commands in order — no Homebrew, no admin rights, no paid software.
 
-Scope: the four components of the free stack and nothing else -
-Rosetta 2, Wine (Gcenx build), DXMT, MSync. See [../02-architecture.md](../02-architecture.md) for why each
-alternative was rejected, and [../08-cost-and-dependencies.md](../08-cost-and-dependencies.md) for the licence of each.
+**Why not Homebrew:** the plan's original command, `brew install --cask gcenx/wine/wine-crossover`, no longer
+exists (the cask was deleted from the tap on **2026-04-16**, and it had shipped Wine **8.0.1**, not 11.x).
+Homebrew's own `wine-stable` / `wine@staging` casks are **deprecated for failing the macOS Gatekeeper check and are
+disabled on 2026-09-01**. A tarball has neither problem. See
+[research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md).
 
----
+## Components
 
-## 0. Preconditions
-
-| Precondition | How to check | Required |
-|---|---|---|
-| Apple Silicon | `uname -m` | `arm64` |
-| macOS | `sw_vers -productVersion` | 14 or later; **26.x is the machine of record** |
-| Free disk | `bash scripts/preflight.sh` | >= 85 GiB for the T-008 reuse route |
-| Rosetta 2 | `pgrep -q oahd && echo active` | active |
-
-`bash scripts/preflight.sh` grades all four at once and exits non-zero on a blocker.
-
----
-
-## 1. Rosetta 2
-
-Wine's macOS build is compiled `--build=x86_64-apple-darwin --enable-archs=i386,x86_64`, so **the whole Wine process
-tree is x86-64 and runs under Rosetta 2** (CONFIRMED, `research/tooling-licensing-findings.md` section 4, Gcenx row).
-There is no arm64 Wine path for this stack today; see [../rosetta-watch.md](../rosetta-watch.md) for the shelf life
-this imposes.
-
-```bash
-softwareupdate --install-rosetta --agree-to-license
-pgrep -q oahd && echo "rosetta active"
-```
-
-## 2. Wine (Gcenx `wine-crossover`, LGPL-2.1)
-
-```bash
-brew tap gcenx/wine
-brew install --cask --no-quarantine gcenx/wine/wine-crossover
-wine --version
-```
-
-Two things that trip people up:
-
-* **Wine 11 has no separate `wine64` binary.** There is one `wine` loader. Any guide that tells you to run `wine64`
-  is pre-11 (`docs/03-development-plan.md` T-004 step 2).
-* `--no-quarantine` matters: without it Gatekeeper quarantines the cask's binaries and Wine fails in ways that look
-  like Wine bugs.
-
-**Acceptance (T-004):** `wine --version` prints >= 11.0.
-
-## 3. DXMT (LGPL-2.1) - D3D10/11 to Metal
-
-DXMT is **our critical dependency**: it is the graphics path, and it is the one component whose upstream health the
-project tracks quarterly (T-034). Releases: <https://github.com/3Shain/DXMT/releases>.
-
-```bash
-# in a scratch directory
-curl -LO "<the release asset URL you actually used>"
-shasum -a 256 <asset>
-```
-
-Do **not** install D3DMetal here. It is deliberately excluded from what this project ships
-([../06-legal-and-policy.md](../06-legal-and-policy.md) section 1, Distribution model, Tier 1). If T-012 later shows
-DXMT is inadequate on your machine, you install Apple's GPTK yourself and record it as a local fallback.
-
-## 4. MSync (LGPL-2.1)
-
-MSync is the synchronisation primitive the 2026 community consensus uses; ESync is being removed from CrossOver
-(`research/performance-alternatives-findings.md` item 14, flagged as a CONTRADICTION with macresearch.org's older
-advice). It is enabled per-bottle with `WINEMSYNC=1`, not installed separately, and is applied by
-`cs2kit bottle create` from the recipe (T-025).
-
-## 5. What must NOT be installed
-
-| Not installed | Why | Source |
-|---|---|---|
-| CrossOver | EUR 74 per user; the parts that matter (DXMT, MSync) are LGPL-2.1 without it | `../02-architecture.md` |
-| Whisky | archived 2025-05-11 by its author | `research/tooling-licensing-findings.md` section 3 |
-| Heroic / Porting Kit / Sikarugir | launchers around the same Wine; extra moving parts, no benefit here | `../03-development-plan.md` T-004 step 4 |
-| Apple GPTK / D3DMetal | never redistributed by this project; user-installed fallback only | `../06-legal-and-policy.md` section 1 |
-
----
-
-## To be filled in on first run
-
-Run the procedure above on the target machine and replace every **UNRECORDED**. Commit the result together with
-`docs/reference/env-snapshot-0.json` (T-005) so that a benchmark can always be traced to the exact stack that produced it.
-
-### Component versions
-
-| Component | Command | Value | Date recorded |
-|---|---|---|---|
-| macOS | `sw_vers -productVersion` (+ `-buildVersion`) | UNRECORDED | UNRECORDED |
-| Rosetta 2 | `pgrep -q oahd` | UNRECORDED | UNRECORDED |
-| Homebrew | `brew --version` | UNRECORDED | UNRECORDED |
-| Wine | `wine --version` | UNRECORDED | UNRECORDED |
-| Wine cask | `brew info --cask gcenx/wine/wine-crossover` (version line) | UNRECORDED | UNRECORDED |
-| DXMT | release tag | UNRECORDED | UNRECORDED |
-| MSync | `WINEMSYNC=1` accepted by this Wine build (yes/no) | UNRECORDED | UNRECORDED |
-| CS2 `buildid` | `cs2kit doctor --json` -> `env.stable.cs2_buildid` | UNRECORDED | UNRECORDED |
-
-### Download URLs and checksums
-
-Every artefact that lands on disk gets a row. `shasum -a 256 <file>`.
-
-| Artefact | URL | SHA-256 | Size (bytes) | Date |
+| Component | Version | Licence | Size | Source |
 |---|---|---|---|---|
-| Wine cask (Homebrew-managed) | UNRECORDED | UNRECORDED | UNRECORDED | UNRECORDED |
-| DXMT release archive | UNRECORDED | UNRECORDED | UNRECORDED | UNRECORDED |
-| Windows `SteamSetup.exe` | UNRECORDED | UNRECORDED | UNRECORDED | UNRECORDED |
+| Wine (staging, macOS build) | **11.15** | LGPL-2.1 | 185 MB | [Gcenx/macOS_Wine_builds 11.15](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.15), released 2026-08-08 |
+| DXMT (builtin build) | **v0.80** | **MIT** (v0.81+ will be LGPL) | 18 MB | [3Shain/DXMT v0.80](https://github.com/3Shain/DXMT/releases/tag/v0.80), released 2026-04-23 |
+| MSync | in-tree | LGPL-2.1 | — | Wine build above (`WINEMSYNC=1`) |
+| Rosetta 2 | system | Apple | — | `softwareupdate --install-rosetta --agree-to-license` |
 
-### Deviations from this procedure
+## Checksums (SHA-256, verified on download)
 
-Anything you had to do that is not written above belongs here, verbatim, including the error that forced it. This is
-the section that makes the next machine cheap.
+```
+a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-11.15-osx64.tar.xz
+8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d  dxmt-v0.80-builtin.tar.gz
+```
 
-| # | Step | What actually happened | What fixed it |
-|---|---|---|---|
-| 1 | UNRECORDED | UNRECORDED | UNRECORDED |
+## Reproduce it
 
-### Verdict
+```bash
+mkdir -p ~/CS2/downloads && cd ~/CS2/downloads
+curl -fL -O https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/wine-staging-11.15-osx64.tar.xz
+curl -fL -O https://github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz
+shasum -a 256 -c <<'SUMS'
+a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-11.15-osx64.tar.xz
+8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d  dxmt-v0.80-builtin.tar.gz
+SUMS
 
-* Acceptance (T-004: `wine --version` >= 11.0 **and** a DXMT archive on disk with a recorded checksum): **UNRECORDED**
-* Recorded by: UNRECORDED - Date: UNRECORDED
+mkdir -p ~/CS2/wine ~/CS2/dxmt
+tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine
+tar -xzf dxmt-v0.80-builtin.tar.gz      -C ~/CS2/dxmt
+
+export PATH="$HOME/CS2/wine/Wine Staging.app/Contents/Resources/wine/bin:$PATH"
+export WINEPREFIX="$HOME/CS2/prefix"
+wine --version                                  # -> wine-11.15 (Staging)
+
+cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80    # wineboot, registry, DXMT placement
+cs2kit doctor                                   # DXMT must read PASS
+```
+
+## Installed layout (what `cs2kit bottle create` actually did)
+
+`dxmt.build: builtin` in `profiles/bottle-recipe.yaml` means the DLLs belong to **Wine**, not to the prefix, and
+the `d3d11`/`dxgi` overrides must stay **off** — DXMT's wiki: *"Ensure these dlls are **NOT** set overrides
+`native,builtin`."*
+
+```
+~/CS2/wine/Wine Staging.app/Contents/Resources/wine/
+  bin/wine                                   wine-11.15 (Staging)
+  lib/wine/x86_64-unix/winemetal.so          DXMT's Metal backend (unix side)
+  lib/wine/x86_64-windows/{d3d11,dxgi,d3d10core,winemetal,nvapi64,nvngx}.dll
+  lib/wine/i386-windows/{d3d11,dxgi,d3d10core,winemetal}.dll     for the 32-bit Steam client
+~/CS2/prefix/
+  drive_c/windows/system32/winemetal.dll     the one file that belongs in both places
+  .cs2kit/state.json                         recipe name + hash + wine root, written by cs2kit
+```
+
+## Proof DXMT is live (before any game exists)
+
+```bash
+WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry
+```
+
+Measured output on 2026-08-24 (M2 Pro, macOS 26.5.2 build 25F84):
+
+```
+Loaded L"C:\\windows\\system32\\winemetal.dll" ... builtin
+Loaded L"C:\\windows\\system32\\DXGI.DLL"      ... builtin
+Loaded L"C:\\windows\\system32\\d3d11.dll"     ... builtin
+info:  Failed to set Metal cache path, fallback to system default     <- DXMT's own log line
+[mvk-info] ... Metal Shading Language 3.1 ... GPU Family Metal 3
+```
+
+* **CONFIRMED:** DXMT v0.80 loads and initialises Metal under **stock** Wine 11.15 staging — no CrossOver build
+  needed. DXMT's wiki still says a FOSS CrossOver Wine 24+ is required; that requirement is pinned to the v0.41
+  header, and `nm -m winemetal.so` shows v0.80 imports **no** `winemac.drv` symbols, only `NtSetEvent` from `ntdll`.
+* **UNKNOWN:** whether CS2 renders correctly through it. No game is installed yet (T-008).
+* **Lead for T-013:** DXMT could not set its Metal shader-cache path and fell back to the system default.
+
+## Environment of record
+
+`docs/reference/env-snapshot-0.json`, regenerated with `cs2kit env --save`. The `stable` half is what every
+benchmark is keyed by; re-run it after any toolchain change.
+
+## Rejected, and why
+
+| Route | Why not |
+|---|---|
+| `brew install --cask gcenx/wine/wine-crossover` | **Deleted from the tap 2026-04-16**; last shipped Wine 8.0.1 |
+| `brew install --cask wine-stable` / `wine@staging` | Deprecated for failing Gatekeeper; **disabled 2026-09-01** |
+| Building FOSS CrossOver Wine 24+ from CodeWeavers sources | The DXMT wiki's recommendation; unnecessary for v0.80 (measured above). Keep as the fallback if a future DXMT re-introduces the `winemac.drv` symbol requirement |
+| Apple's D3DMetal / GPTK | Deliberately excluded — we redistribute nothing of Apple's ([docs/06](../06-legal-and-policy.md)) |
+| Whisky, Porting Kit, CrossOver | Not part of this plan ([docs/02](../02-architecture.md)) |

@@ -109,3 +109,14 @@ def test_json_errors_have_one_machine_readable_shape(sandbox, capsys):
         payload = _json.loads(capsys.readouterr().out)
         assert payload == {"command": command, "ok": False, "detail": payload["detail"]}
         assert payload["detail"]
+
+
+def test_steam_exe_is_found_whatever_its_case(sandbox):
+    """The installer writes Steam.exe; a case-sensitive APFS volume then makes a
+    literal steam.exe lookup fail on a perfectly good bottle."""
+    directory = sandbox.prefix / launch.STEAM_DIR
+    directory.mkdir(parents=True)
+    (directory / "Steam.exe").write_bytes(b"MZ")
+    found = launch.steam_exe(sandbox.prefix)
+    assert found is not None and found.name == "Steam.exe"
+    assert launch.steam_exe(sandbox.root / "no-prefix") is None

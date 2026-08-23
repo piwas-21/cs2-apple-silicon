@@ -18,12 +18,23 @@ from cs2kit import bottle, config, integrity, probe, recipe as recipe_mod
 from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_error, run,
                          which, wineprefix)
 
-STEAM_EXE = Path("drive_c") / "Program Files (x86)" / "Steam" / "steam.exe"
+STEAM_DIR = Path("drive_c") / "Program Files (x86)" / "Steam"
+STEAM_EXE = STEAM_DIR / "steam.exe"
 
 
 def steam_exe(prefix: Optional[Path] = None) -> Optional[Path]:
-    path = Path(prefix or wineprefix()) / STEAM_EXE
-    return path if path.is_file() else None
+    """Find the in-bottle Steam client.
+
+    The installer writes `Steam.exe`, Valve's own docs say `steam.exe`, and an
+    APFS volume may be case-sensitive - so match case-insensitively rather than
+    telling a user with a working Steam that they have none."""
+    directory = Path(prefix or wineprefix()) / STEAM_DIR
+    if not directory.is_dir():
+        return None
+    for candidate in sorted(directory.iterdir()):
+        if candidate.is_file() and candidate.name.lower() == "steam.exe":
+            return candidate
+    return None
 
 
 def launch_env(rec: Optional[recipe_mod.Recipe], prefix: Path) -> Dict[str, str]:

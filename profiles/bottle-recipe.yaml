@@ -2,44 +2,53 @@
 # bottle create` must reach the CS2 main menu from here alone, with no manual
 # step. Every value below is a deliberate deviation from Wine's defaults; if a
 # line has no reason next to it, it does not belong in this file.
+#
+# Corrected 2026-08-24 against the stack actually installed and proven on the
+# machine of record (research/wine-dxmt-install-findings-2026-08-24.md): DXMT's
+# published release is the *builtin* build, so its DLLs go into the WINE TREE and
+# the d3d11/dxgi overrides must stay OFF.
 schema: 1
 kind: bottle
 name: cs2-default
-description: "CS2 on Apple Silicon - Wine 11.x (Gcenx) + DXMT + MSync, all LGPL-2.1"
+description: "CS2 on Apple Silicon - Wine 11.15 staging (Gcenx tarball) + DXMT + MSync"
 
 wine:
+  # Where the Wine build lives. cs2kit derives it from `which wine` when null;
+  # set it when you keep several builds side by side.
+  root: null
   # Windows 10 globally: what the Windows Steam client expects.
   windows_version: win10
-  dll_overrides:
-    # DXMT ships d3d11/dxgi; without 'native' first, Wine loads its builtin and
-    # DXMT never runs (the most common silent misconfiguration).
-    d3d11: "native,builtin"
-    dxgi: "native,builtin"
-    d3d10core: "native,builtin"
-    winemetal: "native,builtin"
+  # EMPTY ON PURPOSE. DXMT's builtin build ships d3d11/dxgi/d3d10core as Wine
+  # builtins, and DXMT's wiki says verbatim "Ensure these dlls are NOT set
+  # overrides native,builtin". Marking them native makes Wine hunt for a native
+  # DLL in the prefix, find none, and quietly fall back - losing DXMT entirely.
+  dll_overrides: {}
   app_defaults:
     cs2.exe:
       # T-009 step 3: documented permanent fix for audio crackling under Wine.
       windows_version: win8
 
 dxmt:
-  # Filled in by T-004 with the exact release, URL and SHA-256 that were used.
-  release: UNRECORDED
-  url: "https://github.com/3Shain/DXMT/releases"
-  sha256: UNRECORDED
+  # MEASURED 2026-08-24: v0.80 loads and initialises Metal under stock Wine 11.15
+  # staging on an M2 Pro. v0.80 is MIT; v0.81 onward is LGPL.
+  release: v0.80
+  build: builtin
+  url: "https://github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz"
+  sha256: "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d"
   files:
+    - winemetal.so
+    - winemetal.dll
     - d3d11.dll
     - dxgi.dll
     - d3d10core.dll
+  # winemetal.dll is the one file that belongs in the wine tree AND the prefix.
+  prefix_files:
     - winemetal.dll
-    - winemetal.sys
 
 env:
-  WINEMSYNC: 1        # MSync: Apple-native synchronisation primitives (LGPL-2.1)
+  WINEMSYNC: 1        # MSync: Apple-native synchronisation primitives
   WINEESYNC: 0        # mutually exclusive with MSync; A/B'd in T-012
   WINEDEBUG: "-all"   # debug channels cost frames
-  WINEDLLOVERRIDES: "d3d11,dxgi=n,b"
-  DXMT_METALFX_SPATIAL_SWAPCHAIN: 0
   MTL_HUD_ENABLED: 0  # set to 1 only while benchmarking (T-011)
 
 game:

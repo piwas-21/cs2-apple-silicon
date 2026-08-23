@@ -130,17 +130,46 @@ def wine_info() -> Dict[str, Any]:
     return {"path": path, "version": version or None, "major": int(m.group(1)) if m else None}
 
 
+def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
+    """Import-light wrapper so the snapshot does not depend on the bottle module."""
+    from cs2kit.bottle import wine_root as _wine_root
+
+    return _wine_root(explicit)
+
+
+def dxmt_installed(prefix: Path, build: str = "builtin",
+                   wine: Optional[Path] = None) -> bool:
+    """Is DXMT actually where this build of it has to be?
+
+    The published `builtin` build lives in the WINE TREE - checking the prefix's
+    system32 for d3d11.dll (which is what CS2Kit did before 2026-08-24) reports
+    a correct installation as missing, and an incorrect one as fine."""
+    prefix = Path(prefix)
+    system32 = prefix / "drive_c" / "windows" / "system32"
+    if build == "prefix":
+        return (system32 / "d3d11.dll").is_file() and (system32 / "dxgi.dll").is_file()
+    wine = wine or wine_root()
+    if not wine:
+        return False
+    lib = Path(wine) / "lib" / "wine"
+    return ((lib / "x86_64-unix" / "winemetal.so").is_file()
+            and (lib / "x86_64-windows" / "d3d11.dll").is_file())
+
+
 def bottle_state(prefix: Optional[Path] = None) -> Dict[str, Any]:
     """CS2Kit's own record of what it installed into a prefix (written by
     `bottle create`), plus what is physically there right now."""
     prefix = Path(prefix or wineprefix())
     state = read_json(prefix / ".cs2kit" / "state.json", {}) or {}
-    system32 = prefix / "drive_c" / "windows" / "system32"
+    build = state.get("dxmt_build") or "builtin"
+    wine = Path(state["wine_root"]) if state.get("wine_root") else wine_root()
     return {
         "prefix": str(prefix),
         "exists": (prefix / "system.reg").is_file(),
         "dxmt_version": state.get("dxmt_version"),
-        "dxmt_installed": (system32 / "d3d11.dll").is_file() and (system32 / "dxgi.dll").is_file(),
+        "dxmt_build": build,
+        "dxmt_installed": dxmt_installed(prefix, build, wine),
+        "wine_root": str(wine) if wine else None,
         "recipe_name": state.get("recipe_name"),
         "recipe_hash": state.get("recipe_hash"),
         "created": state.get("created"),
@@ -192,6 +221,8 @@ def snapshot(steam: Optional[Path] = None, prefix: Optional[Path] = None) -> Dic
         "prefix": bottle["prefix"],
         "prefix_exists": bottle["exists"],
         "dxmt_installed": bottle["dxmt_installed"],
+        "dxmt_build": bottle["dxmt_build"],
+        "wine_root": bottle["wine_root"],
         "cs2_exe": str(cs2_exe(steam) or ""),
         "installed_depots": installed_depots(steam),
         "steam_root": str(steam or steam_root()),

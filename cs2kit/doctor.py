@@ -85,14 +85,24 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
     else:
         out.append(Check("bottle", "Bottle", PASS, str(prefix), "", "T-006"))
         out.append(bottle.drift_check(prefix=prefix))
+    build = volatile.get("dxmt_build", "builtin")
+    where = (f"{volatile.get('wine_root') or 'the Wine tree'}/lib/wine"
+             if build == "builtin" else "the prefix's system32")
     if volatile["dxmt_installed"]:
-        out.append(Check("dxmt", "DXMT", PASS, stable["dxmt_version"] or "installed (version unrecorded)",
-                         "" if stable["dxmt_version"] else "record the release in profiles/bottle-recipe.yaml (T-004)",
-                         "T-004"))
+        out.append(Check("dxmt", "DXMT", PASS,
+                         f"{stable['dxmt_version'] or 'installed (version unrecorded)'} "
+                         f"({build} build in {where})",
+                         "" if stable["dxmt_version"] else
+                         "record the release in profiles/bottle-recipe.yaml (T-004)", "T-004"))
     else:
         out.append(Check("dxmt", "DXMT", FAIL if volatile["prefix_exists"] else WARN,
-                         "d3d11.dll/dxgi.dll not present in the prefix",
-                         "cs2kit bottle create --dxmt <extracted DXMT release>", "T-004"))
+                         f"not installed where a '{build}' build must live: {where}",
+                         "cs2kit bottle create --dxmt <extracted DXMT release> "
+                         "[--wine-root <wine installation>]", "T-004"))
+    if build == "builtin" and not volatile.get("wine_root"):
+        out.append(Check("wine-root", "Wine tree", WARN, "cannot locate the Wine installation",
+                         "pass --wine-root, or set wine.root in profiles/bottle-recipe.yaml; DXMT's "
+                         "builtin build installs into lib/wine, not into the prefix", "T-004"))
     env = os.environ
     msync = env.get("WINEMSYNC")
     if msync == "1" and env.get("WINEESYNC") == "1":

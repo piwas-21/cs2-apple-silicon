@@ -1,10 +1,10 @@
 {
-  "env_id": "9dfc995799409cc9",
+  "env_id": "9daef7606c5832a7",
   "stable": {
     "arch": "arm64",
     "chip": "Apple M2 Pro",
     "cs2_buildid": "24828357",
-    "dxmt_version": null,
+    "dxmt_version": "v0.80",
     "e_cores": "4",
     "gpu_cores": "16",
     "macos": "26.5.2",
@@ -13,17 +13,18 @@
     "metal": "Metal 4",
     "p_cores": "6",
     "ram_gb": 32,
-    "recipe_hash": null,
-    "recipe_name": null,
+    "recipe_hash": "4944bac27edfd9b8",
+    "recipe_name": "cs2-default",
     "resolution": "3024 x 1964 Retina",
-    "wine_version": null
+    "wine_version": "wine-11.15 (Staging)"
   },
   "volatile": {
     "awdl_up": true,
-    "captured_at": "2026-08-23T21:34:13Z",
+    "captured_at": "2026-08-23T22:26:23Z",
     "cs2_exe": "",
-    "dxmt_installed": false,
-    "free_gib": 84,
+    "dxmt_build": "builtin",
+    "dxmt_installed": true,
+    "free_gib": 80,
     "installed_depots": [
       "2347770",
       "2347772",
@@ -35,9 +36,10 @@
     ],
     "low_power_mode": false,
     "prefix": "/Users/mahmutkaya/CS2/prefix",
-    "prefix_exists": false,
+    "prefix_exists": true,
     "rosetta": true,
     "steam_root": "/Users/mahmutkaya/Library/Application Support/Steam",
-    "wine_path": null
+    "wine_path": "/Users/mahmutkaya/CS2/wine/Wine Staging.app/Contents/Resources/wine/bin/wine",
+    "wine_root": "/Users/mahmutkaya/CS2/wine/Wine Staging.app/Contents/Resources/wine"
   }
 }

@@ -66,6 +66,22 @@ class Recipe:
         return list(self.dxmt.get("files") or [])
 
     @property
+    def dxmt_build(self) -> str:
+        """`builtin` (the published release: DLLs live in the Wine tree and the
+        overrides must stay off) or `prefix` (DLLs in system32, overrides on)."""
+        return str(self.dxmt.get("build") or "builtin")
+
+    @property
+    def dxmt_prefix_files(self) -> List[str]:
+        """Files that belong in the prefix's system32 even for a builtin build -
+        `winemetal.dll` is the one DXMT's wiki names explicitly."""
+        return list(self.dxmt.get("prefix_files") or [])
+
+    @property
+    def wine_root(self) -> Optional[str]:
+        return self.wine.get("root") or None
+
+    @property
     def launch_options(self) -> List[str]:
         return [str(x) for x in (self.data.get("game") or {}).get("launch_options") or []]
 
@@ -99,14 +115,37 @@ class Recipe:
             if not self.data.get("provenance"):
                 problems.append("a profile must carry provenance naming the task that measured it (T-027)")
             return problems
-        if not self.dll_overrides:
-            problems.append("wine.dll_overrides is empty - DXMT needs d3d11 and dxgi set to native")
-        for dll in ("d3d11", "dxgi"):
-            mode = self.dll_overrides.get(dll, "")
-            if "native" not in mode:
-                problems.append(f"wine.dll_overrides.{dll} must start with 'native' (got {mode!r}); "
-                                "without it Wine loads its own builtin and DXMT never runs")
+        problems.extend(self._validate_dxmt())
         problems.extend(self._validate_common())
+        return problems
+
+    def _validate_dxmt(self) -> List[str]:
+        """The override rule is decided by which DXMT build you have, and getting
+        it backwards fails silently - Wine simply loads something else.
+
+        builtin (the published `-builtin.tar.gz`): the DLLs are installed as Wine
+        builtins, and DXMT's wiki says verbatim "Ensure these dlls are NOT set
+        overrides native,builtin".
+        prefix (`-Dwine_builtin_dll=false`): the DLLs sit in the prefix's system32
+        and only load if d3d11/dxgi/d3d10core are overridden native."""
+        problems: List[str] = []
+        build = self.dxmt_build
+        if build not in ("builtin", "prefix"):
+            return [f"dxmt.build must be 'builtin' or 'prefix', got {build!r}"]
+        graphics = ("d3d11", "dxgi", "d3d10core")
+        if build == "builtin":
+            wrong = sorted(d for d in graphics if "native" in self.dll_overrides.get(d, ""))
+            if wrong:
+                problems.append(
+                    f"dxmt.build is 'builtin' but {', '.join(wrong)} is overridden to native - "
+                    "the builtin build must NOT be overridden or Wine silently loads something else")
+            if "n,b" in (self.env.get("WINEDLLOVERRIDES") or ""):
+                problems.append("env.WINEDLLOVERRIDES sets n,b, which contradicts dxmt.build: builtin")
+        else:
+            for dll in ("d3d11", "dxgi"):
+                if "native" not in self.dll_overrides.get(dll, ""):
+                    problems.append(f"dxmt.build is 'prefix', so wine.dll_overrides.{dll} must start "
+                                    "with 'native' or DXMT never loads")
         return problems
 
     def _validate_common(self) -> List[str]:
