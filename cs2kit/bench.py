@@ -452,8 +452,19 @@ def build_session(runs: Sequence[Dict[str, Any]], *, label: str = "session",
 
 
 def save_session(session: Dict[str, Any]) -> Path:
-    path = session_dir(session.get("env_id") or "unknown") / ("%s.json" % session["id"])
-    return write_json(path, session)
+    """Write a session, never over another one.
+
+    Session ids are second-resolution timestamps, so importing two logs in the same
+    second would otherwise silently overwrite the first - and a benchmark history
+    that quietly loses entries is worse than no history."""
+    directory = session_dir(session.get("env_id") or "unknown")
+    base = session["id"]
+    ident, suffix = base, 1
+    while (directory / ("%s.json" % ident)).exists():
+        suffix += 1
+        ident = "%s-%d" % (base, suffix)
+    session["id"] = ident
+    return write_json(directory / ("%s.json" % ident), session)
 
 
 def load_sessions(env_id: Optional[str] = None) -> List[Dict[str, Any]]:

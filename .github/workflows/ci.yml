@@ -1,0 +1,90 @@
+# CI for CS2Kit.
+#
+# Four invariants, in order of how expensive a violation is to discover late:
+#   1. stdlib-only  - `cs2kit` must import on a stock Mac's /usr/bin/python3 with
+#      nothing installed (that is the entire premise of bin/cs2kit).
+#   2. tests        - pytest on the oldest and newest supported interpreter, on
+#      Linux (fast, free) and macOS (the only platform users actually run).
+#   3. shell syntax - scripts/preflight.sh is the first thing a new user runs.
+#   4. docs links   - the guides are the product for a non-Wine user (T-029).
+#
+# Budget: the whole workflow must stay under 5 minutes. No game, no Wine, no
+# network beyond the runner image and uv's Python downloads.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: pytest (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: pytest
+        run: uv run --python ${{ matrix.python }} pytest
+
+  stdlib-only:
+    # No uv, no venv, no pip: import CS2Kit with the interpreter that ships with
+    # the operating system. macOS 26 still ships 3.9, which is why the floor is 3.9.
+    name: stdlib-only import (${{ matrix.os }} system python3)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: /usr/bin/python3 -c "import cs2kit.cli"
+        run: |
+          /usr/bin/python3 --version
+          PYTHONPATH="$PWD" /usr/bin/python3 -c "import cs2kit.cli"
+      - name: cs2kit --help via the zero-install entry point
+        run: PYTHONPATH="$PWD" /usr/bin/python3 -m cs2kit --help
+
+  shell-lint:
+    name: shell syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n scripts/*.sh
+        run: |
+          shopt -s nullglob
+          files=(scripts/*.sh bin/cs2kit)
+          if [ ${#files[@]} -eq 0 ]; then echo "no shell scripts found"; exit 1; fi
+          for f in "${files[@]}"; do echo "-- $f"; bash -n "$f"; done
+
+  docs-links:
+    # Every relative markdown link in docs/ and README.md must resolve. The same
+    # invariant is asserted in tests/test_docs.py so it fails locally too.
+    name: docs link check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: relative links resolve
+        run: uv run --python 3.13 pytest tests/test_docs.py -q
