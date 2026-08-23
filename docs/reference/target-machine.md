@@ -16,26 +16,35 @@ Measured 2026-08-23 on the development Mac. All Phase 1–3 numbers in this repo
 | Steam.app | universal binary (`x86_64` + **`arm64` native**) |
 | CrossOver / Whisky / Heroic / wine | **none installed** |
 
-## The disk trap found on this machine (drives T-001)
+## The confirmed blocker on this machine (drives T-001) — updated 2026-08-23 18:10
 
-`~/Library/Application Support/Steam/steamapps/` contains:
+macOS Steam **completed** the CS2 install. It is unplayable. This is the strongest possible confirmation of G-1,
+observed at completion rather than inferred from a queue.
 
-* `appmanifest_730.acf` — *Counter-Strike 2*, `TargetBuildID 24828357`, `installdir "Counter-Strike Global Offensive"`,
-  `BytesToDownload 54,888,337,776`, `BytesToStage 63,933,013,362`, **`BytesDownloaded 0`**, `StateFlags 1026`,
-  `InstalledDepots {}` (empty).
-* `downloading/730/` — **60 GB** on disk, containing `game/{bin,core,csgo,csgo_core,csgo_lv}`.
-  `bin/` contains **only `win64/`** (no `linuxsteamrt64`, no `osx64`) and **0 `.dll`, 0 `.so`, 0 `.dylib` files** —
-  directory skeletons pre-created from the manifest, no executables.
-* `common/Counter-Strike Global Offensive/` — leftover CS:GO-era macOS install (`csgo/`, `platform/`,
-  `installscript.vdf`, a `WINDOWSTEMPDIR_FONTCONFIG_CACHE`).
+`appmanifest_730.acf`: `StateFlags 4` (installed) · `SizeOnDisk 66,024,731,334` · `BytesToDownload 0` ·
+`buildid 24828357` · `LastPlayed` set (a launch was attempted).
 
-**Diagnosis.** `BytesToDownload` decomposes exactly as depot 2347770 (53,938,731,200) + 2347774 (949,604,816) +
-2347772 macOS stub (1,696) + an 8-byte stub (64) = **54,888,337,776**. Depot **2347771** — `"cs2 windows"`, file
-regex `.+?\.(dll|exe)`, 4.99 GB, i.e. **every executable in the game** — was **not queued**. `StateFlags 1026` =
-`StateUpdateStarted(1024) | StateUpdateRequired(2)`, with no downloading/running bit: **queued and never scheduled.**
+| Depot | Installed? | Size | What it is |
+|---|---|---|---|
+| 2347770 | ✅ | 62,790,947,954 | OS-agnostic game content (maps, models, sounds) |
+| 2347774 | ✅ | 1,142,056,124 | OS-agnostic content |
+| 2347772 | ✅ | 9,276 | CS:GO-era macOS stub |
+| 2347779 | ✅ | 2,091,728,725 | **Workshop Tools DLC** (`optionaldlc 2279721`) |
+| 731 / 733 / 735 | ✅ | 8 B each | stubs |
+| **2347771** | ❌ **ABSENT** | 4.99 GB dl | **`"cs2 windows"` — every `.exe` and `.dll` of the game** |
 
-**Conclusion.** This download can never produce a runnable CS2. It is 60 GB of dead weight on a volume that needs
-~72 GB free for the *correct* (in-bottle Windows) install. **Delete it first — T-001.**
+Verified missing on disk: `cs2.exe`, `engine2.dll`, `client.dll`, `server.dll`, `tier0.dll`, `schemasystem.dll`,
+`rendersystemdx11.dll`, `rendersystemvulkan.dll`, `steam_api64.dll`.
+The only 9 `.exe` files present are Workshop authoring tools from depot 2347779 — `resourcecompiler.exe`,
+`vrad3.exe`, `source1import.exe`, `dmxconvert.exe`, `cs_mdl_import.exe`, `resourcecopy.exe`, `resourceinfo.exe`,
+`csgocfg.exe`, `cs2_build_econ_items_workshop.exe`. **None of them is the game.**
+
+**Two consequences.** (1) *Verify integrity of game files* **cannot fix this** — Steam considers the install
+complete (`BytesToDownload 0`), and its macOS depot selection is what omits 2347771. (2) The 58 GB `csgo/` asset
+tree is nevertheless **correct and reusable** by a Windows install, because depot 2347770 has no OS filter. That
+turns the remaining work into a **4.99 GB** gap rather than a 72 GB re-download — see T-008 Option A2.
+
+Free space: **90 GiB**.
 
 ## Disk budget for the real path
 

@@ -1,0 +1,75 @@
+"AppState"
+{
+	"appid"		"730"
+	"universe"		"1"
+	"name"		"Counter-Strike 2"
+	"StateFlags"		"4"
+	"installdir"		"Counter-Strike Global Offensive"
+	"LastUpdated"		"1787501367"
+	"LastPlayed"		"1787512893"
+	"SizeOnDisk"		"66024731334"
+	"StagingSize"		"0"
+	"buildid"		"24828357"
+	"LastOwner"		"76561199242385354"
+	"DownloadType"		"1"
+	"UpdateResult"		"0"
+	"BytesToDownload"		"0"
+	"BytesDownloaded"		"0"
+	"BytesToStage"		"0"
+	"BytesStaged"		"0"
+	"TargetBuildID"		"24828357"
+	"AutoUpdateBehavior"		"0"
+	"AllowOtherDownloadsWhileRunning"		"0"
+	"ScheduledAutoUpdate"		"0"
+	"InstalledDepots"
+	{
+		"733"
+		{
+			"manifest"		"4675015311550561437"
+			"size"		"8"
+		}
+		"731"
+		{
+			"manifest"		"3607516601398500144"
+			"size"		"8"
+		}
+		"735"
+		{
+			"manifest"		"5251710739673570556"
+			"size"		"8"
+		}
+		"2347770"
+		{
+			"manifest"		"4814468113142569832"
+			"size"		"62790947954"
+		}
+		"2347772"
+		{
+			"manifest"		"4427303554736365309"
+			"size"		"9276"
+		}
+		"2347774"
+		{
+			"manifest"		"6880616264887178762"
+			"size"		"1142056124"
+		}
+		"2347779"
+		{
+			"manifest"		"6265834673964963888"
+			"size"		"2091728725"
+			"dlcappid"		"2279721"
+		}
+	}
+	"UserConfig"
+	{
+		"language"		"english"
+		"BetaKey"		"public"
+		"optionaldlc"		"2279721"
+	}
+	"MountedConfig"
+	{
+		"language"		"english"
+		"BetaKey"		"public"
+		"optionaldlc"		"2279721"
+	}
+}

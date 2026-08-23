@@ -23,23 +23,34 @@ Effort is in **focused hours** (h) or **days** (d, = 6 h). `[GATE]` tasks stop t
 *Goal: spend €0 and 1.5 days establishing that this project should exist, and clear the traps that will otherwise
 waste a week.*
 
-## T-001 · Reclaim the 60 GB dead download `[do this first]`
-**Why:** the target Mac has 96 GiB free and 60 GB of it is a CS2 download that **can never complete into a playable
-install** (macOS Steam queued the asset depots and omitted depot 2347771, which contains every `.exe`/`.dll` — see
-`docs/01-gap-analysis.md` G-1). The Windows path needs **~60 GB download / ~72 GB on disk** *plus* staging headroom.
-Without this task, Phase 1 fails on disk space.
+## T-001 · Deal with the 65 GB executable-less "installed" CS2 `[do this first]`
+**Why:** as of 2026-08-23 18:10 the macOS Steam install **completed** — `StateFlags 4` (fully installed),
+`SizeOnDisk 66,024,731,334`, `BytesToDownload 0`, and a `LastPlayed` timestamp. It is nonetheless **unplayable**:
+`InstalledDepots` contains 2347770 / 2347772 / 2347774 / 2347779 and **not 2347771**, so there is no `cs2.exe`,
+`engine2.dll`, `client.dll`, `tier0.dll` or `steam_api64.dll` anywhere on disk. The only 9 `.exe` files present
+(`resourcecompiler`, `vrad3`, `source1import`, `dmxconvert`, `cs_mdl_import`, …) come from depot **2347779**, the
+Workshop Tools DLC (`optionaldlc 2279721`) — authoring tools, not the game.
+**This is worse than a stalled download: Steam believes the install is complete, so "Verify integrity of game files"
+will not repair it.** Free space is 90 GiB and the correct in-bottle install needs ~72 GB — so this must be resolved
+before Phase 1 either way. Prefer **Option A2 in T-008**, which reuses the 58 GB you already have.
 **Depends:** —
 **Steps**
 1. Quit Steam completely (`osascript -e 'quit app "Steam"'`; confirm no `steam_osx` process).
-2. Record the current state for the record: `cp "$STEAM/steamapps/appmanifest_730.acf" docs/reference/`.
-3. Delete `"$STEAM/steamapps/downloading/730"` and `appmanifest_730.acf`.
-4. Decide the fate of the legacy CS:GO macOS install in `steamapps/common/Counter-Strike Global Offensive`
-   (it is the `csgo_legacy` branch, still playable offline). Keep or delete deliberately — **the bottle must not
-   share this `installdir` name**, or Windows Steam and macOS Steam will fight over the same folder name.
-5. Re-run `scripts/preflight.sh` and confirm ≥150 GiB free.
-**Deliverable:** `docs/reference/appmanifest_730.acf.before` + a line in the run log.
-**Acceptance:** `df -h /System/Volumes/Data` shows **≥ 150 GiB available**, and `steamapps/downloading/730` is gone.
-**Effort:** 0.5 h · **Risk:** low (deleting an unusable partial download; Steam re-derives everything).
+2. Preserve the evidence: `cp "$STEAM/steamapps/appmanifest_730.acf" docs/reference/appmanifest_730.acf.before`.
+3. **Decide between two routes — try A2 first (T-008):**
+   * **Reuse route (preferred).** Keep the 58 GB `csgo/` asset tree; depot 2347770 is **OS-agnostic** and is exactly
+     the same content the Windows install needs. Only the 4.99 GB executable depot is missing. Saves ~60 GB of
+     download and fits in current free space. → T-008 Option A2.
+   * **Clean route (fallback).** Uninstall CS2 from macOS Steam (or delete the `installdir` + `appmanifest_730.acf`),
+     freeing ~65 GB → ~155 GiB free, then let the in-bottle Windows Steam download all ~72 GB from scratch.
+4. Either way, resolve the `installdir` collision: macOS Steam and in-bottle Windows Steam both want
+   `steamapps/common/Counter-Strike Global Offensive`. Do not let two clients manage the same folder unless you are
+   deliberately doing A2. Note the leftover CS:GO-era `csgo/`, `platform/`, `installscript.vdf` in that folder too.
+5. Set macOS Steam's CS2 to **"Only update this game when I launch it"** so it cannot re-queue the useless depots.
+6. Re-run `scripts/preflight.sh`.
+**Deliverable:** `docs/reference/appmanifest_730.acf.before` + the chosen route recorded.
+**Acceptance:** either ≥ 150 GiB free (clean route), or the asset tree is preserved and the route is documented (A2).
+**Effort:** 0.5 h · **Risk:** low.
 
 ## T-002 · Fix the project's legal frame before writing code
 **Why:** the deliverable's licence model determines whether it may ship D3DMetal at all (gap G-4). Decide once, up front.
@@ -145,7 +156,19 @@ Steam Datagram Relay; **the game will not function without a running Steam clien
 (`steamcmd @sSteamCmdForcePlatformType windows` can fetch the bytes, but whether the resulting manifest is adopted by
 the in-bottle client is **UNKNOWN** — do not build the plan on it).
 **Depends:** T-007, T-001
-**Steps**
+**Option A2 (try first, timebox 2 h) — reuse the 58 GB of assets already on disk.**
+The macOS install left depot **2347770** (62.8 GB staged, OS-agnostic content) and **2347774** complete and correct.
+Only depot **2347771** (4.99 GB of `.exe`/`.dll`) is missing. Two ways to close that 5 GB gap:
+  * point the in-bottle Windows Steam at the existing library folder (map a Wine drive to
+    `~/Library/Application Support/Steam/steamapps`) and let it reconcile — ideally it fetches only the missing
+    executable depot;
+  * or `steamcmd +@sSteamCmdForcePlatformType windows +login <user> +app_update 730 validate` into that tree.
+**Both have a real failure mode:** the Windows client may reject or fully re-validate a library populated by the
+macOS client, and whether the in-bottle client subsequently *owns* the install for updates is **UNKNOWN**
+(`research/steam-vac-findings.md` §2). Verify by launching the game and by forcing one update cycle. If either
+fails, abandon A2, fall back to T-001's clean route, and record the result — it is publishable, nobody has documented it.
+
+**Option A1 (fallback, known-good) — clean install inside the bottle. Steps:**
 1. Install appid 730 from the in-bottle client. Budget **~60 GB download / ~72 GB on disk**.
 2. Watch that depot **2347771** ("cs2 windows", `.+?\.(dll|exe)`, 4.99 GB) is included — it is the depot macOS Steam
    omitted. Confirm afterwards: `ls game/bin/win64/cs2.exe`.
