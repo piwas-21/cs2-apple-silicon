@@ -76,6 +76,19 @@ cs2kit watch check | drill          CS2 buildid watch + the regression drill    
 **Scope rule:** CS2Kit *configures and diagnoses*. It never patches the game, never wraps Steam
 authentication, never implements graphics, never touches VAC.
 
+Full surface: [docs/cs2kit-spec.md](docs/cs2kit-spec.md). Install from zero:
+[docs/09-install-guide.md](docs/09-install-guide.md). When it breaks:
+[docs/10-troubleshooting.md](docs/10-troubleshooting.md). Contributing:
+[CONTRIBUTING.md](CONTRIBUTING.md). Licence: **GPL-3.0** ([LICENSE](LICENSE)) — the LGPL-2.1 components
+(Wine, DXMT, MSync) stay unmodified and dynamically linked.
+
+## Disclosure
+
+> CS2 has no macOS build. This tool configures a Windows compatibility environment on your Mac. It does not modify
+> Counter-Strike 2 and does not interact with Valve Anti-Cheat. It is not endorsed by Valve, Apple or CodeWeavers, and
+> is **not supported by Valve**. Use is at your own risk. We have found no evidence of bans caused by compatibility
+> layers, but Valve has published no policy on the matter.
+
 ## Repo map
 
 ```
@@ -98,6 +111,9 @@ docs/
 research/                      URL-cited primary-source findings + the prior analysis
 scripts/preflight.sh           machine grader (run this first)
 cs2kit/                        the CLI (stdlib only, Python 3.9+)
+LICENSE                        GPL-3.0 for our own code
+CONTRIBUTING.md                how to run the tests and add a doctor check
+.github/workflows/ci.yml       tests on py3.9+3.13 x macOS+Linux, stdlib-only guard, docs links
 profiles/                      bottle-recipe.yaml + the three situational profiles
 tests/                         pytest suite: `uv run pytest`
 ```

@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from cs2kit import probe
 from cs2kit.util import (EXIT_FAIL, EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL,
-                         PASS, WARN, Check, read_json, state_dir, write_json)
+                         PASS, WARN, Check, emit_error, read_json, state_dir, write_json)
 
 #: Only files that VAC would consider "core" are guarded; a shader cache or a
 #: user config changing is normal and must not raise a false alarm.
@@ -211,8 +211,7 @@ def cmd_baseline(args) -> int:
     try:
         baseline = create_baseline(Path(args.root) if args.root else None)
     except IntegrityError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("verify baseline", str(exc))
     print(f"Baselined {baseline.count} guarded files from {baseline.root}")
     print(f"  buildid {baseline.buildid or 'unknown'} -> {baseline_path(baseline.buildid)}")
     print("  Re-run this only after a Steam 'Verify integrity of game files' pass.")

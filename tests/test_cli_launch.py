@@ -89,3 +89,23 @@ def test_env_snapshot_is_stable_across_two_runs(sandbox, cs2_tree):
     assert first["stable"] == second["stable"]     # T-005 acceptance
     assert first["env_id"] == second["env_id"]
     assert first["stable"]["cs2_buildid"] == "24828357"
+
+
+def test_json_errors_have_one_machine_readable_shape(sandbox, capsys):
+    """Documented caveat turned into a contract: --json failures are JSON."""
+    import json as _json
+
+    from cs2kit import bottle, config
+
+    cases = [
+        (bottle.cmd_diff, argparse.Namespace(recipe=None, prefix=str(sandbox.prefix / "nope"),
+                                             json=True, dry_run=False), "bottle diff"),
+        (config.cmd_apply, argparse.Namespace(profile="no-such-profile", no_cfg=True, video=False,
+                                              dry_run=True, json=True), "config apply"),
+        (launch.cmd_launch, largs(json=True, profile="no-such-profile"), "launch"),
+    ]
+    for func, ns, command in cases:
+        assert func(ns) == EXIT_NOT_READY
+        payload = _json.loads(capsys.readouterr().out)
+        assert payload == {"command": command, "ok": False, "detail": payload["detail"]}
+        assert payload["detail"]

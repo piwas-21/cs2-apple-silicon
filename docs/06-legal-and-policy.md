@@ -20,19 +20,22 @@ Gcenx already does this via `brew install --cask game-porting-toolkit`; Sikarugi
 
 **The genuine grey zone:** the §2A(i) **use** grant is worded *"for the sole purpose of developing, testing, or
 evaluating video games for use on Apple-branded products."* A tool whose purpose is *playing a shipped game* sits
-outside that wording even though the **distribution** grant in §2A(iii) is broader. Flag this to counsel; do not
-hand-wave it.
+outside that wording even though the **distribution** grant in §2A(iii) is broader. **CLOSED by the decision below:**
+we ship no Apple software, so this project never reaches the question. It is recorded only so that a future proposal
+to bundle D3DMetal re-opens it deliberately, with counsel, rather than by accident.
 
 ### Distribution model — DECIDED (T-002)
 - [x] **Tier 1: ship only LGPL-2.1 components (Wine + DXMT + MSync). We do NOT bundle D3DMetal**, so §2A(iii) and the
       §2A(i) use-grant grey zone below **do not apply to this project**. Users who want D3DMetal install Apple's GPTK
       themselves. Our own code is GPL-3.0. LGPL obligations: ship the licence texts, keep the libraries unmodified
       and dynamically linked.
-- [ ] ~~Non-commercial, open source, bundling D3DMetal.~~ Never monetised — no paid tier, no donations tied to
+- [ ] ~~Non-commercial, open source, bundling D3DMetal.~~ **Not taken.** Never monetised — no paid tier, no donations tied to
       binaries, no sponsored builds. (This is why CodeWeavers needs a *separate bilateral agreement* with Apple to
       ship D3DMetal in the €74 CrossOver.)
-- [ ] **Any commercial element →** must **not** bundle D3DMetal; depend on the user's own CrossOver licence or on
-      DXMT/DXVK (open source) instead.
+
+**Standing rule (not an option to pick):** should any commercial element ever appear, it must **not** bundle
+D3DMetal — it depends on the user's own CrossOver licence or on DXMT/DXVK instead. Tier 1 above already satisfies
+this, and `CS2Kit` is GPL-3.0, so the rule binds every downstream fork too.
 
 Wine itself is **LGPL-2.1** and freely redistributable (Apple's GPTK Wine half is CrossOver 22.1.1 sources).
 **DXMT / DXVK / MoltenVK** are open source — no equivalent restriction.

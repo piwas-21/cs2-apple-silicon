@@ -174,6 +174,19 @@ def write_json(path: Path, data: Any) -> Path:
     return path
 
 
+def emit_error(command: str, detail: str, code: int = EXIT_NOT_READY,
+               json_mode: bool = False) -> int:
+    """One error shape for every command, so `--json` output is scriptable.
+
+    Without this, half the CLI answered `--json` failures with a bare human line
+    and a script had to parse prose to find out what went wrong."""
+    if json_mode:
+        print(json.dumps({"command": command, "ok": False, "detail": detail}, sort_keys=True))
+    else:
+        print(f"cs2kit: {detail}")
+    return code
+
+
 def median(values: Iterable[float]) -> float:
     vals = sorted(float(v) for v in values)
     if not vals:

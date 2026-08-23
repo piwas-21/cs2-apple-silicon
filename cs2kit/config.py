@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from cs2kit import probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_NOT_READY, EXIT_OK, PASS, WARN, Check, state_dir,
-                         wineprefix, write_json)
+from cs2kit.util import (EXIT_NOT_READY, EXIT_OK, PASS, WARN, Check, emit_error,
+                         state_dir, wineprefix, write_json)
 
 CFG_NAME = "cs2kit.cfg"
 
@@ -180,8 +180,7 @@ def cmd_show(args) -> int:
     try:
         rec = recipe_mod.resolve(args.profile)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("config show", str(exc), json_mode=args.json)
     if args.json:
         print(json.dumps({"name": rec.name, "hash": rec.hash(), "source": rec.source,
                           "data": rec.data, "problems": rec.validate()}, indent=2, sort_keys=True))
@@ -201,8 +200,7 @@ def cmd_apply(args) -> int:
         result = apply(rec, write_cfg=not args.no_cfg, write_video=args.video,
                        dry_run=args.dry_run)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("config apply", str(exc), json_mode=args.json)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return EXIT_OK
@@ -224,8 +222,7 @@ def cmd_diff(args) -> int:
     try:
         rec = recipe_mod.resolve(args.profile)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("config diff", str(exc), json_mode=args.json)
     record = active()
     fields = {"env": rec.env, "launch_options": rec.launch_options}
     drift = {k: {"expected": v, "actual": record.get(k)} for k, v in fields.items()

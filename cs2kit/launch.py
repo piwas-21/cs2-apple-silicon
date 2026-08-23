@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from cs2kit import bottle, config, integrity, probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, run, which,
-                         wineprefix)
+from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_error, run,
+                         which, wineprefix)
 
 STEAM_EXE = Path("drive_c") / "Program Files (x86)" / "Steam" / "steam.exe"
 
@@ -55,8 +55,7 @@ def cmd_launch(args) -> int:
     try:
         rec = recipe_mod.resolve(args.profile) if args.profile else None
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("launch", str(exc), json_mode=args.json)
 
     verdict = integrity.verify()
     if verdict.status == FAIL and not args.force:
@@ -71,18 +70,17 @@ def cmd_launch(args) -> int:
         print(f"  [{verdict.status}] {verdict.message}")
 
     if not bottle.exists(prefix):
-        print(f"cs2kit: {prefix} is not a Wine prefix - run `cs2kit bottle create` (T-006)")
-        return EXIT_NOT_READY
+        return emit_error("launch", f"{prefix} is not a Wine prefix - run "
+                          "`cs2kit bottle create` (T-006)", json_mode=args.json)
     if not steam_exe(prefix):
-        print(f"cs2kit: no Windows Steam client in {prefix} - install it first (T-007):")
-        print(f"  WINEPREFIX={prefix} wine ~/Downloads/SteamSetup.exe")
-        return EXIT_NOT_READY
+        return emit_error("launch", f"no Windows Steam client in {prefix} - install it first "
+                          f"(T-007): WINEPREFIX={prefix} wine ~/Downloads/SteamSetup.exe",
+                          json_mode=args.json)
 
     try:
         cmd = build_command(rec, prefix, args.extra)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("launch", str(exc), json_mode=args.json)
     env = launch_env(rec, prefix)
 
     if args.json:

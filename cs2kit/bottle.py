@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from cs2kit import recipe as recipe_mod
 from cs2kit.util import (EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, Check,
-                         Proc, run, which, wineprefix, write_json)
+                         Proc, emit_error, run, which, wineprefix, write_json)
 
 WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
 
@@ -249,8 +249,7 @@ def cmd_create(args) -> int:
         result = create(rec, prefix=args.prefix, dxmt_source=args.dxmt,
                         dry_run=args.dry_run)
     except (recipe_mod.RecipeError, BottleError) as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("bottle create", str(exc), json_mode=args.json)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return EXIT_OK
@@ -274,12 +273,11 @@ def cmd_diff(args) -> int:
     try:
         rec = _resolve(args)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("bottle diff", str(exc), json_mode=args.json)
     prefix = Path(args.prefix or wineprefix())
     if not exists(prefix):
-        print(f"cs2kit: {prefix} is not a Wine prefix - run `cs2kit bottle create` (T-006)")
-        return EXIT_NOT_READY
+        return emit_error("bottle diff", f"{prefix} is not a Wine prefix - run "
+                          "`cs2kit bottle create` (T-006)", json_mode=args.json)
     drift = diff(rec, prefix)
     if args.json:
         print(json.dumps({"prefix": str(prefix), "recipe": rec.name, "drift": drift},
@@ -298,12 +296,11 @@ def cmd_repair(args) -> int:
     try:
         rec = _resolve(args)
     except recipe_mod.RecipeError as exc:
-        print(f"cs2kit: {exc}")
-        return EXIT_NOT_READY
+        return emit_error("bottle repair", str(exc), json_mode=args.json)
     prefix = Path(args.prefix or wineprefix())
     if not exists(prefix):
-        print(f"cs2kit: {prefix} is not a Wine prefix - run `cs2kit bottle create` first")
-        return EXIT_NOT_READY
+        return emit_error("bottle repair", f"{prefix} is not a Wine prefix - run "
+                          "`cs2kit bottle create` first", json_mode=args.json)
     result = repair(rec, prefix, dry_run=args.dry_run)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
