@@ -6,7 +6,7 @@ from cs2kit.util import EXIT_NOT_READY, EXIT_OK, PASS, WARN
 
 def apply_args(profile, **kw):
     return argparse.Namespace(**{"profile": profile, "no_cfg": False, "video": False,
-                                 "dry_run": False, "json": False, **kw})
+                                 "video_path": None, "dry_run": False, "json": False, **kw})
 
 
 def test_apply_writes_a_sourceable_env_script(sandbox):
@@ -63,3 +63,17 @@ def test_list_marks_the_active_profile(sandbox, capsys):
     out = capsys.readouterr().out
     assert " * thermal-limited" in out
     assert "INVALID" not in out
+
+
+def test_video_txt_carries_the_unconfirmed_path_caveat(sandbox, cs2_tree, capsys):
+    cfg_dir = cs2_tree.parent.parent / "csgo" / "cfg"
+    cfg_dir.mkdir(parents=True)
+    assert config.cmd_apply(apply_args("balanced-1080p", video=True, video_path=None)) == EXIT_OK
+    assert "UNCONFIRMED" in capsys.readouterr().out
+
+
+def test_video_path_override(sandbox, tmp_path):
+    target = tmp_path / "userdata" / "CS2Video.txt"
+    result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, video_path=target)
+    assert result["record"]["video_txt"] == str(target)
+    assert "setting.fullscreen" in target.read_text()

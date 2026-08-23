@@ -70,6 +70,7 @@ if [ $JSON -eq 1 ]; then
     "$OSV" "$OSB" "$CHIP" "$PCORE" "$ECORE" "${GPU:-?}" "${METAL:-?}" "$MEMGB" "${RES:-?}" "$ARCHM" "$ROSETTA" "$FREEGB" "$HOST" "$FAIL" "$WARN"
 else
   say ""; say "=== $FAIL FAIL / $WARN WARN ==="
+  say "Deeper grade (bottle, game files, integrity, profile): ./bin/cs2kit doctor"
   [ $FAIL -gt 0 ] && say "Resolve FAILs before Phase 1. Start at docs/03-development-plan.md T-001."
   say ""
 fi
