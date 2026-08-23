@@ -1,0 +1,30 @@
+[project]
+name = "cs2kit"
+version = "0.1.0"
+description = "Configure, diagnose and measure Counter-Strike 2 on Apple Silicon (Wine + DXMT + MSync)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "cs2-apple-silicon contributors" }]
+keywords = ["cs2", "wine", "dxmt", "apple-silicon", "macos"]
+dependencies = []          # stdlib only, on purpose: see docs/cs2kit-spec.md
+
+[project.scripts]
+cs2kit = "cs2kit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/mahmutkaya/cs2-apple-silicon"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["cs2kit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

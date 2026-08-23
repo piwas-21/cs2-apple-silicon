@@ -1,0 +1,61 @@
+# T-006 / T-025 - the bottle recipe. This file is the source of truth: `cs2kit
+# bottle create` must reach the CS2 main menu from here alone, with no manual
+# step. Every value below is a deliberate deviation from Wine's defaults; if a
+# line has no reason next to it, it does not belong in this file.
+schema: 1
+kind: bottle
+name: cs2-default
+description: "CS2 on Apple Silicon - Wine 11.x (Gcenx) + DXMT + MSync, all LGPL-2.1"
+
+wine:
+  # Windows 10 globally: what the Windows Steam client expects.
+  windows_version: win10
+  dll_overrides:
+    # DXMT ships d3d11/dxgi; without 'native' first, Wine loads its builtin and
+    # DXMT never runs (the most common silent misconfiguration).
+    d3d11: "native,builtin"
+    dxgi: "native,builtin"
+    d3d10core: "native,builtin"
+    winemetal: "native,builtin"
+  app_defaults:
+    cs2.exe:
+      # T-009 step 3: documented permanent fix for audio crackling under Wine.
+      windows_version: win8
+
+dxmt:
+  # Filled in by T-004 with the exact release, URL and SHA-256 that were used.
+  release: UNRECORDED
+  url: "https://github.com/3Shain/DXMT/releases"
+  sha256: UNRECORDED
+  files:
+    - d3d11.dll
+    - dxgi.dll
+    - d3d10core.dll
+    - winemetal.dll
+    - winemetal.sys
+
+env:
+  WINEMSYNC: 1        # MSync: Apple-native synchronisation primitives (LGPL-2.1)
+  WINEESYNC: 0        # mutually exclusive with MSync; A/B'd in T-012
+  WINEDEBUG: "-all"   # debug channels cost frames
+  WINEDLLOVERRIDES: "d3d11,dxgi=n,b"
+  DXMT_METALFX_SPATIAL_SWAPCHAIN: 0
+  MTL_HUD_ENABLED: 0  # set to 1 only while benchmarking (T-011)
+
+game:
+  appid: 730
+  launch_options:
+    - -novid
+    - -nojoy
+    - -console
+  # -vulkan is forbidden: DXVK-macOS is frozen at 1.10.3 and CS2 falls back to
+  # DX11 silently, so the run measures something other than what it claims.
+
+display:
+  width: 1920
+  height: 1080
+  hidpi: false        # native 3024x1964 costs roughly 4x (T-009 step 4)
+  fullscreen: 0       # CS2Video.txt workaround for the black-screen failure mode
+
+steam:
+  overlay: false      # costs FPS; revisited in T-016

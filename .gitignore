@@ -2,3 +2,8 @@ research/_scratch/
 *.log
 .DS_Store
 bottles/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+uv.lock

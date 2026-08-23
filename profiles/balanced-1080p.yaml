@@ -1,0 +1,37 @@
+# T-027 - situational profile. Provenance is mandatory: every claimed number names the
+# task that measured it. 'not measured' is an acceptable value; an invented one is not.
+schema: 1
+kind: profile
+name: balanced-1080p
+description: "The default: 1920x1080, medium settings, the configuration T-011 baselines"
+
+env:
+  WINEMSYNC: 1
+  WINEESYNC: 0
+  WINEDEBUG: "-all"
+  MTL_HUD_ENABLED: 0
+
+game:
+  launch_options:
+    - -novid
+    - -nojoy
+    - -console
+
+display:
+  width: 1920
+  height: 1080
+  hidpi: false
+  fullscreen: 0
+  aspect: "16:9"
+
+cvars:
+  m_rawinput: 1
+  fps_max: 0
+  cl_interp_ratio: 1
+
+provenance:
+  fps: "T-011 baseline, expected 100-125 avg on Ancient for M2 Pro/32 GB"
+  one_pct_low: "T-014 target: >= 60"
+  backend: "T-012 DXMT vs MSync/ESync"
+
+notes: "Expected-not-measured until T-011 runs on the machine of record; cs2kit bench fills these in."

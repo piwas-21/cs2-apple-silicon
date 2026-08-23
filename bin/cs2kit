@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Zero-install entry point: runs CS2Kit straight from a checkout with the
+# system python3. No pip, no venv, no dependencies (stdlib only by design).
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
+export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
+exec /usr/bin/env python3 -m cs2kit "$@"

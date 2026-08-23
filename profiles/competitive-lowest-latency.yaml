@@ -1,0 +1,41 @@
+# T-027 - situational profile. Provenance is mandatory: every claimed number names the
+# task that measured it. 'not measured' is an acceptable value; an invented one is not.
+schema: 1
+kind: profile
+name: competitive-lowest-latency
+description: "Latency over everything: 1280x960 stretched, no overlay, no upscaling, raw input"
+
+env:
+  WINEMSYNC: 1
+  WINEESYNC: 0
+  WINEDEBUG: "-all"
+  MTL_HUD_ENABLED: 0
+
+game:
+  launch_options:
+    - -novid
+    - -nojoy
+    - -console
+    - -high
+
+display:
+  width: 1280
+  height: 960
+  hidpi: false
+  fullscreen: 1
+  aspect: "4:3 stretched"
+
+cvars:
+  m_rawinput: 1
+  fps_max: 0
+  cl_interp_ratio: 1
+  engine_no_focus_sleep: 0
+  r_drawtracers_firstperson: 0
+
+provenance:
+  resolution: "T-014 sweep"
+  input: "T-015 click-to-muzzle-flash, 20 trials"
+  fps: "not measured"
+  one_pct_low: "not measured"
+
+notes: "engine_no_focus_sleep 0 keeps the frame pump running when macOS steals focus; alt-tab audio loss is tracked in T-016."
