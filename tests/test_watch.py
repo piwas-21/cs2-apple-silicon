@@ -85,13 +85,17 @@ def test_fetch_buildid_reads_the_public_branch(monkeypatch):
     assert 0 < seen["timeout"] <= 5.0
 
 
+# NOTE: ids are explicit on purpose. Without them pytest builds an id by reading
+# `__name__` off each value, and on Python 3.9 an HTTPError with fp=None answers
+# that read with `KeyError: 'file'` from tempfile - which fails COLLECTION of the
+# whole file on the oldest interpreter CI runs. Explicit ids never touch the value.
 @pytest.mark.parametrize("boom", [
     urllib.error.URLError("nodename nor servname provided"),
     urllib.error.HTTPError("u", 429, "Too Many Requests", {}, None),
     OSError("connection reset"),
     ValueError("Expecting value: line 1 column 1"),
     RuntimeError("a mirror did something exotic"),
-])
+], ids=["urlerror", "httperror-429", "oserror", "bad-json", "unexpected"])
 def test_fetch_buildid_turns_every_failure_into_a_soft_error(monkeypatch, boom):
     def fake_get(url, timeout):
         raise boom
