@@ -54,6 +54,10 @@ bash scripts/preflight.sh          # grades the machine, finds the disk trap
 On the machine of record it currently reports **3 FAIL / 7 WARN / 8 PASS**, and the FAILs are exactly the
 three things Phase 0–1 exists to fix: no Wine, no bottle, no `cs2.exe`.
 
+What is actually built and what still needs hardware time is spelled out task by task in
+[docs/implementation-status.md](docs/implementation-status.md) — **no FPS, latency or VAC number is recorded
+anywhere in this repo, because none has been measured.**
+
 Then read [docs/00-executive-summary.md](docs/00-executive-summary.md) and work
 [docs/03-development-plan.md](docs/03-development-plan.md) from **T-001**.
 The **⚡ Fast path** at the top of that file is seven tasks to a playable game in ~2 days.
@@ -104,6 +108,9 @@ docs/
   08-cost-and-dependencies.md  every component's licence; why users pay nothing
   09-install-guide.md          bare Mac to a bot match, copy-pasteable
   10-troubleshooting.md        every known failure mode, keyed to a cs2kit command
+  11-validation-log.md         the Phase 3 online + anti-cheat record (empty until someone plays)
+  12-maintenance.md            Phase 5 cadence: update drill, macOS betas, bundles, upstreams
+  implementation-status.md     every one of the 34 tasks: shipped, tooled, or waiting on hardware
   cs2kit-spec.md               the CLI surface, exit codes, file layout
   compatibility-matrix.md      measured rows, one per machine/buildid
   rosetta-watch.md             the quarterly R-1 log and the decommission notice

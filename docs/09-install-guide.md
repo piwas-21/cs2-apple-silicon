@@ -295,6 +295,8 @@ cs2kit report                     # a redacted bundle: no SteamID, no account na
   occurrence is not a verdict; restart Steam and re-queue.
 * Never install anything that injects into, overlays or patches CS2. That is the one action that turns a low risk
   into a real one.
+* Log what happens. The online and anti-cheat record lives in [11-validation-log.md](11-validation-log.md); it is
+  empty until somebody plays, and one honest row there is worth more than any claim in this guide.
 
 ## When something breaks
 

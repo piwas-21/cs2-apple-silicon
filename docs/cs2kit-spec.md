@@ -67,10 +67,9 @@ exceptions are deliberate: `cs2kit env` always emits JSON (that is its whole out
 prints a human confirmation of a write it just performed. Human progress text and errors go to stderr where a
 command distinguishes them; JSON goes to stdout.
 
-One caveat a script must handle: on a **prerequisite failure** (exit `3`), `bottle`, `config` and `launch` print a
-plain-text `cs2kit: ...` line rather than a JSON object, even under `--json`; `bench`, `report` and `watch` emit a
-JSON error object (`{"command": ..., "ok": false, "detail": ...}`). Branch on the **exit code** first and parse
-stdout only for `0` (and for the error objects of the three commands that produce them).
+Errors have one shape across the CLI (`util.emit_error`): under `--json` a failure prints
+`{"command": "<command>", "ok": false, "detail": "<one line>"}` and returns a non-zero code; without `--json` it
+prints `cs2kit: <one line>`. A script should branch on the **exit code** first and read `detail` for the reason.
 
 ## Exit codes
 
@@ -241,7 +240,7 @@ is not a Wine prefix.
 ```
 cs2kit config list  [--json]
 cs2kit config show  [profile] [--json]
-cs2kit config apply <profile> [--no-cfg] [--video] [--dry-run] [--json]
+cs2kit config apply <profile> [--no-cfg] [--video] [--video-path FILE] [--dry-run] [--json]
 cs2kit config diff  [profile] [--json]
 ```
 
@@ -255,11 +254,16 @@ backend x chassis x resolution x macOS build (T-027).
 |---|---|
 | environment script | `~/.cs2kit/env/<profile>.sh` (source it, or use `cs2kit launch`) |
 | game cfg | `<install>/game/csgo/cfg/cs2kit.cfg` - suppress with `--no-cfg`; load it with `exec cs2kit` |
-| `CS2Video.txt` | only with `--video` - the T-009 black-screen workaround |
+| `CS2Video.txt` | only with `--video` - the T-009 black-screen workaround; `--video-path FILE` writes it elsewhere |
 | applied record | `~/.cs2kit/active-profile.json` |
 
 Launch options are **printed for you to paste** into Steam's Launch Options box. CS2Kit does not edit Valve's client
 configuration.
+
+**Where CS2 reads `CS2Video.txt` from under Wine is UNCONFIRMED.** `--video` writes the install-tree copy and says
+so; CS2 may instead read a per-account copy under Steam's `userdata` tree. `--video-path FILE` writes it wherever
+you confirm it belongs - and when you do confirm it, record which one worked in
+[reference/first-launch.md](reference/first-launch.md), where the path is currently **UNRECORDED**.
 
 **Exit:** `0`; `3` when the profile does not exist or fails validation.
 
@@ -430,4 +434,6 @@ buildid to record.
 * [10-troubleshooting.md](10-troubleshooting.md) - symptom-keyed, using these commands as the checks.
 * [07-benchmark-protocol.md](07-benchmark-protocol.md) - the protocol `bench` implements.
 * [06-legal-and-policy.md](06-legal-and-policy.md) - the rules the scope section enforces.
+* [11-validation-log.md](11-validation-log.md) - the Phase 3 online and anti-cheat record these commands feed.
+* [12-maintenance.md](12-maintenance.md) - the Phase 5 cadence for `watch`, `bench` and `report`.
 * [../CONTRIBUTING.md](../CONTRIBUTING.md) - how to add a check or a command without breaking the contracts above.

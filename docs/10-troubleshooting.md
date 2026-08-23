@@ -50,10 +50,16 @@ grep -ri "setting.fullscreen" "$HOME/Library/Application Support/Steam/steamapps
 cs2kit config apply balanced-1080p --video
 ```
 
-That writes `CS2Video.txt` into `<install>/game/csgo/cfg/`. If your bottle keeps its video settings elsewhere (CS2
-also stores per-account settings under the Steam `userdata` tree), edit the copy the game actually reads - and
-record which one it was in [reference/first-launch.md](reference/first-launch.md), because the path is
-**UNRECORDED** until somebody confirms it on hardware.
+That writes `CS2Video.txt` into `<install>/game/csgo/cfg/`. **Which copy CS2 actually reads under Wine is
+UNCONFIRMED** - it may instead read the per-account copy under Steam's `userdata` tree. If the black screen
+persists, point the tool at the other location and report which one worked:
+
+```bash
+cs2kit config apply balanced-1080p --video --video-path "<the path that worked>"
+```
+
+Record it in [reference/first-launch.md](reference/first-launch.md), where the path is **UNRECORDED** until somebody
+confirms it on hardware.
 
 **Evidence.** CONFIRMED, multiple independent reports (CodeWeavers forum thread *"Black screen when I load CS2
 (mac M1)"*, plus a video walkthrough) - [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md)
@@ -370,4 +376,5 @@ cs2kit report            # redacted: no SteamID, no account name, no usernames i
 
 `cs2kit report` prints exactly what it will share before it writes anything. Attach the bundle, say which step of
 [09-install-guide.md](09-install-guide.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
-community dataset (T-033), which is the one thing this ecosystem has never had.
+community dataset (T-033) - what is stripped and where to send it is in
+[12-maintenance.md](12-maintenance.md) - which is the one thing this ecosystem has never had.
