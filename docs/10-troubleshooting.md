@@ -32,10 +32,31 @@ cs2kit doctor --json   # the same thing for an issue report
 | 15 | `brew`: "Refusing to load cask ... from untrusted tap" | [15](#15-brew-refusing-to-load-cask--from-untrusted-tap) |
 | 16 | Your Wine cask is "deprecated ... disabled on 2026-09-01" | [16](#16-brew-says-your-wine-cask-is-deprecated-and-will-be-disabled-on-2026-09-01) |
 | 17 | DXMT's DLLs load as `native` instead of `builtin` | [17](#17-dxmts-dlls-load-as-native-instead-of-builtin) |
+| 18 | Steam dies with "Unexpected transport error (0x3008)" | [18](#18-steam-dies-on-startup-with-unexpected-transport-error-0x3008) |
+| 19 | The game "does nothing" - empty log, no window | [19](#19-the-game-does-nothing--empty-log-no-window-exit-code-1) |
+| 20 | "Failed to create metal view", or Steam's window is black | [20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault) |
+| 21 | `wineserver`: `Library not loaded: @rpath/libinotify.0.dylib` | [21](#21-wineserver-library-not-loaded-rpathlibinotify0dylib) |
+| 22 | The game will not relaunch / Steam thinks it is already running | [22](#22-the-game-refuses-to-relaunch-steamexe--applaunch-730-does-nothing) |
+| 23 | Steam forgets the library folder you added | [23](#23-steam-forgets-the-library-folder-and-offers-a-full-re-download) |
+
+**The engine is the first thing to check.** Entries 18, 20 and 21 are all *"you are running a Wine build that cannot
+do this"*, and one command tells you which build you have:
+
+```bash
+wine --version                                                       # must print: wine-10.0 (Sikarugir)
+nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv     # must print: _macdrv_functions
+```
+
+The three-engine table, with what each one fails at, is in [02-architecture.md](02-architecture.md) and in
+`cs2kit engine list`.
 
 ---
 
 ## 1. Black screen on launch, audio plays, nothing renders
+
+> **If it is the Steam client that is black, not the game, this is the wrong entry - go to
+> [20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault).** That is an engine fault,
+> and no amount of fullscreen toggling fixes it.
 
 **Cause.** A fullscreen-mode handover that the compatibility layer does not complete. Also reported as an
 intermittent DXMT artefact at round start that "resolves once you can move".
@@ -292,6 +313,9 @@ your bottle:
 A second, quieter cause: `cs2kit` could not find the **wine root** (the directory holding `bin/` and `lib/wine/`), so
 there was nowhere to put them. `cs2kit doctor` reports that as a `Wine tree` WARN.
 
+A third: **you changed engines.** DXMT's DLLs live inside the *engine*, not inside the prefix, so a freshly
+installed engine has no DXMT in it until you re-run `cs2kit bottle create --wine-root <the new engine>`.
+
 **Check.**
 
 ```bash
@@ -459,8 +483,13 @@ with two Wines on `PATH`:
 
 ```bash
 brew uninstall --cask wine-stable        # or wine@staging, whichever you installed
-wine --version                           # must now print wine-11.15 (Staging)
+cs2kit engine install                    # the engine that can actually run CS2
+wine --version                           # must now print wine-10.0 (Sikarugir)
 ```
+
+**A WineHQ/Gcenx build is not a substitute here.** Its delivery is not the only problem: it exports no
+`winemac.drv` symbols, so it cannot run this stack at all (entry
+[20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault)).
 
 **Evidence.** CONFIRMED, both `brew info` outputs read on the machine of record 2026-08-24 -
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §2;
@@ -516,39 +545,6 @@ That is `dxmt.build: prefix` in `profiles/bottle-recipe.yaml`, and it needs
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4-§5.
 This project's own v0 recipe had it backwards; entry 11 is the same fault seen from the performance side.
 
----
-
-## Known defects with no fix
-
-Recorded so that you do not spend an evening on them. All are cosmetic or upstream.
-
-| Symptom | Status | Evidence |
-|---|---|---|
-| Custom weapon skins show an empty box in the inventory | CONFIRMED (reported), no fix | research item 7 |
-| Stickers cannot be dragged to a custom position | CONFIRMED (reported), no fix | research item 7 |
-| Leaf/foliage flickering | LIKELY, long-standing | research item 8 |
-| Changing Display Mode in-game causes UI bugs | LIKELY - leave it windowed / windowed-fullscreen | research item 11 |
-| Whether a CS2 update has ever broken a working bottle | **UNKNOWN** - no source found either way; T-030 generates this data | research item 15 |
-| `info:  Failed to set Metal cache path, fallback to system default` on every DXMT start | **CONFIRMED it happens, UNKNOWN why** - it is a DXMT log line, not an error, and DXMT still initialises. The obvious explanation (a missing weak-linked Metal symbol) was tested and **ruled out**: `MTLSetShaderCachePath` is present on this macOS, in both architectures. It matters because T-013's whole subject is where the shader cache lives. Not a fix you are missing. | [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §6 |
-| External-monitor behaviour | **UNKNOWN** - no CS2-specific report exists; T-014 generates it | research item 16 |
-
-Items are in [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md),
-section 2.
-
-## Reporting a problem
-
-```bash
-cs2kit report            # redacted: no SteamID, no account name, no usernames in paths, no IPs, no MACs
-```
-
-`cs2kit report` prints exactly what it will share before it writes anything. Attach the bundle, say which step of
-[09-install-guide.md](09-install-guide.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
-community dataset (T-033) - what is stripped and where to send it is in
-[12-maintenance.md](12-maintenance.md) - which is the one thing this ecosystem has never had.
-
-
----
-
 ## 18. Steam dies on startup with "Unexpected transport error (0x3008)"
 
 **Symptom.** The Steam client window renders (so this is not the black-window failure), and immediately shows
@@ -556,8 +552,15 @@ community dataset (T-033) - what is stripped and where to send it is in
 steamwebhelper, continue anyway, quit. **Measured 2026-08-24 on FOSS CrossOver 24.0.7.**
 
 **Cause.** 0x3008 is a transport failure between `Steam.exe` and its Chromium helper, `steamwebhelper.exe`.
-Under Wine the helper's sandbox cannot establish that channel, so the client aborts before the login screen.
-A second, independent cause is a stale `steamwebhelper.exe` left over from a previous launch.
+There are **three** causes, and they are not equally cheap to fix:
+
+1. **The CEF sandbox.** Under Wine the sandboxed helper cannot establish the channel. Fix: `-no-cef-sandbox`, always.
+2. **A stale `steamwebhelper.exe`** left over from a previous launch. Fix: kill it before starting.
+3. **The engine.** On **FOSS CrossOver 24.0.7** the helper *connects* over loopback TCP and the client
+   **rejects it** - `WebUITransport: Connection rejected`, logged **82 times in one session**, with
+   `src\steamUI\webuitransportcontroller.cpp (165) : Failed to reconnect to websocket: wine`. That is not a
+   sandbox, GPU, cache or DXMT fault - each of those was eliminated by experiment - it is that engine's Wine 9.0
+   base. **No flag fixes it. Change the engine.**
 
 **One-command check.**
 
@@ -576,8 +579,16 @@ cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam" && wine Steam.exe -no-cef-san
 game launch option, and it is not optional. If the dialog still appears, pick **Restart steamwebhelper** once; if
 it recurs, delete the helper's cache: `rm -rf "$WINEPREFIX/drive_c/users/$USER/AppData/Local/Steam/htmlcache"`.
 
-**Evidence.** `research/steam-black-window-2026-08-24.md`; the rendered dialog is what proved the CrossOver engine
-draws Steam's UI correctly, which the Gcenx builds never did.
+**If it still recurs, check the engine** — this is cause 3, and it is the whole reason FOSS CrossOver 24.0.7 was
+rejected:
+
+```bash
+wine --version          # wine-9.0 (SikarugirCX 24.0.7) -> this is your problem
+cs2kit engine install   # sikarugir-10; then re-run `cs2kit bottle create` to put DXMT in the new engine
+```
+
+**Evidence.** [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md),
+*"The 0x3008 transport error — narrowed"*; the engine matrix in [02-architecture.md](02-architecture.md).
 
 
 ---
@@ -616,3 +627,176 @@ cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam" && wine Steam.exe -no-cef-san
 
 The generated launcher app does this for you: `cs2kit app create` bakes the profile's environment into the
 bundle, so the client and the game always agree.
+
+
+---
+
+## 20. "Failed to create metal view" — and the black Steam window — are the same fault
+
+**Symptom, one or both of:**
+
+```
+err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT
+```
+
+...printed by CS2 itself, right after DXMT reports `info: Maximum supported feature level: D3D_FEATURE_LEVEL_11_1`;
+and/or **the Steam client's window renders pure black** (mean luminance 0.0/255, 0 % non-black pixels) while
+`wine notepad` in the same bottle renders perfectly (243.5/255). **MEASURED 2026-08-24 on Gcenx Wine 11.15, both
+staging and devel.**
+
+**Cause. You are on a Wine build that hides the `winemac.drv` API.** DXMT needs those entry points to create the
+Metal view it presents into, and it resolves them **at runtime** through Wine's unix-call interface. It gets a D3D11
+device, reports feature level 11_1, and then has nowhere to draw. Steam's own UI reaches D3D11 through ANGLE, so it
+loses its surface for exactly the same reason - **two symptoms, one cause**, which is why nine configurations of
+GPU flags, virtual desktops, fresh prefixes and `OpenGLSurfaceMode` settings changed nothing.
+
+A static symbol dump (`nm -m winemetal.so`) shows **no** `winemac` imports and is **misleading** — that dump is how
+this project talked itself into the wrong engine in the first place.
+
+**One-command check.**
+
+```bash
+nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv     # must print _macdrv_functions
+```
+
+| Engine | count | result |
+|---|---|---|
+| Gcenx staging 11.15 | **0** | no Metal view; black Steam window; CEF GPU process crashes 9x per launch |
+| Gcenx devel 11.15 | **0** | no Metal view; black Steam window; no crashes |
+| Sikarugir Wine 10.0 | **1** (`_macdrv_functions`) | works |
+
+`cs2kit doctor` runs the same check as `winemac.drv exports`.
+
+**Fix.** Install the engine that exports them, then re-place DXMT into it (the DLLs live in the *engine*, so a new
+engine starts without them):
+
+```bash
+cs2kit engine install                                                # sikarugir-10
+export WINE_ROOT="$HOME/.cs2kit/engines/sikarugir-10/wswine.bundle"
+export PATH="$WINE_ROOT/bin:$PATH"
+cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"
+cs2kit doctor
+```
+
+Do **not** spend time on `-cef-disable-gpu`, `-cef-use-angle=swiftshader`, `wine explorer /desktop=`, a fresh
+prefix, or the Mac driver's `OpenGLSurfaceMode` registry values. All nine were tried, in every combination that
+mattered, and all nine left the window black.
+
+**Evidence.** CONFIRMED, with the full experiment table -
+[../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md); engine matrix in
+[02-architecture.md](02-architecture.md) and in `cs2kit engine list`.
+
+## 21. `wineserver`: `Library not loaded: @rpath/libinotify.0.dylib`
+
+**Symptom.** Nothing starts. `wine --version` may work, but the first command that needs a server aborts with a
+dyld error naming `@rpath/libinotify.0.dylib` (or another `lib*.dylib`).
+
+**Cause.** The Sikarugir/CrossOver engines link against wrapper dylibs that are **not inside the engine archive**.
+They ship in the wrapper template, and the engine resolves `@rpath` to its own `lib/` directory. This is a
+**packaging dependency, not an optional extra**. CONFIRMED 2026-08-24.
+
+**One-command check.**
+
+```bash
+ls "$WINE_ROOT/lib" | grep -c dylib      # 0 means they were never staged
+```
+
+**Fix.**
+
+```bash
+cs2kit engine install       # fetches Template-1.0.11.tar.xz and stages Contents/Frameworks/*.dylib for you
+```
+
+By hand: download
+`https://github.com/Sikarugir-App/Wrapper/releases/download/v1.0/Template-1.0.11.tar.xz`, extract it, and copy
+`Template-1.0.11.app/Contents/Frameworks/*.dylib` into `$WINE_ROOT/lib/`.
+
+**Evidence.** [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md),
+*"The Wine that works, and where it comes from"*; [reference/toolchain.md](reference/toolchain.md).
+
+## 22. The game refuses to relaunch (`Steam.exe -applaunch 730` does nothing)
+
+**Symptom.** CS2 ran, you killed it (or it crashed), and now nothing happens when you launch it again. The client
+looks fine. No error dialog, no log.
+
+**Cause.** The client still believes the previous CS2 session is running, and refuses to start a second one. This is
+the normal state after a hard kill between maps - which is exactly what a repeated benchmark or soak run does.
+MEASURED 2026-08-24.
+
+**One-command check.**
+
+```bash
+pgrep -f "cs2.exe" | wc -l        # 0 processes and still no launch = this entry
+```
+
+**Fix.** With the client **logged in and running**, start the executable directly. This always worked on the machine
+of record:
+
+```bash
+cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Counter-Strike Global Offensive"
+wine game/bin/win64/cs2.exe -novid -nojoy -console
+```
+
+You are bypassing `cs2kit launch`, so you are also bypassing its integrity guard - run `cs2kit verify check` first,
+every time. If you would rather not remember that, `cs2kit app create` writes a launcher that verifies and then
+launches.
+
+**Evidence.** [implementation-status.md](implementation-status.md), T-010 first pass.
+
+## 23. Steam forgets the library folder, and offers a full re-download
+
+**Symptom.** You added the macOS Steam library through Settings -> Storage -> Add Drive inside the bottle. It worked.
+You restarted the client and CS2 is "not installed" again, with a ~72 GB download waiting.
+
+**Cause.** **Steam rewrites `libraryfolders.vdf` on every start**, and a library folder that points outside its own
+idea of the filesystem does not survive that rewrite. MEASURED 2026-08-24.
+
+**One-command check.**
+
+```bash
+ls -l "$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps"    # must be a symlink, not a directory
+```
+
+**Fix.** Use a symlink instead of a library folder. Steam cannot rewrite the filesystem:
+
+```bash
+cs2kit bottle link-steamapps      # steamapps -> ~/Library/Application Support/Steam/steamapps
+```
+
+If the client *still* offers a fresh download, its manifest is nested where the client cannot see it (this happens
+after a `steamcmd` install with `+force_install_dir`). Promote `appmanifest_730.acf` to the library root with
+`InstalledDepots` listing 2347770 / 2347771 / 2347774, and keep the macOS-era manifest as a `.bak`. That is a file
+move, not a download.
+
+**Evidence.** [implementation-status.md](implementation-status.md), *"Reusing the existing install — no second
+download"*; step 6 of [09-install-guide.md](09-install-guide.md).
+
+---
+
+## Known defects with no fix
+
+Recorded so that you do not spend an evening on them. All are cosmetic or upstream.
+
+| Symptom | Status | Evidence |
+|---|---|---|
+| Custom weapon skins show an empty box in the inventory | CONFIRMED (reported), no fix | research item 7 |
+| Stickers cannot be dragged to a custom position | CONFIRMED (reported), no fix | research item 7 |
+| Leaf/foliage flickering | LIKELY, long-standing | research item 8 |
+| Changing Display Mode in-game causes UI bugs | LIKELY - leave it windowed / windowed-fullscreen | research item 11 |
+| Whether a CS2 update has ever broken a working bottle | **UNKNOWN** - no source found either way; T-030 generates this data | research item 15 |
+| `info:  Failed to set Metal cache path, fallback to system default` on every DXMT start | **CONFIRMED it happens, UNKNOWN why** - it is a DXMT log line, not an error, and DXMT still initialises. The obvious explanation (a missing weak-linked Metal symbol) was tested and **ruled out**: `MTLSetShaderCachePath` is present on this macOS, in both architectures. It matters because T-013's whole subject is where the shader cache lives. Not a fix you are missing. | [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §6 |
+| External-monitor behaviour | **UNKNOWN** - no CS2-specific report exists; T-014 generates it | research item 16 |
+
+Items are in [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md),
+section 2.
+
+## Reporting a problem
+
+```bash
+cs2kit report            # redacted: no SteamID, no account name, no usernames in paths, no IPs, no MACs
+```
+
+`cs2kit report` prints exactly what it will share before it writes anything. Attach the bundle, say which step of
+[09-install-guide.md](09-install-guide.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
+community dataset (T-033) - what is stripped and where to send it is in
+[12-maintenance.md](12-maintenance.md) - which is the one thing this ecosystem has never had.

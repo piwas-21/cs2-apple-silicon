@@ -51,3 +51,24 @@ or the configuration is wrong — investigate before celebrating or despairing.
 240 fps camera on the display; count frames from mouse-button depression to muzzle flash; 20 trials; report median and
 IQR. **The number is only meaningful as a delta** against the same rig measured on native Windows or GFN. No such
 measurement for CS2 under Wine on Apple Silicon exists publicly — this is the project's most citable contribution.
+
+
+---
+
+## Measurement hazard, measured 2026-08-24: **screen capture destroys the number you are measuring**
+
+Sampling a running CS2 window with `screencapture -l <window-id>` every 20 s took the game from
+**72 fps to 3 fps**, with the in-game net panel reporting frame times up to **256 ms**. Stopping the sampler
+for 75 s and taking a single capture restored **72 fps**. The capture forces a readback of a Metal-backed
+window every time, and on this stack that readback costs more than the frame it is trying to observe.
+
+**Consequences for this protocol.**
+
+1. **Never sample FPS by screenshot at a short interval.** A "60-minute soak with 30-second FPS sampling"
+   measures the sampler, not the game.
+2. Split the signals by cost. Liveness (`pgrep`) and memory (`ps -o rss=`) are free — sample them every
+   20 s. A screenshot is expensive — at most one every few minutes, and never during a measured run.
+3. For T-011 numbers, take the reading **from the game**: the Ancient FPS Benchmark map prints its summary
+   at the end of the run, so one capture after the run is enough.
+4. Anything published from screenshot-sampled data must say so. The first figures this project collected
+   (`117 fps` on Dust2, and `3 fps` under sampling) are **indicative only**, not protocol runs.
