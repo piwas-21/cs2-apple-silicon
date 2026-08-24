@@ -147,3 +147,45 @@ session is running, which is exactly the state after a hard kill between maps. L
 directly, with the client logged in and running, is the reliable way to drive repeated runs.
 
 **Remaining for the gate:** the second Dust2 pass, then Mirage and Ancient twice each, plus a human ear on audio.
+
+
+---
+
+## T-010 `[GATE]` — **PASSED** on the machine of record, 2026-08-24
+
+Six passes, two per map, eight minutes each: **48 minutes of continuous bot play** driven by
+`~/CS2/t010_gate.py` on Sikarugir Wine 10.0 + DXMT v0.80.
+
+| map | pass | crashes | frozen frames | load to playable | FPS median (screenshot-sampled) | FPS range |
+|---|---|---|---|---|---|---|
+| Dust2 | 1 (cold) | 0 | 0 / 24 | 47 s | not sampled | — |
+| Dust2 | 2 (warm) | 0 | 0 / 24 | **31 s** | 102 (single reads 102, 124) | 59 – 124 |
+| Mirage | 1 (cold) | 0 | 0 / 24 | 31 s | **101** | 10 – 132 |
+| Mirage | 2 (warm) | 0 | 0 / 24 | 31 s | **130** | 61 – 183 |
+| Ancient | 1 (cold) | 0 | 0 / 24 | 15 s | **123** | 29 – 216 |
+| Ancient | 2 (warm) | 0 | 0 / 24 | 31 s | **101** | 39 – 124 |
+
+**Gate criteria:** 30 minutes across three maps, no crash, playable input — **met and exceeded**
+(48 minutes, six passes). Bots fought, the player joined a team and took damage, input worked.
+**Audio remains unassessed** — nothing here listens, and T-016 needs ears. That is the one gate
+criterion this run cannot speak to.
+
+### What the numbers do and do not mean
+
+* **Method:** `cl_showfps` read off the window by OCR (`scripts/fps_probe.py`), six readings 25 s apart,
+  median reported. Each capture perturbs the game, so these are **indicative**, not protocol runs
+  (`docs/07-benchmark-protocol.md`). Settings: CS2's auto **Low** preset at the Retina backing
+  resolution — *not* a tuned 1080p configuration.
+* **Shader warming is visible and it cuts both ways.** Dust2's load time fell 47 s → 31 s and Mirage's
+  median rose 101 → 130 fps (+29 %) on the second pass. Ancient went the other way (123 → 101), and the
+  cold passes carry the worst individual samples (Mirage 10 fps, Ancient 29 fps) — consistent with
+  shader compilation, and with DXMT still logging `Failed to set Metal cache path`. **T-013 has its
+  first evidence and its first open question.**
+* The spread inside a single pass (39 – 216 fps on Ancient) is scene variance in a live bot match.
+  A stable figure needs the Ancient FPS Benchmark map and the full protocol — that is T-011, still open.
+
+## `cs2kit app create` — verified end to end
+
+`open ~/Applications/Counter-Strike\ 2\ (CS2Kit).app` started CS2 in **under 25 seconds** with no
+terminal: the launcher verified the 137 guarded binaries, found the Steam client already running, and
+launched the game with the profile's environment. DXMT reported `D3D_FEATURE_LEVEL_11_1`.

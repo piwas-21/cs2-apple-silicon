@@ -72,6 +72,10 @@ On a bare machine the FAILs it prints are exactly the three things Phase 0–1 e
 no `cs2.exe`. Its `winemac.drv exports` check is the one that would have saved us a day — it fails any engine that
 cannot give DXMT a Metal view.
 
+**T-010 gate: PASSED** on the machine of record — 6 passes across Dust2, Mirage and Ancient, 48 minutes of bot
+play, **0 crashes, 0 frozen frames**, 101–130 fps median (indicative, auto-Low; see the caveats in
+[docs/07-benchmark-protocol.md](docs/07-benchmark-protocol.md)). Audio is still unassessed.
+
 What is actually built and what still needs hardware time is spelled out task by task in
 [docs/implementation-status.md](docs/implementation-status.md). **One indicative FPS sample exists** (117 fps,
 Dust2 bot match, CS2's auto-selected Low preset, 2026-08-24) and it is a single reading, not a benchmark — the

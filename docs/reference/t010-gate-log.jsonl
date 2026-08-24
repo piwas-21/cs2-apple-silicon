@@ -1,0 +1,163 @@
+{"event": "launch", "map": "de_dust2", "pass": 1, "t": "20:56:53"}
+{"event": "loaded", "map": "de_dust2", "load_s": 47, "pass": 1, "t": "20:57:40"}
+{"event": "sample", "map": "de_dust2", "fps": null, "mean": 144.5, "frozen": false, "pass": 1, "t": "20:58:30"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "20:58:50"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "20:59:10"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "20:59:30"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "20:59:50"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:00:10"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:00:30"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:00:50"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:01:10"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:01:30"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:01:51"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:02:11"}
+{"event": "sample", "map": "de_dust2", "fps": null, "mean": 107.7, "frozen": false, "pass": 1, "t": "21:02:31"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:02:52"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:03:12"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:03:32"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:03:52"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:04:12"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:04:32"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:04:52"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:05:12"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:05:32"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:05:52"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 1, "t": "21:06:12"}
+{"event": "pass_done", "map": "de_dust2", "crashed": false, "frozen_samples": 0, "fps_samples": 0, "fps_median": null, "fps_min": null, "fps_max": null, "pass": 1, "t": "21:06:12"}
+{"event": "launch", "map": "de_dust2", "pass": 2, "t": "21:06:17"}
+{"event": "loaded", "map": "de_dust2", "load_s": 31, "pass": 2, "t": "21:06:47"}
+{"event": "sample", "map": "de_dust2", "fps": null, "mean": 146.3, "frozen": false, "pass": 2, "t": "21:07:35"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:07:55"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:08:15"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:08:35"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:08:55"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:09:15"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:09:35"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:09:55"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:10:16"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:10:36"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:10:56"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:11:16"}
+{"event": "sample", "map": "de_dust2", "fps": 43, "mean": 134.2, "frozen": false, "pass": 2, "t": "21:11:37"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:11:57"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:12:17"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:12:37"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:12:57"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:13:17"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:13:37"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:13:57"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:14:17"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:14:37"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:14:57"}
+{"event": "alive", "map": "de_dust2", "rss_mb": null, "pass": 2, "t": "21:15:17"}
+{"event": "pass_done", "map": "de_dust2", "crashed": false, "frozen_samples": 0, "fps_samples": 1, "fps_median": 43, "fps_min": 43, "fps_max": 43, "pass": 2, "t": "21:15:17"}
+{"event": "launch", "map": "de_mirage", "pass": 1, "t": "21:15:22"}
+{"event": "loaded", "map": "de_mirage", "load_s": 31, "pass": 1, "t": "21:15:52"}
+{"event": "sample", "map": "de_mirage", "fps": null, "mean": 136.8, "frozen": false, "pass": 1, "t": "21:16:40"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:17:00"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:17:20"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:17:40"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:18:00"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:18:20"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:18:40"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:19:00"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:19:20"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:19:40"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:20:01"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:20:21"}
+{"event": "sample", "map": "de_mirage", "fps": null, "mean": 118.1, "frozen": false, "pass": 1, "t": "21:20:41"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:21:02"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:21:22"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:21:42"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:22:02"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:22:22"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:22:42"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:23:02"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:23:22"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:23:42"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:24:02"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 1, "t": "21:24:22"}
+{"event": "pass_done", "map": "de_mirage", "crashed": false, "frozen_samples": 0, "fps_samples": 0, "fps_median": null, "fps_min": null, "fps_max": null, "pass": 1, "t": "21:24:22"}
+{"event": "launch", "map": "de_mirage", "pass": 2, "t": "21:24:26"}
+{"event": "loaded", "map": "de_mirage", "load_s": 31, "pass": 2, "t": "21:24:57"}
+{"event": "sample", "map": "de_mirage", "fps": 102, "mean": 148.3, "frozen": false, "pass": 2, "t": "21:25:45"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:26:05"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:26:25"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:26:45"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:27:05"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:27:25"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:27:45"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:28:05"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:28:25"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:28:45"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:29:05"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:29:25"}
+{"event": "sample", "map": "de_mirage", "fps": null, "mean": 159.9, "frozen": false, "pass": 2, "t": "21:29:46"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:30:06"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:30:26"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:30:46"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:31:07"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:31:27"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:31:47"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:32:07"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:32:27"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:32:47"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:33:07"}
+{"event": "alive", "map": "de_mirage", "rss_mb": null, "pass": 2, "t": "21:33:27"}
+{"event": "pass_done", "map": "de_mirage", "crashed": false, "frozen_samples": 0, "fps_samples": 1, "fps_median": 102, "fps_min": 102, "fps_max": 102, "pass": 2, "t": "21:33:27"}
+{"event": "launch", "map": "de_ancient", "pass": 1, "t": "21:33:31"}
+{"event": "loaded", "map": "de_ancient", "load_s": 15, "pass": 1, "t": "21:33:47"}
+{"event": "sample", "map": "de_ancient", "fps": null, "mean": 78.1, "frozen": false, "pass": 1, "t": "21:34:34"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:34:54"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:35:14"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:35:34"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:35:54"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:36:14"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:36:35"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:36:55"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:37:15"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:37:35"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:37:55"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:38:15"}
+{"event": "sample", "map": "de_ancient", "fps": null, "mean": 56.4, "frozen": false, "pass": 1, "t": "21:38:36"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:38:56"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:39:16"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:39:36"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:39:56"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:40:16"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:40:37"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:40:57"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:41:17"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:41:37"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:41:57"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 1, "t": "21:42:17"}
+{"event": "pass_done", "map": "de_ancient", "crashed": false, "frozen_samples": 0, "fps_samples": 0, "fps_median": null, "fps_min": null, "fps_max": null, "pass": 1, "t": "21:42:17"}
+{"event": "launch", "map": "de_ancient", "pass": 2, "t": "21:42:21"}
+{"event": "loaded", "map": "de_ancient", "load_s": 31, "pass": 2, "t": "21:42:52"}
+{"event": "sample", "map": "de_ancient", "fps": 64, "mean": 80.0, "frozen": false, "pass": 2, "t": "21:43:39"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:43:59"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:44:20"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:44:40"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:45:00"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:45:20"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:45:40"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:46:00"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:46:20"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:46:40"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:47:00"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:47:20"}
+{"event": "sample", "map": "de_ancient", "fps": 101, "mean": 76.8, "frozen": false, "pass": 2, "t": "21:47:41"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:48:01"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:48:21"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:48:42"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:49:02"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:49:22"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:49:42"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:50:02"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:50:22"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:50:42"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:51:02"}
+{"event": "alive", "map": "de_ancient", "rss_mb": null, "pass": 2, "t": "21:51:22"}
+{"event": "pass_done", "map": "de_ancient", "crashed": false, "frozen_samples": 0, "fps_samples": 2, "fps_median": 101, "fps_min": 64, "fps_max": 101, "pass": 2, "t": "21:51:22"}
+{"event": "gate_done", "maps": ["de_dust2", "de_mirage", "de_ancient"], "passes": 2, "minutes": 8.0, "t": "21:51:22"}
