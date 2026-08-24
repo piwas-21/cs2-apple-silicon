@@ -66,3 +66,58 @@ is a command the user runs, not something the tool does.
 
 Whether CS2 can then be launched and matchmade while the client's UI is black is **UNKNOWN** and is the next
 thing to measure.
+
+
+---
+
+# UPDATE, later the same day: the root cause, measured
+
+## `err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT`
+
+CS2 itself printed it. Launching `cs2.exe` directly on **Gcenx Wine 11.15** (devel or staging), DXMT gets as far as
+creating a device — `info: Maximum supported feature level: D3D_FEATURE_LEVEL_11_1` — and then **cannot create the
+Metal view**, so nothing is ever presented. **CONFIRMED, and it reverses the earlier conclusion in
+`research/wine-dxmt-install-findings-2026-08-24.md` §5.**
+
+That earlier conclusion was drawn from a static symbol dump (`nm -m winemetal.so` shows no `winemac.drv` imports) and
+it was **wrong**: DXMT resolves those entry points at runtime through Wine's unix-call interface, not as link-time
+imports. A static dump cannot see it. **The DXMT wiki's requirement — a FOSS CrossOver Wine 24+, or a Wine patched
+to export the `winemacdrv.h` API from `winemac.drv` — is real and still binding.**
+
+Measured proof of the difference:
+
+| Wine build | `nm -g winemac.so \| grep -c macdrv` | DXMT metal view | Steam CEF GPU process |
+|---|---|---|---|
+| Gcenx **staging** 11.15 | **0** | fails | crashes 9x per launch (0xC0000005) |
+| Gcenx **devel** 11.15 | **0** | fails | no crashes |
+| **Sikarugir CX 24.0.7** (Wine 9.0 base) | **1** (`_macdrv_functions`) | **no error** | no crashes |
+
+This also explains the black Steam window: Steam's UI reaches D3D11 through ANGLE, ANGLE reaches DXMT, DXMT has no
+Metal view, and the window presents nothing. The two symptoms had one cause.
+
+## The Wine that works, and where it comes from
+
+`WS12WineCX24.0.7_7.tar.xz` (172 MB, free) from
+<https://github.com/Sikarugir-App/Engines/releases/tag/v1.0> —
+sha256 `203f9e9fd6c2cc77e6525d798a434ced326145db34a356355e05659d3445fd1c`.
+It is a **FOSS CrossOver 24.0.7** build; `wine --version` reports `wine-9.0 (SikarugirCX 24.0.7)`.
+
+It needs the wrapper's dylibs beside the bundle (`@loader_path/../../`), otherwise `wineserver` dies with
+`Library not loaded: @rpath/libinotify.0.dylib`. They come from
+<https://github.com/Sikarugir-App/Wrapper/releases/tag/v1.0> (`Template-1.0.11.tar.xz`,
+`Contents/Frameworks/*.dylib`). **CONFIRMED — this is a packaging dependency, not an optional extra.**
+
+**Note the licence direction:** this project still redistributes nothing. Sikarugir's engine is a build of
+CrossOver's published FOSS sources, which the user downloads themselves, exactly like the Gcenx tarball.
+
+## State at the end of this session
+
+* **T-008 DONE.** `cs2.exe` (2,967,704 bytes) and 123 files in `game/bin/win64`; `appmanifest_730.acf`
+  `StateFlags 4`, `SizeOnDisk 71,644,882,396`. Installed head-lessly with `steamcmd` — the black UI never mattered.
+  The 58 GB reuse did **not** happen: steamcmd re-downloaded ~71.7 GB, which is the fallback the plan allowed for.
+* **T-021 DONE.** 137 guarded binaries baselined after steamcmd's own `validate` pass.
+* **Wine of record changes to the CrossOver engine.** Gcenx Wine cannot run DXMT at all on this machine.
+* **UNKNOWN, next to measure:** whether the Steam client's login window renders on the CX engine (it bootstraps
+  with zero GPU-process crashes, but no window was observed within ~5 minutes, and the log shows
+  `err:bcrypt:key_asymmetric_create no encryption support`, which may block the login handshake until the
+  wrapper's crypto dylibs are wired correctly).
