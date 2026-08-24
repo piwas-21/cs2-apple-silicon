@@ -10,7 +10,7 @@
 schema: 1
 kind: bottle
 name: cs2-default
-description: "CS2 on Apple Silicon - FOSS CrossOver 24.0.7 Wine + DXMT v0.80 + MSync"
+description: "CS2 on Apple Silicon - Sikarugir Wine 10.0 + DXMT v0.80 + MSync (the combination that runs the game)"
 
 wine:
   # Where the Wine build lives. cs2kit derives it from `which wine` when null;

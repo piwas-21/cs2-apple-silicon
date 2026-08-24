@@ -91,7 +91,11 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
         # number there is correct, not stale.
         crossover = re.search(r"CX\s*(\d+)|CrossOver\s*(\d+)", version, re.I)
         cx_major = int(next(g for g in crossover.groups() if g)) if crossover else 0
-        ok = major >= MIN_WINE_MAJOR or cx_major >= MIN_CROSSOVER_MAJOR
+        # The real criterion is not the version number but whether this build can
+        # run DXMT at all. A Sikarugir/CrossOver build reports a lower Wine base
+        # and is nevertheless the only kind that works (measured 2026-08-24).
+        ok = (major >= MIN_WINE_MAJOR or cx_major >= MIN_CROSSOVER_MAJOR
+              or volatile.get("wine_exports_macdrv") is True)
         detail = version + (f" (CrossOver {cx_major})" if cx_major else "")
         out.append(Check("wine", "Wine", PASS if ok else WARN, detail,
                          "" if ok else f"use Wine {MIN_WINE_MAJOR}.x, or a FOSS CrossOver "

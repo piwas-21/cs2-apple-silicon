@@ -86,3 +86,34 @@ That is the next measurement, and it is cheap.
 
 A Sikarugir wrapper has been assembled at `~/Applications/Sikarugir/CS2.app` (Template 1.0.11 + the CX 24.0.7
 engine, prefix created) precisely so that launch happens in the user's own GUI session rather than the agent's.
+
+
+---
+
+## 2026-08-24, evening — **T-007 and T-009 achieved: CS2 runs and renders.**
+
+The Windows Steam client logs in, and **Counter-Strike 2 launches and draws through DXMT on Apple Silicon**:
+the video-settings screen with its live 3D previews rendered at 3024×1964, mean luminance 98/255, 99.8 % non-black.
+DXMT logged `Using feature level D3D_FEATURE_LEVEL_11_1` with **zero** "Failed to create metal view" errors, and the
+loaded `d3d11.dll` hashes to DXMT v0.80's release binary (`7ca382af…`), not Wine's own (`e333b8c6…`).
+
+### The engine matrix — three builds, only one works
+
+| Engine | Steam UI | client↔helper transport | DXMT Metal view | Verdict |
+|---|---|---|---|---|
+| Gcenx Wine 11.15 (staging/devel) | **black** (0.0/255) | OK | **fails** | unusable |
+| FOSS CrossOver 24.0.7 (Wine 9.0 base) | renders | **rejected — 0x3008** | works | unusable |
+| **Sikarugir Wine 10.0** | **renders** | **OK** | **works** | **the Wine of record** |
+
+### Reusing the existing install — no second download
+
+`steamcmd` had installed CS2 into the macOS Steam library with its own nested manifest, which the in-bottle client
+could not see: it offered a fresh 66.85 GB download instead. Two file-level steps fixed it, with no re-download:
+
+1. Promote steamcmd's manifest to the library root (`appmanifest_730.acf`, `InstalledDepots` 2347770 / 2347771 /
+   2347774) — the macOS-era manifest it replaced is kept at `~/CS2/appmanifest_730.macos-era.acf.bak`.
+2. Point the bottle's own library at it: `drive_c/Program Files (x86)/Steam/steamapps` → symlink →
+   `~/Library/Application Support/Steam/steamapps`. Adding it as a *library folder* does **not** survive — Steam
+   rewrites `libraryfolders.vdf` on every start; the symlink does.
+
+`cs2kit launch` then reported `[PASS] 137 guarded files match the baseline` and started the game.

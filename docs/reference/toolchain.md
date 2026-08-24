@@ -14,7 +14,8 @@ disabled on 2026-09-01**. A tarball has neither problem. See
 
 | Component | Version | Licence | Size | Source |
 |---|---|---|---|---|
-| Wine — **the one that works** | **FOSS CrossOver 24.0.7** (`wine-9.0 (SikarugirCX 24.0.7)`) | LGPL-2.1 | 172 MB | [Sikarugir-App/Engines v1.0](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0), `WS12WineCX24.0.7_7.tar.xz`, sha256 `203f9e9f…3445fd1c` |
+| Wine — **the one that works** | **Sikarugir Wine 10.0** (`wine-10.0 (Sikarugir)`) | LGPL-2.1 | 159 MB | [Sikarugir-App/Engines v1.0](https://github.com/Sikarugir-App/Engines/releases/tag/v1.0), `WS12WineSikarugir10.0_6.tar.xz`, sha256 `9da7ee0c…` — listed in the project's own [EngineList.txt](https://raw.githubusercontent.com/Sikarugir-App/Engines/main/EngineList.txt) |
+| Wine (FOSS CrossOver 24.0.7) | `wine-9.0 (SikarugirCX 24.0.7)` | LGPL-2.1 | 172 MB | same release — renders Steam, but its Wine 9.0 base **rejects the Steam client↔helper websocket** (0x3008), so the client never reaches login |
 | Wine wrapper dylibs (required by the engine) | Template 1.0.11 | mixed FOSS | 85 MB | [Sikarugir-App/Wrapper v1.0](https://github.com/Sikarugir-App/Wrapper/releases/tag/v1.0) — `Contents/Frameworks/*.dylib` next to the bundle, or `wineserver` dies on `libinotify.0.dylib` |
 | Wine (Gcenx, staging/devel) | 11.15 | LGPL-2.1 | 185 MB | [Gcenx/macOS_Wine_builds 11.15](https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.15) — **cannot run DXMT**: exports no `winemac.drv` symbols, CS2 fails with "Failed to create metal view" |
 | DXMT (builtin build) | **v0.80** | **MIT** (v0.81+ will be LGPL) | 18 MB | [3Shain/DXMT v0.80](https://github.com/3Shain/DXMT/releases/tag/v0.80), released 2026-04-23 |
