@@ -21,6 +21,11 @@ from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_err
 STEAM_DIR = Path("drive_c") / "Program Files (x86)" / "Steam"
 STEAM_EXE = STEAM_DIR / "steam.exe"
 
+#: Driving repeated runs: `Steam.exe -applaunch 730` refuses to start the game
+#: while the client still believes a previous session is running - the state you
+#: are in after killing cs2.exe between benchmark runs. Launching
+#: `game/bin/win64/cs2.exe` directly, with the client logged in and running,
+#: works every time (measured 2026-08-24, T-010).
 #: Client-side flags, distinct from the game's launch options.
 #: `-no-cef-sandbox` is not optional under Wine: with the sandbox on, Steam's
 #: Chromium helper cannot talk to the client and Steam dies on startup with

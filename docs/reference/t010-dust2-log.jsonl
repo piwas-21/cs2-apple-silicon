@@ -1,0 +1,26 @@
+{"event": "launch", "map": "de_dust2", "t": "2026-08-24T17:33:02Z"}
+{"event": "rendered", "map": "de_dust2", "mean": 65.1, "nonblack": 0.629, "t": "2026-08-24T17:35:48Z"}
+{"event": "sample", "map": "de_dust2", "mean": 66.1, "nonblack": 0.949, "rss_mb": 1356, "frozen_frame": false, "t": "2026-08-24T17:36:18Z"}
+{"event": "sample", "map": "de_dust2", "mean": 65.6, "nonblack": 0.949, "rss_mb": 1393, "frozen_frame": false, "t": "2026-08-24T17:36:49Z"}
+{"event": "monitor_start", "minutes": 10.0, "t": "19:36:52", "map": "de_dust2"}
+{"event": "sample", "mean": 32.2, "nonblack": 0.757, "rss_mb": 1391, "frozen": false, "t": "19:37:23", "map": "de_dust2"}
+{"event": "sample", "mean": 86.2, "nonblack": 0.998, "rss_mb": 1310, "frozen": false, "t": "19:37:54", "map": "de_dust2"}
+{"event": "sample", "mean": 86.1, "nonblack": 0.998, "rss_mb": 1071, "frozen": false, "t": "19:38:24", "map": "de_dust2"}
+{"event": "sample", "mean": 85.9, "nonblack": 0.998, "rss_mb": 876, "frozen": false, "t": "19:38:55", "map": "de_dust2"}
+{"event": "sample", "mean": 85.8, "nonblack": 0.998, "rss_mb": 797, "frozen": false, "t": "19:39:25", "map": "de_dust2"}
+{"event": "sample", "mean": 87.1, "nonblack": 0.998, "rss_mb": 781, "frozen": false, "t": "19:39:56", "map": "de_dust2"}
+{"event": "sample", "mean": 95.7, "nonblack": 0.982, "rss_mb": 707, "frozen": false, "t": "19:40:26", "map": "de_dust2"}
+{"event": "sample", "mean": 95.6, "nonblack": 0.982, "rss_mb": 723, "frozen": false, "t": "19:40:57", "map": "de_dust2"}
+{"event": "sample", "mean": 95.6, "nonblack": 0.982, "rss_mb": 767, "frozen": false, "t": "19:41:27", "map": "de_dust2"}
+{"event": "sample", "mean": 95.5, "nonblack": 0.982, "rss_mb": 776, "frozen": false, "t": "19:41:58", "map": "de_dust2"}
+{"event": "sample", "mean": 82.8, "nonblack": 0.99, "rss_mb": 761, "frozen": false, "t": "19:42:29", "map": "de_dust2"}
+{"event": "sample", "mean": 136.1, "nonblack": 0.999, "rss_mb": 835, "frozen": false, "t": "19:42:59", "map": "de_dust2"}
+{"event": "sample", "mean": 98.5, "nonblack": 0.958, "rss_mb": 836, "frozen": false, "t": "19:43:30", "map": "de_dust2"}
+{"event": "sample", "mean": 81.1, "nonblack": 0.999, "rss_mb": 917, "frozen": false, "t": "19:44:00", "map": "de_dust2"}
+{"event": "sample", "mean": 81.6, "nonblack": 0.999, "rss_mb": 740, "frozen": false, "t": "19:44:31", "map": "de_dust2"}
+{"event": "sample", "mean": 81.4, "nonblack": 0.999, "rss_mb": 700, "frozen": false, "t": "19:45:01", "map": "de_dust2"}
+{"event": "sample", "mean": 143.6, "nonblack": 0.994, "rss_mb": 792, "frozen": false, "t": "19:45:32", "map": "de_dust2"}
+{"event": "sample", "mean": 81.6, "nonblack": 0.999, "rss_mb": 843, "frozen": false, "t": "19:46:02", "map": "de_dust2"}
+{"event": "sample", "mean": 81.4, "nonblack": 0.999, "rss_mb": 876, "frozen": false, "t": "19:46:33", "map": "de_dust2"}
+{"event": "sample", "mean": 96.6, "nonblack": 0.987, "rss_mb": 875, "frozen": false, "t": "19:47:03", "map": "de_dust2"}
+{"event": "monitor_done", "samples": 20, "frozen_samples": 0, "t": "19:47:03", "map": "de_dust2"}

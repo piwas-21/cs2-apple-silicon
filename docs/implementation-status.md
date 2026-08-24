@@ -117,3 +117,33 @@ could not see: it offered a fresh 66.85 GB download instead. Two file-level step
    rewrites `libraryfolders.vdf` on every start; the symlink does.
 
 `cs2kit launch` then reported `[PASS] 137 guarded files match the baseline` and started the game.
+
+
+---
+
+## T-010, first pass on Dust2 — 2026-08-24 evening (partial: 1 of 6 passes)
+
+Ten minutes of continuous bot play on `de_dust2`, sampled every 30 s by `~/CS2/t010_monitor.py`.
+
+| metric | result |
+|---|---|
+| crashes | **0** |
+| frozen frames (identical downsampled pixels between samples) | **0 / 22 samples** |
+| luminance range | 32 – 144 / 255 (scene advancing throughout) |
+| resident memory | 700 – 1393 MB (well under the 6.1 GB the plan expects) |
+| audio | **not assessed** — no automated signal; T-016 needs ears |
+
+**"It looked stuck" was the match ending, not a hang.** After the round limit the server returned to the
+team-selection screen with `0 Spelers - 0 Bots`, which looks frozen but is not: two captures six seconds apart
+differ, so the frame is still advancing. Two procedure fixes for the next run:
+
+1. Bots do not survive the match end. Set `mp_match_end_restart 1` (or a long `mp_maxrounds`) and re-assert
+   `bot_quota` per round, otherwise a "30 minute" soak silently becomes a ten-minute one.
+2. Launch args do not auto-join a team — send `jointeam 2` (or `mp_humanteam`) after the map loads, or the run
+   measures a spectator camera rather than gameplay.
+
+**Also learned:** `Steam.exe -applaunch 730` refuses to relaunch while the client still believes the previous
+session is running, which is exactly the state after a hard kill between maps. Launching `game/bin/win64/cs2.exe`
+directly, with the client logged in and running, is the reliable way to drive repeated runs.
+
+**Remaining for the gate:** the second Dust2 pass, then Mirage and Ancient twice each, plus a human ear on audio.
