@@ -189,3 +189,33 @@ criterion this run cannot speak to.
 `open ~/Applications/Counter-Strike\ 2\ (CS2Kit).app` started CS2 in **under 25 seconds** with no
 terminal: the launcher verified the 137 guarded binaries, found the Steam client already running, and
 launched the game with the profile's environment. DXMT reported `D3D_FEATURE_LEVEL_11_1`.
+
+
+---
+
+## Audio — user-attested, 2026-08-24
+
+The one T-010 criterion this rig cannot measure was checked by the person at the keyboard: **audio played
+correctly through the bot matches**. No crackle was reported, and the Windows-8 compatibility mode for
+`cs2.exe` (T-009 step 3, applied by the recipe) was in force throughout.
+
+* **Status:** T-010's audio criterion is **met** on the machine of record — *user-attested*, not instrumented.
+* **Still open for T-016:** microphone in a real match, positional accuracy, hot-swapping devices, Bluetooth,
+  alt-tab audio loss, and behaviour over a long session. None of those were exercised here.
+
+## T-013 — the DXMT shader-cache warning, half solved
+
+Every launch logged `Failed to set Metal cache path, fallback to system default`. DXMT's own binaries expose
+`DXMT_SHADER_CACHE`, `DXMT_LOG_PATH`, `DXMT_LOG_LEVEL`, `DXMT_CONFIG`/`DXMT_CONFIG_FILE`, plus a `dxmt.conf`
+file and keys such as `d3d11.preferredMaxFrameRate` and `dxmt.shaderMetalVersion`.
+
+* **MEASURED:** setting `DXMT_SHADER_CACHE` to a writable directory **removes the warning entirely**
+  (0 occurrences in a two-minute session, against one per launch before).
+* **UNKNOWN:** the directory was still **empty** after that session and after the process exited, so there is
+  no evidence yet that shaders are actually persisted there. **Do not claim a stutter fix.**
+* **Shipped anyway** because it is free and strictly better than the warning: the recipe and the
+  `balanced-1080p` profile now set `DXMT_SHADER_CACHE="$HOME/.cs2kit/shader-cache"`, and both the generated
+  env script and the launcher app `mkdir -p` it first — DXMT does not create it, and a missing directory
+  brings the warning straight back.
+* **The test that would settle it:** cold-vs-warm load time and first-minute hitch count with the variable
+  set and unset, four runs. That is T-013's real acceptance criterion and it is still open.

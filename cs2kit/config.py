@@ -46,6 +46,9 @@ def render_env_script(rec: recipe_mod.Recipe) -> str:
         lines.append(f'export {key}="{value}"')
     if rec.launch_options:
         lines.append(f'export CS2KIT_LAUNCH_OPTIONS="{" ".join(rec.launch_options)}"')
+    if "DXMT_SHADER_CACHE" in rec.env:
+        # DXMT will not create it, and a missing directory brings the warning back.
+        lines.append('mkdir -p "$DXMT_SHADER_CACHE"')
     return "\n".join(lines) + "\n"
 
 

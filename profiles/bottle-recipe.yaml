@@ -64,6 +64,12 @@ env:
   WINEESYNC: 0        # mutually exclusive with MSync; A/B'd in T-012
   WINEDEBUG: "-all"   # debug channels cost frames
   MTL_HUD_ENABLED: 0  # set to 1 only while benchmarking (T-011)
+  # T-013: without this DXMT logs "Failed to set Metal cache path, fallback to
+  # system default" on every launch. Pointing it at a writable directory silences
+  # that. MEASURED: the warning goes away. UNKNOWN: no files appeared in the
+  # directory after two minutes of play, so whether it actually persists shaders
+  # is not proven - do not claim a stutter fix on the strength of it.
+  DXMT_SHADER_CACHE: "$HOME/.cs2kit/shader-cache"
 
 game:
   appid: 730

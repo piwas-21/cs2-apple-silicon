@@ -28,6 +28,7 @@ export PATH="$WINE_ROOT/bin:$PATH"
 export DYLD_FALLBACK_LIBRARY_PATH="$WINE_ROOT/lib"
 export CX_ROOT="$WINE_ROOT"
 {env_lines}
+[ -n "${{DXMT_SHADER_CACHE:-}}" ] && mkdir -p "$DXMT_SHADER_CACHE"
 LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
 exec >>"$LOG" 2>&1
