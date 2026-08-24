@@ -34,7 +34,7 @@ cs2kit doctor --json   # the same thing for an issue report
 | 17 | DXMT's DLLs load as `native` instead of `builtin` | [17](#17-dxmts-dlls-load-as-native-instead-of-builtin) |
 | 18 | Steam dies with "Unexpected transport error (0x3008)" | [18](#18-steam-dies-on-startup-with-unexpected-transport-error-0x3008) |
 | 19 | The game "does nothing" - empty log, no window | [19](#19-the-game-does-nothing--empty-log-no-window-exit-code-1) |
-| 20 | "Failed to create metal view", or Steam's window is black | [20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault) |
+| 20 | "Failed to create metal view", or Steam's window is black | [20](#20-failed-to-create-metal-view-and-the-black-steam-window-are-one-fault) |
 | 21 | `wineserver`: `Library not loaded: @rpath/libinotify.0.dylib` | [21](#21-wineserver-library-not-loaded-rpathlibinotify0dylib) |
 | 22 | The game will not relaunch / Steam thinks it is already running | [22](#22-the-game-refuses-to-relaunch-steamexe--applaunch-730-does-nothing) |
 | 23 | Steam forgets the library folder you added | [23](#23-steam-forgets-the-library-folder-and-offers-a-full-re-download) |
@@ -55,7 +55,7 @@ The three-engine table, with what each one fails at, is in [02-architecture.md](
 ## 1. Black screen on launch, audio plays, nothing renders
 
 > **If it is the Steam client that is black, not the game, this is the wrong entry - go to
-> [20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault).** That is an engine fault,
+> [20](#20-failed-to-create-metal-view-and-the-black-steam-window-are-one-fault).** That is an engine fault,
 > and no amount of fullscreen toggling fixes it.
 
 **Cause.** A fullscreen-mode handover that the compatibility layer does not complete. Also reported as an
@@ -188,9 +188,15 @@ self-update produces errors that look like Wine faults but are not.
 cs2kit doctor            # 'Bottle' and 'Wine' must be PASS before you blame Steam
 ```
 
-**Fix.** Have the mobile authenticator ready **before** you run `wine SteamSetup.exe`; let the client finish
-self-updating completely; then let it idle for 10 minutes before installing anything. If the client cannot idle, the
-problem is the Wine stack, not CS2 - fix it here, before the game is involved.
+**Fix.** **Log in with the QR code**, not with a password: the client's sign-in screen shows one, you scan it with
+the Steam mobile app, and nothing has to be typed into a Wine window at all. That removes the keyboard-focus and
+Steam-Guard-transcription problems together, and it is how the machine of record logged in (MEASURED 2026-08-24).
+Let the client finish self-updating completely; then let it idle for 10 minutes before installing anything. If the
+client cannot idle, the problem is the Wine stack, not CS2 - fix it here, before the game is involved.
+
+If the login window never appears, or appears black, you are not looking at a Steam Guard problem: see entries
+[18](#18-steam-dies-on-startup-with-unexpected-transport-error-0x3008) and
+[20](#20-failed-to-create-metal-view-and-the-black-steam-window-are-one-fault).
 
 **CS2Kit never wraps, replaces or automates Steam authentication** - you log into Valve's own client, every time.
 That is an absolute rule, not an omission ([06-legal-and-policy.md](06-legal-and-policy.md)).
@@ -489,7 +495,7 @@ wine --version                           # must now print wine-10.0 (Sikarugir)
 
 **A WineHQ/Gcenx build is not a substitute here.** Its delivery is not the only problem: it exports no
 `winemac.drv` symbols, so it cannot run this stack at all (entry
-[20](#20-failed-to-create-metal-view--and-the-black-steam-window-are-the-same-fault)).
+[20](#20-failed-to-create-metal-view-and-the-black-steam-window-are-one-fault)).
 
 **Evidence.** CONFIRMED, both `brew info` outputs read on the machine of record 2026-08-24 -
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §2;
@@ -631,7 +637,7 @@ bundle, so the client and the game always agree.
 
 ---
 
-## 20. "Failed to create metal view" — and the black Steam window — are the same fault
+## 20. "Failed to create metal view", and the black Steam window, are one fault
 
 **Symptom, one or both of:**
 

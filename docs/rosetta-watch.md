@@ -81,7 +81,8 @@ Copy the block, fill it in, append a dated entry to section 5. Ten minutes if no
 3. **Wine ARM64EC** - latest Wine ANNOUNCE.md: has the 4K-page requirement been relaxed, or has 16K-page simulation
    moved beyond "simple applications"?
 4. **FEX** - is there a shipping ARM64EC FEX build usable on macOS?
-5. **Gcenx builds** - is there any `--enable-archs` line that is not `i386,x86_64`?
+5. **Sikarugir Engines** (the engine of record) and **Gcenx builds** - is there any `--enable-archs` line that
+   is not `i386,x86_64`? The Sikarugir engine has **not** been checked yet: UNKNOWN.
 6. **DXMT** (T-034) - does it build for an ARM64EC Wine at all?
 7. **Community** - has anyone run *any* Windows game on macOS without Rosetta?
 8. **Decision** - CONTINUE / PREPARE-EXIT / EXIT. If PREPARE-EXIT, publish the notice in section 4 and set a date.
@@ -133,6 +134,7 @@ successor we can build.
 | Wine ARM64EC | ARM64EC fully supported since Wine 10.0; **blocked on macOS by the 16K page size**. Wine 11.0 simulates 4K pages for "simple applications" only. | CONFIRMED |
 | FEX on macOS | No shipping ARM64EC FEX-on-macOS path found. | UNKNOWN |
 | Gcenx Wine builds | `--enable-archs=i386,x86_64` as of Wine 11.15 (2026-08-08) - x86-64 only, Rosetta required. | CONFIRMED |
+| Sikarugir Wine 10.0 (engine of record) | build flags not yet inspected; it is an x86-64 Wine under Rosetta like the others, so R-1 applies unchanged. | UNKNOWN |
 | macOS 27 Intel-Linux containers | New hedge worth a feasibility study; entirely unresearched. | UNKNOWN |
 | **Decision** | **CONTINUE.** Two macOS releases of runway. Do not plan features past macOS 27; keep the notice in section 4 current. | - |
 

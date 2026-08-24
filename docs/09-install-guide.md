@@ -335,7 +335,7 @@ helper process cannot establish its transport under Wine and the client dies on 
 
 ```bash
 cs2kit app create                     # a double-clickable .app: verify the game files, then launch
-open ~/Applications/CS2.app           # or wherever `app create` reported it wrote
+open "$HOME/Applications/Counter-Strike 2 (CS2Kit).app"    # the path `app create` prints
 ```
 
 **Start it from your own desktop session, not from a terminal in a background/agent context.** On this machine every
@@ -524,6 +524,11 @@ samples**, 0.7-1.4 GB resident, and a single indicative **117 fps** reading at C
 1512x982-point window. **That is one sample, not a benchmark** - `cs2kit bench run` and
 [07-benchmark-protocol.md](07-benchmark-protocol.md) exist because a single number proves nothing.
 
+**Do not measure FPS by taking screenshots.** Sampling the CS2 window with `screencapture -l` every 20 s took the
+game from **72 fps to 3 fps** on this stack - the capture forces a readback that costs more than the frame it
+observes. MEASURED 2026-08-24; the rule and its consequences are in
+[07-benchmark-protocol.md](07-benchmark-protocol.md).
+
 Then, before you go online:
 
 ```bash
@@ -556,8 +561,10 @@ The three failures that cost this project the most time, and where they are answ
 
 | What you see | Entry |
 |---|---|
-| `Failed to create metal view ... no exported symbols needed by DXMT` | [10-troubleshooting.md](10-troubleshooting.md) entry 19 - wrong engine |
-| Steam's window is **black** but `wine notepad` renders fine | [10-troubleshooting.md](10-troubleshooting.md) entry 19 - the same cause |
+| `Failed to create metal view ... no exported symbols needed by DXMT` | [10-troubleshooting.md](10-troubleshooting.md) entry 20 - wrong engine |
+| Steam's window is **black** but `wine notepad` renders fine | [10-troubleshooting.md](10-troubleshooting.md) entry 20 - the same cause |
+| CS2 will not relaunch after you killed it | [10-troubleshooting.md](10-troubleshooting.md) entry 22 - launch `cs2.exe` directly |
+| Steam forgot your library folder and wants 72 GB again | [10-troubleshooting.md](10-troubleshooting.md) entry 23 - use the symlink |
 | *"Unexpected transport error (0x3008)"* | [10-troubleshooting.md](10-troubleshooting.md) entry 18 - `-no-cef-sandbox`, then the engine |
 
 ## What this guide does not promise

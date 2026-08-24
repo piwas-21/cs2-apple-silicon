@@ -7,7 +7,7 @@ anything.** But that outcome has to be *engineered for* — it depends on which 
 
 | Component | Licence | Free to redistribute? | Commercial use? |
 |---|---|---|---|
-| **Wine** (Gcenx macOS builds, **11.15 staging**, 2026-08-08) | LGPL-2.1 | ✅ | ✅ |
+| **Wine** (**Sikarugir Engines**, `WS12WineSikarugir10.0_6`, wine-10.0) | LGPL-2.1 | ✅ | ✅ |
 | **DXMT** (DX11→Metal, 3Shain/CodeWeavers, **v0.80** 2026-04-23) | **MIT** — and **LGPL from v0.81** | ✅ | ✅ |
 | **MSync** (marzent/wine-msync) | **LGPL-2.1** | ✅ | ✅ |
 | **DXVK-macOS** (Gcenx) | Zlib | ✅ | ✅ | 
@@ -36,7 +36,7 @@ licence in the table above binds this project.
 
 | Component | URL | Released | Bytes | SHA-256 |
 |---|---|---|---|---|
-| Wine 11.15 staging | `github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/wine-staging-11.15-osx64.tar.xz` | 2026-08-08 | 193 561 920 | `a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2` |
+| Sikarugir Wine 10.0 | `github.com/Sikarugir-App/Engines/releases/download/v1.0/WS12WineSikarugir10.0_6.tar.xz` | 2026-08-24 | 166 304 096 | `9da7ee0cbf386522f3a9906943726d9c3c125dbbd9ab120e3cde80e88d6091b2` |
 | DXMT v0.80 builtin | `github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz` | 2026-04-23 | 18 681 669 | `8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d` |
 
 **Not Homebrew.** `gcenx/wine/wine-crossover` — the command this project used to print — was deleted from its tap on

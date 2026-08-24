@@ -249,7 +249,7 @@ but the finished install was then reused by the in-bottle client through the sym
 **Steps**
 1. Launch options: `-novid -nojoy -console`. **Not** `-vulkan`.
 2. **Black screen** → `CS2Video.txt` with `fullscreen = 0`. *(If the whole Steam client is black, this is not your
-   problem — it is the wrong engine. See T-004 and [10-troubleshooting.md](10-troubleshooting.md) entry 19.)*
+   problem — it is the wrong engine. See T-004 and [10-troubleshooting.md](10-troubleshooting.md) entry 20.)*
 3. **Audio crackling** → set `cs2.exe` to **Windows 8** (`winecfg` → Applications). Documented permanent fix.
 4. **Retina off**, render at **1920×1080** or lower. Native 3024×1964 costs ~4× (an M2 Max drops to 23 FPS).
 5. Only if it still fails: `WINEDEBUG=+loaddll,+seh` before changing anything else.

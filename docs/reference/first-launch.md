@@ -1,10 +1,20 @@
 # Reference - first launch and the four known fixes (T-009)
 
-**Status: TEMPLATE.** Apply the four fixes **before** you start debugging anything. Each one is a documented,
-reproduced failure mode, not a superstition; each is sourced below. Every machine-specific output in the
-"to be filled in on first run" block is **UNRECORDED** until a human runs this.
+**Status: T-009 ACHIEVED on the machine of record, 2026-08-24.** CS2 launches and draws through DXMT on Apple
+Silicon. The record below is filled in with what was measured; anything still marked **UNRECORDED** was not
+measured and must not be guessed.
 
-Acceptance (T-009): **the CS2 main menu renders and accepts mouse input.**
+Apply the four fixes **before** you start debugging anything. Each one is a documented, reproduced failure mode,
+not a superstition; each is sourced below.
+
+Acceptance (T-009): **the CS2 main menu renders and accepts mouse input.** — **MET.**
+
+> **Fix 0, which outranks all four: be on the right engine.** On Gcenx Wine 11.15 nothing below matters — DXMT
+> reports `Maximum supported feature level: D3D_FEATURE_LEVEL_11_1` and then fails with
+> `err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT`. The engine of
+> record is **Sikarugir Wine 10.0**; check it with
+> `nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv` before anything else
+> ([../02-architecture.md](../02-architecture.md)).
 
 ---
 
@@ -87,7 +97,22 @@ CS2 **silently falls back to DX11 when Vulkan initialisation fails** ([../07-ben
 trap 3). Read the console output - the launch option is not evidence. With DXMT installed and no `-vulkan`, DX11 via
 DXMT is the intended and correct answer; the point of the check is that you *know*, rather than assume.
 
-## 6. Only then, debug
+## 6. How to actually start it, and what to do when it will not restart
+
+With the in-bottle client logged in and running, `cs2kit launch` is the supported way in: it checks the integrity
+baseline, applies the profile environment and hands off to Steam with `-no-cef-sandbox`.
+
+**`Steam.exe -applaunch 730` refuses to relaunch while the client still believes a session is running** — the state
+you are in after killing CS2 between maps. Launching the executable directly always worked (MEASURED 2026-08-24):
+
+```bash
+cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam/steamapps/common/Counter-Strike Global Offensive"
+wine game/bin/win64/cs2.exe -novid -nojoy -console
+```
+
+That path skips the integrity guard, so run `cs2kit verify check` first.
+
+## 7. Only then, debug
 
 ```bash
 WINEDEBUG=+loaddll,+seh wine ...
@@ -97,7 +122,7 @@ Change one thing at a time and write each change into the deviations table below
 the change in `profiles/bottle-recipe.yaml` afterwards so `cs2kit bottle create` reproduces it (T-025) - an
 undocumented bottle is not reproducible, and reproducibility is the entire product.
 
-## 7. Expect shader-compilation hitching on the first pass
+## 8. Expect shader-compilation hitching on the first pass
 
 The first pass over any map is dominated by shader compilation. It is inherent to D3D-to-Metal translation, and
 1-2 matches on a map makes it "much smoother" (CONFIRMED, multiple independent reports,
@@ -106,48 +131,59 @@ it (trap 1). T-013 quantifies it.
 
 ---
 
-## To be filled in on first run
+---
+
+## The record — machine of record, 2026-08-24
 
 ### Environment
 
 | Field | Value |
 |---|---|
-| Date | UNRECORDED |
-| macOS / build | UNRECORDED |
-| Wine version | UNRECORDED |
-| DXMT version | UNRECORDED |
-| CS2 `buildid` | UNRECORDED |
-| Launch options actually used | UNRECORDED |
+| Date | **2026-08-24** |
+| macOS / build | **26.5.2 (25F84)**, Apple M2 Pro, 32 GB ([target-machine.md](target-machine.md)) |
+| Wine version | **`wine-10.0 (Sikarugir)`** — `WS12WineSikarugir10.0_6.tar.xz` ([toolchain.md](toolchain.md)) |
+| DXMT version | **v0.80**, the builtin build; the loaded `d3d11.dll` hashes to DXMT's release binary (`7ca382af…`), not Wine's own (`e333b8c6…`) |
+| CS2 `buildid` | **24828357** |
+| Launch options actually used | `-novid -nojoy -console` (recipe default; the direct-launch runs used the same) |
+| Steam client flags | `-no-cef-sandbox` — **mandatory**, see [../10-troubleshooting.md](../10-troubleshooting.md) entry 18 |
 
 ### Which fixes were needed
 
 | Fix | Needed? | Notes / exact file path touched |
 |---|---|---|
-| 1 - `CS2Video.txt` `fullscreen = 0` | UNRECORDED | UNRECORDED |
-| 2 - `cs2.exe` compat mode Windows 8 | UNRECORDED | UNRECORDED |
-| 3 - Retina off / 1920x1080 | UNRECORDED | UNRECORDED |
-| 4 - renderer confirmed from the console | UNRECORDED | UNRECORDED |
+| 0 - the right engine | **YES, decisive** | Gcenx Wine 11.15 fails with `Failed to create metal view`; Sikarugir Wine 10.0 works. This is the whole of T-009's difficulty |
+| 1 - `CS2Video.txt` `fullscreen = 0` | **no** | The menu and the video-settings screen rendered on the first launch without it. **Which copy CS2 reads under Wine is still UNRECORDED** — nobody had to find out |
+| 2 - `cs2.exe` compat mode Windows 8 | **applied** | Pinned by `profiles/bottle-recipe.yaml` and placed by `cs2kit bottle create`, so it was in effect from the first launch. Whether audio *needs* it here is **UNRECORDED** — audio has not been assessed at all (T-016) |
+| 3 - Retina off / 1920x1080 | **NOT applied** | The first session ran at the Retina backing resolution (**3024x1964** from a 1512x982-point window) at CS2's auto-selected **Low** preset. So the 117 fps sample was measured *with* the trap still in place, not after tuning |
+| 4 - renderer confirmed from the console | **yes** | DXMT logged `Using feature level D3D_FEATURE_LEVEL_11_1` with **zero** `Failed to create metal view` errors; the loaded `d3d11.dll` is DXMT's, not Wine's |
 
 ### Errors, verbatim
 
 | # | Stage | Error (verbatim) | Fix | Recipe change required? |
 |---|---|---|---|---|
-| 1 | UNRECORDED | UNRECORDED | UNRECORDED | UNRECORDED |
+| 1 | launching `cs2.exe` on Gcenx Wine 11.15 (staging and devel) | `err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT` | change the engine to Sikarugir Wine 10.0 (`cs2kit engine install`), then re-run `cs2kit bottle create` so DXMT lands in the new engine | **yes** — `wine.root` now names the Sikarugir engine |
+| 2 | starting the Steam client | `An unexpected error occurred while starting Steam (0x3008)` | `-no-cef-sandbox` (necessary on every engine); on FOSS CrossOver 24.0.7 it is **not sufficient** — that engine's client rejects its own helper's websocket | no — `cs2kit launch` passes the flag |
+| 3 | first `wineserver` start on a bare engine | `Library not loaded: @rpath/libinotify.0.dylib` | stage the wrapper's `Contents/Frameworks/*.dylib` into `<engine>/lib/`; `cs2kit engine install` does it | no |
+| 4 | every DXMT start | `info:  Failed to set Metal cache path, fallback to system default` | none needed — DXMT still initialises. Open lead for T-013; the missing-symbol hypothesis was tested and ruled out | no |
 
 ### Result
 
 | Question | Answer |
 |---|---|
-| Main menu renders? | UNRECORDED |
-| Mouse input accepted? | UNRECORDED |
-| Time from launch to menu (cold) | UNRECORDED |
-| First-map hitching (subjective, cold) | UNRECORDED |
-| Renderer reported by the console | UNRECORDED |
+| Main menu renders? | **YES** — the video-settings screen with live 3D previews drew at 3024x1964, mean luminance 98/255, 99.8 % non-black |
+| Mouse input accepted? | **YES** — menus were navigated and a bot match started. Input *latency* is unmeasured (T-015) |
+| Time from launch to menu (cold) | **~2 min 46 s** — `launch` 17:33:02Z to first rendered frame 17:35:48Z ([t010-dust2-log.jsonl](t010-dust2-log.jsonl)) |
+| First-map hitching (subjective, cold) | **UNRECORDED** — no human sat through the cold pass; the automated monitor saw 0 frozen frames in 22 samples |
+| Renderer reported by the console | **DX11 through DXMT v0.80**, `D3D_FEATURE_LEVEL_11_1` |
+| Frame rate | **117 fps**, one sample, Dust2 bot match, auto-selected Low preset, 1512x982-point window. **Not a benchmark** — T-011 produces the number this project stands behind ([../07-benchmark-protocol.md](../07-benchmark-protocol.md)) |
+| Measurement hazard found the same day | `screencapture -l` sampling every 20 s dropped the game from **72 fps to 3 fps**. Never sample frame rate by screenshot ([../07-benchmark-protocol.md](../07-benchmark-protocol.md)) |
+| Audio | **UNRECORDED** — no automated signal exists and nobody has listened yet (T-016) |
 
 ### Acceptance (T-009)
 
-* Main menu renders and accepts mouse input: **UNRECORDED**
-* Recorded by: UNRECORDED - Date: UNRECORDED
+* Main menu renders and accepts mouse input: **YES, 2026-08-24**, on Sikarugir Wine 10.0 + DXMT v0.80.
+* Recorded by: the session logged in [../implementation-status.md](../implementation-status.md) - Date: **2026-08-24**
 
 Next: **T-010 [GATE]** - bot match on Dust2, Mirage and Ancient, each played twice, 30 minutes continuous
-([../03-development-plan.md](../03-development-plan.md)).
+([../03-development-plan.md](../03-development-plan.md)). One Dust2 pass is done: 10 minutes, 0 crashes,
+0 frozen frames, RSS 0.7-1.4 GB. Five passes and a human ear remain.

@@ -165,7 +165,7 @@ it is **MIT through v0.80 and LGPL from v0.81**, and it moves fast ([02-architec
 | Project | Why it matters | What to check | Trigger to act |
 |---|---|---|---|
 | **DXMT** | our D3D11-to-Metal path; the project's critical dependency | new release, changelog, open CS2-relevant issues | a release lands -> update the bottle, re-run the T-030 drill, record the version in [reference/toolchain.md](reference/toolchain.md) |
-| **Wine** (Gcenx macOS builds) | the runtime host | version, `--enable-archs` line, ARM64EC and 4K-page notes in `ANNOUNCE.md` | any `--enable-archs` that is not `i386,x86_64`, or 16K-page support beyond "simple applications" -> [rosetta-watch.md](rosetta-watch.md) |
+| **Wine** (**Sikarugir Engines** — the engine of record; Gcenx only as a comparison point) | the runtime host | version, `--enable-archs` line, ARM64EC and 4K-page notes in `ANNOUNCE.md` | any `--enable-archs` that is not `i386,x86_64`, or 16K-page support beyond "simple applications" -> [rosetta-watch.md](rosetta-watch.md) |
 | **MSync** | synchronisation; ESync is being removed from CrossOver | still maintained, still the 2026 consensus | if MSync stalls, re-run the MSync-vs-ESync A/B from T-012 |
 | **MoltenVK** | would make the Vulkan renderer viable | **geometry shaders** and **`VK_EXT_transform_feedback`** | **if either lands, revisit T-012** - the `-vulkan` verdict was measured against their absence and would have to be re-measured |
 

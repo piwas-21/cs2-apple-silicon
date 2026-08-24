@@ -71,7 +71,7 @@ uv run pytest            # the whole suite
 
 | Task | Status | Evidence |
 |---|---|---|
-| T-004 toolchain | **DONE** | FOSS CrossOver 24.0.7 Wine + DXMT v0.80, both checksummed in `reference/toolchain.md`. Gcenx's Wine was tried first and **cannot run DXMT** (`Failed to create metal view`) |
+| T-004 toolchain | **DONE** | **Sikarugir Wine 10.0** + DXMT v0.80, both checksummed in `reference/toolchain.md`, installable with `cs2kit engine install`. Gcenx's Wine and FOSS CrossOver 24.0.7 were tried first and **cannot run DXMT** (`Failed to create metal view`) |
 | T-006 bottle | **DONE** | built by `cs2kit bottle create --dxmt`, zero drift, DXMT placed in the Wine tree, Wine originals backed up |
 | T-008 CS2 install | **DONE** | `cs2.exe` 2,967,704 bytes, 123 files in `game/bin/win64`, `StateFlags 4`, 71.6 GB — installed head-lessly with `steamcmd`, so the broken Steam UI never blocked it |
 | T-021 integrity | **DONE** | 137 guarded binaries baselined after steamcmd's `validate` |

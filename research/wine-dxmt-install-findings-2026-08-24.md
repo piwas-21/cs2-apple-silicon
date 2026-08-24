@@ -237,6 +237,10 @@ because the moment somebody sets an override "to be safe" they become live.
 
 ---
 
+## 5. [SUPERSEDED — see research/steam-black-window-2026-08-24.md §UPDATE: the requirement DOES bind; a static `nm` dump cannot see a runtime `dlsym`/unix-call lookup]
+
+### original text, kept for the record
+
 ## 5. The wiki's "CrossOver Wine 24+" requirement does not bind DXMT v0.80 — measured
 
 The wiki's *Grab essential files* section says: *"You need the wine binary that fulfils certain specifications, A

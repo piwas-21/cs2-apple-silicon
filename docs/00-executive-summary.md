@@ -7,7 +7,7 @@ else can reproduce it.
 
 | | |
 |---|---|
-| **Stack** | Wine **11.15 staging** (Gcenx tarball) + **DXMT v0.80** + **MSync** — Wine/MSync LGPL-2.1, DXMT MIT through v0.80 (LGPL after). Installed and proven on the machine of record 2026-08-24; **not** via Homebrew (that cask was deleted upstream) |
+| **Stack** | **Sikarugir Wine 10.0** (Sikarugir Engines tarball) + **DXMT v0.80** + **MSync** — Wine/MSync LGPL-2.1, DXMT MIT through v0.80 (LGPL after). Installed and proven on the machine of record 2026-08-24; **not** via Homebrew (that cask was deleted upstream) |
 | **Cost to us** | €0 |
 | **Cost to every future user** | **€0** (CS2 is free-to-play; Prime is optional at $14.99) |
 | **Excluded** | CrossOver (€74), D3DMetal (non-commercial licence), DXVK-macOS (frozen 2023), `-vulkan`, VMs, Boot Camp |

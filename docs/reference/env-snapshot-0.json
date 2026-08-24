@@ -1,5 +1,5 @@
 {
-  "env_id": "9daef7606c5832a7",
+  "env_id": "2b7f2076010faa94",
   "stable": {
     "arch": "arm64",
     "chip": "Apple M2 Pro",
@@ -13,33 +13,33 @@
     "metal": "Metal 4",
     "p_cores": "6",
     "ram_gb": 32,
-    "recipe_hash": "4944bac27edfd9b8",
+    "recipe_hash": "12fc974c468753e8",
     "recipe_name": "cs2-default",
     "resolution": "3024 x 1964 Retina",
-    "wine_version": "wine-11.15 (Staging)"
+    "wine_version": "wine-10.0 (Sikarugir)"
   },
   "volatile": {
     "awdl_up": true,
-    "captured_at": "2026-08-23T22:26:23Z",
-    "cs2_exe": "",
+    "captured_at": "2026-08-24T19:07:03Z",
+    "cs2_exe": "/Users/mahmutkaya/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/game/bin/win64/cs2.exe",
     "dxmt_build": "builtin",
     "dxmt_installed": true,
-    "free_gib": 80,
+    "free_gib": 41,
     "installed_depots": [
       "2347770",
-      "2347772",
+      "2347771",
       "2347774",
-      "2347779",
       "731",
-      "733",
+      "732",
       "735"
     ],
     "low_power_mode": false,
-    "prefix": "/Users/mahmutkaya/CS2/prefix",
+    "prefix": "/Users/mahmutkaya/CS2/prefix-sk",
     "prefix_exists": true,
     "rosetta": true,
     "steam_root": "/Users/mahmutkaya/Library/Application Support/Steam",
-    "wine_path": "/Users/mahmutkaya/CS2/wine/Wine Staging.app/Contents/Resources/wine/bin/wine",
-    "wine_root": "/Users/mahmutkaya/CS2/wine/Wine Staging.app/Contents/Resources/wine"
+    "wine_exports_macdrv": true,
+    "wine_path": "/Users/mahmutkaya/CS2/wine-sk/wswine.bundle/bin/wine",
+    "wine_root": "/Users/mahmutkaya/CS2/wine-sk/wswine.bundle"
   }
 }
