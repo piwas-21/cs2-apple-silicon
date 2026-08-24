@@ -219,3 +219,33 @@ file and keys such as `d3d11.preferredMaxFrameRate` and `dxmt.shaderMetalVersion
   brings the warning straight back.
 * **The test that would settle it:** cold-vs-warm load time and first-minute hitch count with the variable
   set and unset, four runs. That is T-013's real acceptance criterion and it is still open.
+
+
+---
+
+## T-011 — blocked on one click, and why I stopped measuring
+
+**The benchmark map is the whole point of the protocol.** `docs/07-benchmark-protocol.md` specifies the
+**Ancient FPS Benchmark, workshop id 3472126051**, because it is deterministic: same camera path, same
+scene, every run. I opened its page inside the in-bottle Steam client
+(`steam://url/CommunityFilePage/3472126051` — it loads and renders correctly, titled *CS2 FPS BENCHMARK
+ANCIENT*, 13.595 MB), but I could not reach the **Abonneren / Subscribe** button:
+
+* synthetic scroll events (`CGEventCreateScrollWheelEvent`, line and pixel units, up to 120 lines),
+* keyboard scrolling (Down, Page Down after clicking the page body),
+* `Ctrl` + `-` zoom-out, and window maximise
+
+all leave the page exactly where it was. Chromium inside Wine ignores injected scroll and zoom events,
+so the button stays below the fold. **This is a one-click action for a human and a dead end for me.**
+
+### Why I did not substitute a home-made benchmark
+
+I tried: a fixed scene on `de_ancient` with `bot_quota 0`, sampling `cl_showfps` six times. The readings
+were **47, 51, 51, 124, 245** — median 51, but a 5× spread, because the team-select camera keeps moving.
+A configuration A/B (resolution, MSync vs ESync) needs a difference larger than that noise to mean
+anything, and none of the levers we care about are that large. Publishing a number from this would be
+worse than publishing none.
+
+**So T-011 stays open, with a precise unblock:** subscribe to the map (one click), then
+`cs2kit bench run` has a deterministic scene and the protocol can run as written — 3 warm-ups,
+5 measured runs, median avg / median 1 % low / p99 frametime / hitch count.
