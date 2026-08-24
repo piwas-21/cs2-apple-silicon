@@ -61,3 +61,28 @@ uv run pytest            # the whole suite
 ./bin/cs2kit doctor      # the machine, the bottle, the game
 ./bin/cs2kit report      # a redacted bundle you can share
 ```
+
+
+---
+
+## Session update — 2026-08-24, end of day
+
+**T-004 corrected, T-006 / T-008 / T-021 DONE on the machine of record.**
+
+| Task | Status | Evidence |
+|---|---|---|
+| T-004 toolchain | **DONE** | FOSS CrossOver 24.0.7 Wine + DXMT v0.80, both checksummed in `reference/toolchain.md`. Gcenx's Wine was tried first and **cannot run DXMT** (`Failed to create metal view`) |
+| T-006 bottle | **DONE** | built by `cs2kit bottle create --dxmt`, zero drift, DXMT placed in the Wine tree, Wine originals backed up |
+| T-008 CS2 install | **DONE** | `cs2.exe` 2,967,704 bytes, 123 files in `game/bin/win64`, `StateFlags 4`, 71.6 GB — installed head-lessly with `steamcmd`, so the broken Steam UI never blocked it |
+| T-021 integrity | **DONE** | 137 guarded binaries baselined after steamcmd's `validate` |
+| T-009 first launch | **BLOCKED** | the Steam client must be logged in once, and its window has not been seen to render |
+
+**The blocker, stated precisely:** CS2 launches, DXMT initialises at feature level 11_1, and the game then waits for
+a logged-in Steam client. Logging in needs the client's Chromium UI once. On Gcenx Wine that window drew black —
+now explained by the missing Metal view. On the CrossOver engine **no window was observed at all**, but every
+observation was made from an agent-spawned process, which may not hold a proper Aqua GUI session. **The one
+observation that has never been made is a human looking at the Steam client running on the CrossOver engine.**
+That is the next measurement, and it is cheap.
+
+A Sikarugir wrapper has been assembled at `~/Applications/Sikarugir/CS2.app` (Template 1.0.11 + the CX 24.0.7
+engine, prefix created) precisely so that launch happens in the user's own GUI session rather than the agent's.
