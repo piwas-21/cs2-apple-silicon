@@ -118,3 +118,20 @@ def test_a_crossover_build_is_not_graded_as_stale_wine(sandbox):
     old = by_id(doctor.run_checks(healthy_snapshot(
         sandbox, stable={"wine_version": "wine-8.0.1 (CrossOver 23.7.1)"})))
     assert old["wine"].status == WARN
+
+
+def test_a_wineserver_without_msync_is_a_hard_failure(sandbox, monkeypatch):
+    """2026-08-24: a wineserver started without WINEMSYNC makes every later
+    process die on msync_init with an empty log - it reads as "nothing happens"."""
+    monkeypatch.setattr(doctor, "wineserver_env",
+                        lambda prefix: {"WINEMSYNC": "0", "WINEPREFIX": prefix})
+    checks = by_id(doctor.run_checks(healthy_snapshot(sandbox)))
+    assert checks["wineserver-sync"].status == FAIL
+    assert "wineserver -k" in checks["wineserver-sync"].fix
+
+    monkeypatch.setattr(doctor, "wineserver_env",
+                        lambda prefix: {"WINEMSYNC": "1", "WINEPREFIX": prefix})
+    assert by_id(doctor.run_checks(healthy_snapshot(sandbox)))["wineserver-sync"].status == PASS
+
+    monkeypatch.setattr(doctor, "wineserver_env", lambda prefix: None)   # nothing running
+    assert "wineserver-sync" not in by_id(doctor.run_checks(healthy_snapshot(sandbox)))

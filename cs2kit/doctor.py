@@ -122,8 +122,7 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
                          f"not installed where a '{build}' build must live: {where}",
                          "cs2kit bottle create --dxmt <extracted DXMT release> "
                          "[--wine-root <wine installation>]", "T-004"))
-    stale = [name for name in ("d3d11.dll", "dxgi.dll", "d3d10core.dll")
-             if (prefix / "drive_c" / "windows" / "system32" / name).is_file()]
+    stale = _stale_prefix_dlls(prefix, volatile.get("wine_root"))
     if build == "builtin" and stale:
         out.append(Check("dxmt-stale", "Stale DXMT DLLs in the prefix", WARN,
                          f"{', '.join(stale)} in system32 while the builtin build is in use",
@@ -133,6 +132,7 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
         out.append(Check("wine-root", "Wine tree", WARN, "cannot locate the Wine installation",
                          "pass --wine-root, or set wine.root in profiles/bottle-recipe.yaml; DXMT's "
                          "builtin build installs into lib/wine, not into the prefix", "T-004"))
+    out.extend(_wineserver_sync_checks(volatile))
     env = os.environ
     msync = env.get("WINEMSYNC")
     if msync == "1" and env.get("WINEESYNC") == "1":
@@ -144,6 +144,74 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
         out.append(Check("sync", "Synchronisation", WARN, f"WINEMSYNC={msync or 'unset'} in this shell",
                          "source ~/.cs2kit/env/<profile>.sh, or use cs2kit launch", "T-012"))
     return out
+
+
+def _stale_prefix_dlls(prefix: Path, wine_root: Optional[str]) -> List[str]:
+    """Graphics DLLs in the prefix that do NOT match the Wine tree.
+
+    Modern Wine copies its own builtin PE modules into the prefix's system32, so
+    their mere presence is normal and warning about it is a false alarm. What is
+    not normal is a *different* file sitting there: a leftover from an older
+    recipe that placed DXMT in the prefix, which goes live the moment anyone adds
+    a DLL override."""
+    import hashlib
+
+    if not wine_root:
+        return []
+    system32 = Path(prefix) / "drive_c" / "windows" / "system32"
+    tree = Path(wine_root) / "lib" / "wine" / "x86_64-windows"
+    out = []
+    for name in ("d3d11.dll", "dxgi.dll", "d3d10core.dll"):
+        here, there = system32 / name, tree / name
+        if not here.is_file() or not there.is_file():
+            continue
+        if hashlib.sha256(here.read_bytes()).digest() != hashlib.sha256(there.read_bytes()).digest():
+            out.append(name)
+    return out
+
+
+def wineserver_env(prefix: str) -> Optional[Dict[str, str]]:
+    """The environment of the wineserver currently owning this prefix, if any.
+
+    Why this matters: a wineserver started WITHOUT `WINEMSYNC=1` poisons the
+    prefix. Every later process started *with* it dies immediately on
+    `msync_init Failed to open msync shared memory file`, with an empty log and
+    no window - which reads exactly like "the game silently does not start"
+    (measured 2026-08-24, and it cost an hour)."""
+    from cs2kit.util import run as _run
+
+    pids = _run(["pgrep", "-f", "wineserver"], timeout=10).out.split()
+    for pid in pids:
+        listing = _run(["ps", "eww", "-o", "command=", "-p", pid], timeout=10).out
+        if prefix and prefix not in listing:
+            continue
+        env = {}
+        for token in listing.split():
+            if "=" in token:
+                key, _, value = token.partition("=")
+                if key.isupper():
+                    env[key] = value
+        return env
+    return None
+
+
+def _wineserver_sync_checks(volatile: Dict[str, Any]) -> List[Check]:
+    env = wineserver_env(str(volatile.get("prefix") or ""))
+    if env is None:
+        return []
+    running = env.get("WINEMSYNC", "0")
+    wanted = "1"
+    try:
+        wanted = str((recipe_mod.load_default().env or {}).get("WINEMSYNC", "1"))
+    except recipe_mod.RecipeError:
+        pass
+    if running == wanted:
+        return [Check("wineserver-sync", "Running wineserver", PASS,
+                      f"WINEMSYNC={running}, matches the recipe", "", "T-012")]
+    return [Check("wineserver-sync", "Running wineserver", FAIL,
+                  f"started with WINEMSYNC={running}, but the recipe wants {wanted}",
+                  "wineserver -k, then start everything (Steam included) with the same WINEMSYNC - "
+                  "otherwise the game exits instantly with an empty log", "T-012")]
 
 
 def _game_checks(snap: Dict[str, Any]) -> List[Check]:

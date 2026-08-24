@@ -578,3 +578,41 @@ it recurs, delete the helper's cache: `rm -rf "$WINEPREFIX/drive_c/users/$USER/A
 
 **Evidence.** `research/steam-black-window-2026-08-24.md`; the rendered dialog is what proved the CrossOver engine
 draws Steam's UI correctly, which the Gcenx builds never did.
+
+
+---
+
+## 19. The game "does nothing" — empty log, no window, exit code 1
+
+**Symptom.** `wine cs2.exe` returns immediately. No window, and the log file it was redirected to is
+**zero bytes**. Steam is running and logged in; nothing else looks wrong. **Measured 2026-08-24.**
+
+**Cause.** A `wineserver` already owns the prefix and was started **without** `WINEMSYNC=1`, while the new
+process is started **with** it. The one error line only appears if you run in the foreground:
+
+```
+err:msync:msync_init Failed to open msync shared memory file; make sure no stale
+wineserver instances are running without WINEMSYNC.
+```
+
+The usual way in: the Steam client was started from one shell (no `WINEMSYNC`) and the game from another
+(profile sourced, so `WINEMSYNC=1`). The first process to touch the prefix decides for everyone.
+
+**One-command check.**
+
+```bash
+cs2kit doctor | grep -i "Running wineserver"
+```
+
+`doctor` reads the running `wineserver`'s own environment and FAILs when it disagrees with the recipe.
+
+**Fix.** Kill the server, then start *everything* — client and game — with the same setting:
+
+```bash
+wineserver -k
+source ~/.cs2kit/env/balanced-1080p.sh     # exports WINEMSYNC=1
+cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam" && wine Steam.exe -no-cef-sandbox -silent
+```
+
+The generated launcher app does this for you: `cs2kit app create` bakes the profile's environment into the
+bundle, so the client and the game always agree.

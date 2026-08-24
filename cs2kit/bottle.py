@@ -496,6 +496,51 @@ def cmd_restore_wine(args) -> int:
     return EXIT_OK
 
 
+def link_steamapps(prefix: Path, target: Optional[Path] = None) -> Dict[str, Any]:
+    """Point the bottle's own library at an existing macOS Steam library.
+
+    Adding a Library Folder through Steam's UI does not survive: the client
+    rewrites `libraryfolders.vdf` on every start and the entry disappears, so
+    the game shows as "not installed" and Steam offers a fresh 66 GB download.
+    Replacing the bottle's `steamapps` with a symlink does survive, because
+    Steam simply reads its own default library (measured 2026-08-24, T-008)."""
+    prefix = Path(prefix)
+    target = Path(target or (steam_root() / "steamapps")).expanduser()
+    if not (target / "common").is_dir():
+        raise BottleError(f"{target} does not look like a steamapps directory (no common/)")
+    steam_dir = prefix / "drive_c" / "Program Files (x86)" / "Steam"
+    if not steam_dir.is_dir():
+        raise BottleError(f"no Steam client in {prefix} - install it first (T-007)")
+    link = steam_dir / "steamapps"
+    moved = None
+    if link.is_symlink():
+        link.unlink()
+    elif link.exists():
+        moved = link.with_name("steamapps.cs2kit-backup")
+        if moved.exists():
+            shutil.rmtree(moved)
+        link.rename(moved)
+    link.symlink_to(target)
+    return {"link": str(link), "target": str(target), "moved_aside": str(moved) if moved else None}
+
+
+def cmd_link_steamapps(args) -> int:
+    prefix = Path(args.prefix or wineprefix())
+    try:
+        result = link_steamapps(prefix, Path(args.target) if args.target else None)
+    except BottleError as exc:
+        return emit_error("bottle link-steamapps", str(exc), json_mode=args.json)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return EXIT_OK
+    print(f"Linked {result['link']}\n    -> {result['target']}")
+    if result["moved_aside"]:
+        print(f"  (previous directory kept at {result['moved_aside']})")
+    print("\nSteam now reads that library as its own, so an existing CS2 install is recognised")
+    print("without a re-download. Restart the client for it to take effect.")
+    return EXIT_OK
+
+
 def cmd_library(args) -> int:
     prefix = Path(args.prefix or wineprefix())
     target = Path(args.path).expanduser() if args.path else Path(steam_root())
@@ -543,6 +588,14 @@ def register(subparsers) -> None:
     rest.add_argument("--dry-run", action="store_true")
     rest.add_argument("--json", action="store_true")
     rest.set_defaults(func=cmd_restore_wine)
+
+    lnk = sub.add_parser("link-steamapps",
+                         help="reuse an existing macOS Steam library (survives client restarts)")
+    lnk.add_argument("--target", help="steamapps directory to link to "
+                                      "(default: ~/Library/Application Support/Steam/steamapps)")
+    lnk.add_argument("--prefix", help="WINEPREFIX to operate on")
+    lnk.add_argument("--json", action="store_true")
+    lnk.set_defaults(func=cmd_link_steamapps)
 
     lib = sub.add_parser("library", help="map a macOS Steam library into the bottle (T-008)")
     lib.add_argument("--path", help="the directory containing steamapps "

@@ -19,7 +19,9 @@ from cs2kit.util import EXIT_FAIL, EXIT_OK, EXIT_USAGE
 #: Order is the order they appear in `cs2kit --help`: the order a user needs them.
 COMMAND_MODULES = [
     "cs2kit.doctor",
+    "cs2kit.engine",
     "cs2kit.bottle",
+    "cs2kit.app",
     "cs2kit.config",
     "cs2kit.verify_cmd",
     "cs2kit.launch",

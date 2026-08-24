@@ -3,14 +3,20 @@
 **Stack is decided. No comparisons, no trials, no paid software.**
 
 ```
-cs2.exe (Windows x64)  →  Windows Steam client  →  Wine 11.15 staging (Gcenx tarball, LGPL-2.1)
+cs2.exe (Windows x64)  →  Windows Steam client  →  Sikarugir Wine 10.0 (LGPL-2.1)
                                                     + DXMT v0.80 (MIT, DX11→Metal)
                                                     + MSync (LGPL-2.1)
                                                     →  Rosetta 2  →  Metal 4  →  M2 Pro
 ```
 
+**The engine is decided by measurement, and only one of the three we tried works** (2026-08-24, machine of record):
+Gcenx Wine 11.15 exports no `winemac.drv` symbols, so DXMT cannot create a Metal view and Steam's window is black;
+FOSS CrossOver 24.0.7 renders Steam but its Wine 9.0 base rejects the client↔helper websocket (0x3008), so login is
+impossible; **Sikarugir Wine 10.0 does all three jobs.** The table and the evidence are in
+[02-architecture.md](02-architecture.md); `cs2kit engine list` prints the same verdicts.
+
 Everything is free software. Nothing here costs money. `CS2Kit` may be licensed however we like.
-**Both components are downloaded as signed-by-nobody tarballs and pinned by SHA-256 — no Homebrew** (T-004; the
+**Every component is downloaded as a signed-by-nobody archive and pinned by SHA-256 — no Homebrew** (T-004; the
 cask route died on 2026-04-16 and Homebrew's own Wine casks are disabled on 2026-09-01,
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md)).
 
@@ -28,10 +34,10 @@ Do these seven, in order, and stop. Everything after is measurement and producti
 | # | Task | Time |
 |---|---|---|
 | 1 | **T-001** Free the disk / keep the 58 GB of assets | 30 min |
-| 2 | **T-004** Install the free stack (two tarballs, two checksums) | 1 h |
+| 2 | **T-004** Install the free stack (`cs2kit engine install` + DXMT) | 1 h |
 | 3 | **T-006** Create the bottle | 1 h |
-| 4 | **T-007** Windows Steam inside the bottle | 3 h |
-| 5 | **T-008** CS2 via the 4.99 GB depot gap | 1 h + download |
+| 4 | **T-007** Windows Steam inside the bottle (`-no-cef-sandbox`, QR login) | 3 h |
+| 5 | **T-008** CS2 via the symlinked library / the depot gap | 1 h + download |
 | 6 | **T-009** First launch + the four known fixes | 4 h |
 | 7 | **T-010** `[GATE]` Bot match on three maps | 2 h |
 
@@ -89,73 +95,74 @@ exactly what the Windows install needs**, so we keep it and close a 4.99 GB gap 
 **Acceptance:** `LICENSE` exists; `docs/06` §Distribution model has one box ticked and no open questions.
 **Effort:** 1 h · **Risk:** low.
 
-## T-004 · Install the free stack — two tarballs, two checksums, no Homebrew
-**Why:** this is the entire toolchain, and the version of this task we shipped **could not be executed**. It said
-`brew install --cask --no-quarantine gcenx/wine/wine-crossover   # Wine 11.x`. That cask was **deleted from its tap
-on 2026-04-16** (commit `f201026`), Homebrew now **refuses third-party casks** without `brew trust`, and the last
-version it ever shipped was **wine-8.0.1**, not 11.x. Homebrew's own `wine-stable` (11.0_1) and `wine@staging`
-(11.15) are **deprecated and disabled on 2026-09-01** for failing the Gatekeeper check. All CONFIRMED on the machine
-of record 2026-08-24 — [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md).
-**No Homebrew route to Wine survives the month.** A tarball has no cask to delete, no tap to trust and no quarantine
-attribute, and it can be pinned by checksum.
+## T-004 · Install the free stack — one engine, one DXMT, both checksummed
+**Why:** this is the entire toolchain, and **the version of this task we shipped installed a Wine that cannot run
+CS2.** It said Gcenx Wine 11.15 staging. That build exports no `winemac.drv` symbols, so DXMT gets a D3D11 device
+and then fails with *"Failed to create metal view, it seems like your Wine has no exported symbols needed by
+DXMT"*, and Steam's own window renders black for the same reason. Before that it said
+`brew install --cask --no-quarantine gcenx/wine/wine-crossover`, which had been **deleted from its tap on
+2026-04-16** and had shipped **wine-8.0.1**. Homebrew's own `wine-stable` / `wine@staging` are **disabled on
+2026-09-01** for failing Gatekeeper. All CONFIRMED on the machine of record 2026-08-24 —
+[../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md),
+[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md).
+**No Homebrew route to Wine survives the month, and only one free engine runs the game.**
 
 **Steps**
 ```bash
 # 0. Rosetta 2 - the whole stack below is x86-64 (already present on this machine; verify)
 softwareupdate --install-rosetta --agree-to-license
 
-mkdir -p ~/CS2/downloads && cd ~/CS2/downloads
-
-# 1. Wine 11.15 staging (Gcenx tarball, LGPL-2.1, released 2026-08-08, 193561920 bytes)
-curl -fLO https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/wine-staging-11.15-osx64.tar.xz
+# 1. The engine. Downloads, verifies the SHA-256, extracts, and stages the wrapper dylibs
+#    the engine links against - without them wineserver aborts on libinotify.0.dylib.
+cs2kit engine list                 # the three measured engines and why two of them fail
+cs2kit engine install              # defaults to sikarugir-10, the only one that works
+export WINE_ROOT="$HOME/.cs2kit/engines/sikarugir-10/wswine.bundle"
+export PATH="$WINE_ROOT/bin:$PATH"
+wine --version                     # -> wine-10.0 (Sikarugir)
 
 # 2. DXMT v0.80, the published *builtin* build (MIT, released 2026-04-23, 18681669 bytes)
+mkdir -p ~/CS2/downloads && cd ~/CS2/downloads
 curl -fLO https://github.com/3Shain/DXMT/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz
-
-# 3. Verify BEFORE extracting. Both lines must match exactly.
-shasum -a 256 wine-staging-11.15-osx64.tar.xz dxmt-v0.80-builtin.tar.gz
-# a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-11.15-osx64.tar.xz
+shasum -a 256 dxmt-v0.80-builtin.tar.gz
 # 8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d  dxmt-v0.80-builtin.tar.gz
+mkdir -p ~/CS2/dxmt
+tar -xzf dxmt-v0.80-builtin.tar.gz -C ~/CS2/dxmt   # -> ~/CS2/dxmt/v0.80 (the archive carries the version dir)
 
-# 4. Extract. Wine lands as an .app bundle; the "wine root" is inside it.
-mkdir -p ~/CS2/wine ~/CS2/dxmt
-tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine   # -> ~/CS2/wine/Wine Staging.app
-tar -xzf dxmt-v0.80-builtin.tar.gz       -C ~/CS2/dxmt   # -> ~/CS2/dxmt/v0.80 (the archive carries the version dir)
-
-export WINE_ROOT="$HOME/CS2/wine/Wine Staging.app/Contents/Resources/wine"
-export PATH="$WINE_ROOT/bin:$PATH"
-wine --version                                  # -> wine-11.15 (Staging)
-
-# 5. This is T-006's command, run here so the acceptance test below has a prefix
+# 3. This is T-006's command, run here so the acceptance test below has a prefix
 #    to load DXMT into. The recipe knows the builtin layout; your fingers do not.
 export WINEPREFIX="$HOME/CS2/prefix"
 cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"
 ```
-1. Verify `wine --version` prints **11.15 (Staging)**. Wine 11 has **one `wine` loader** — there is no `wine64`;
-   guides that say `wine64` predate Wine 11.
-2. **Do not place the DXMT files by hand.** The published archive is the `-Dwine_builtin_dll=true` build, so its
+1. Verify `wine --version` prints **`wine-10.0 (Sikarugir)`**. Wine 10 has **one `wine` loader** — there is no
+   `wine64`; guides that say `wine64` predate Wine 11.
+2. **Check the engine's exports before you trust it.** This is the check that would have saved a day, and
+   `cs2kit doctor` now runs it:
+   `nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv` → must print `_macdrv_functions`.
+   DXMT resolves Wine's `winemac.drv` API **at runtime** through the unix-call interface, so a static import dump
+   cannot see the dependency — that is exactly how we talked ourselves into the wrong engine.
+3. **Do not place the DXMT files by hand.** The published archive is the `-Dwine_builtin_dll=true` build, so its
    DLLs go into the **Wine tree** (`$WINE_ROOT/lib/wine/…`), *not* the prefix, and the `d3d11`/`dxgi` overrides must
    stay **off** — DXMT's wiki, verbatim: *"Ensure these dlls are **NOT** set overrides `native,builtin`."* Getting
    this backwards fails **silently**: Wine hunts for a native DLL, finds none, and falls back to its own Direct3D.
    `cs2kit bottle create` (T-006) implements the correct layout from `dxmt.build` in the recipe.
-3. Record every download URL + SHA-256 in `docs/reference/toolchain.md` so the stack is reproducible. The URLs and
-   checksums above are the record as of 2026-08-24.
-4. Do **not** install CrossOver, Whisky (archived 2025-05-11), Heroic or Porting Kit. They are not part of this plan.
-5. **Fallback, not the path:** DXMT's wiki asks for a FOSS **CrossOver Wine 24+** built from source. That
-   requirement was written against DXMT **v0.41**. On v0.80, `nm -m winemetal.so` shows **zero** symbols bound to
-   `winemac.so` and one Wine import (`_NtSetEvent` from `ntdll.so`), and DXMT was measured initialising Metal under
-   stock Wine 11.15. Build CrossOver sources only if a future DXMT re-introduces the dependency.
+4. Record every download URL + SHA-256 in `docs/reference/toolchain.md` so the stack is reproducible. The URLs and
+   checksums there are the record as of 2026-08-24.
+5. Do **not** install CrossOver, Whisky (archived 2025-05-11), Heroic or Porting Kit. They are not part of this plan.
+6. `cs2kit engine install gcenx-11` and `cs2kit engine install crossover-24` still work and **print a warning that
+   the build is recorded as broken**. They exist to reproduce the failures, not to run the game.
 
-**Acceptance (binary, both halves — run after step 5):**
+**Acceptance (binary, three parts — run after step 3):**
 ```bash
-wine --version                                          # major version >= 11
+wine --version                                          # -> wine-10.0 (Sikarugir)
+nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv
 WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry 2>&1 | grep -E 'd3d11.dll.*builtin'
 ```
-The first must print ≥ 11. The second must show `Loaded L"C:\windows\system32\d3d11.dll" … builtin` — i.e. DXMT's
-DLL, loaded as a Wine builtin, with no override set. `Failed to set Metal cache path, fallback to system default`
-in the same output is DXMT's own log line and is expected here (it is a T-013 lead, not a failure).
-**Effort:** 1 h · **Risk:** medium — this is the step CrossOver would have made trivial; budget debugging time here,
-not later.
+The first must name Sikarugir. The second must print `_macdrv_functions` — without it DXMT cannot create a Metal
+view and nothing later in this plan can pass. The third must show
+`Loaded L"C:\windows\system32\d3d11.dll" … builtin` — DXMT's DLL, loaded as a Wine builtin, with no override set.
+`Failed to set Metal cache path, fallback to system default` in the same output is DXMT's own log line and is
+expected here (it is a T-013 lead, not a failure).
+**Effort:** 1 h · **Risk:** medium — picking the engine *is* this task; everything else is `tar`.
 
 ## T-005 · Freeze the environment of record
 **Why:** every later benchmark is meaningless without the exact stack that produced it.
@@ -172,8 +179,9 @@ macOS updates** for the project's duration.
 ## T-006 · Create the bottle
 **Steps**
 1. `export WINEPREFIX="$HOME/CS2/prefix"` and build it from the recipe:
-   `cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"` (64-bit; Windows 10). It is the same
-   command as T-004 step 5 — running it twice is safe and is how you re-apply a corrected recipe.
+   `cs2kit bottle create --dxmt ~/CS2/dxmt/v0.80 --wine-root "$WINE_ROOT"` (64-bit; Windows 10), where
+   `$WINE_ROOT` is the Sikarugir engine from T-004. It is the same command as T-004 step 3 — running it twice is
+   safe and is how you re-apply a corrected recipe.
 2. **DXMT placement, per its wiki and per `dxmt.build: builtin` in the recipe:** `winemetal.so` →
    `<wine>/lib/wine/x86_64-unix/`; `d3d11.dll`, `dxgi.dll`, `d3d10core.dll`, `winemetal.dll` →
    `<wine>/lib/wine/x86_64-windows/`; `winemetal.dll` **also** → `<prefix>/drive_c/windows/system32/`.
@@ -182,6 +190,7 @@ macOS updates** for the project's duration.
    `WINEDLLOVERRIDES="dxgi,d3d11,d3d10core=n,b;"` — that is `dxmt.build: prefix`, and it is not what upstream ships.
    *(The v0 recipe did the opposite of both and would have lost DXMT silently — corrected 2026-08-24,
    [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4.)*
+   Note the DLLs land in the **engine**, so a new engine needs the placement re-run: `cs2kit bottle create` again.
 3. Enable **MSync** (`WINEMSYNC=1`).
 4. Record every deviation from defaults — this file becomes the machine-readable recipe in T-025.
 **Deliverable:** `profiles/bottle-recipe.yaml` v1 (schema carries `wine.root` and `dxmt.build`).
@@ -189,50 +198,83 @@ macOS updates** for the project's duration.
 `WINEDEBUG=+loaddll wine rundll32 d3d11.dll,NoSuchEntry` shows `d3d11.dll … builtin` with **no** override in
 `Software\Wine\DllOverrides`.
 **Effort:** 1 h · **Risk:** medium.
+**DONE on the machine of record 2026-08-24** on the Sikarugir engine: zero drift, DXMT in the Wine tree, Wine's own
+DLLs backed up ([implementation-status.md](implementation-status.md)).
 
 ## T-007 · Windows Steam inside the bottle
 **Why:** CS2 launches with `-steam` and needs a **same-platform** Steam client for Steamworks, SDR relays and
 matchmaking. macOS Steam cannot serve it.
 **Steps**
-1. `wine SteamSetup.exe`; log in (**have the Steam Guard mobile authenticator ready** — the usual first wall).
-2. Let the client self-update fully; confirm library and friends load.
-3. **Disable the Steam overlay** globally (it costs FPS; revisit in T-016).
-4. Point the Steam library folder at the existing `steamapps` (see T-008).
+1. `wine SteamSetup.exe /S` (silent; the interactive installer works too).
+2. Start the client **always** with `-no-cef-sandbox`:
+   `wine "$WINEPREFIX/drive_c/Program Files (x86)/Steam/Steam.exe" -no-cef-sandbox`. Without it the client dies on
+   *"Unexpected transport error (0x3008)"* before login. `cs2kit launch` passes the flag automatically.
+3. Log in **with the QR code** shown in the client, scanned with the Steam mobile app — no password typing, no
+   Steam Guard code round-trip, and CS2Kit still never sees a credential.
+4. Let the client self-update fully; confirm library and friends load.
+5. **Disable the Steam overlay** globally (it costs FPS; revisit in T-016).
+6. Point the client's library at the existing `steamapps` with `cs2kit bottle link-steamapps` (see T-008).
+7. Run it in **your own GUI login session**, not from a background/agent process: `cs2kit app create` writes a
+   double-clickable `.app` that verifies the game files and then launches.
 **Deliverable:** `docs/reference/steam-in-bottle.md` — exact steps, every error and its fix.
 **Acceptance:** the in-bottle client shows your library and idles 10 min without crashing.
 **Effort:** 3 h · **Risk:** **the most likely place to lose a day.** If Steam will not run, that is a Wine/stack
-problem — fix it here, not after CS2 is involved.
+problem — fix it here, not after CS2 is involved. Two of the three engines we measured fail *at this task*
+([02-architecture.md](02-architecture.md)).
+**DONE on the machine of record 2026-08-24**, on Sikarugir Wine 10.0 only.
 
-## T-008 · Install CS2 — close the 4.99 GB gap
+## T-008 · Install CS2 — reuse what is already on the disk
 **Steps**
-1. Map a Wine drive to `~/Library/Application Support/Steam/steamapps` and add it as a Steam library folder in the
-   in-bottle client.
-2. Install appid 730. It should recognise depot 2347770 as present and fetch only **2347771** (~5 GB).
+1. Link the bottle's Steam library at the macOS one — a **symlink**, not a library folder:
+   `cs2kit bottle link-steamapps`. Adding the folder through Steam's UI does **not** survive: Steam rewrites
+   `libraryfolders.vdf` on every start. MEASURED 2026-08-24.
+2. Install appid 730 from the in-bottle client. It should recognise depot 2347770 as present and fetch only
+   **2347771** (~5 GB).
    * **If it insists on re-downloading everything** (~60 GB / 72 GB on disk): let it, if disk allows — else uninstall
      the macOS copy first to free 65 GB, then re-install cleanly. Timebox the reuse attempt to **2 h**.
+   * **Headless alternative that always works:** `steamcmd.exe` inside the same bottle, with
+     `+@sSteamCmdForcePlatformType windows`. It needs no UI at all. If it writes a nested manifest the client cannot
+     see, promote `appmanifest_730.acf` to the library root (`InstalledDepots` 2347770 / 2347771 / 2347774) and keep
+     the macOS-era manifest as a `.bak`.
 3. Confirm `game/bin/win64/cs2.exe` exists — this is the whole point of the task.
 4. Record the `buildid` (public: **24828357**).
 5. Run *Verify integrity of game files* once. This is the byte-identical baseline T-021 enforces forever.
 **Acceptance:** `cs2.exe` exists **and** Steam reports all files validated.
 **Effort:** 1 h + download · **Risk:** medium — cross-platform library reuse is **undocumented**; the fallback always works.
+**DONE on the machine of record 2026-08-24**: `cs2.exe` 2 967 704 bytes, 123 files in `game/bin/win64`,
+`StateFlags 4`, 71.6 GB. The 58 GB reuse did **not** happen on the steamcmd route — it re-downloaded ~71.7 GB —
+but the finished install was then reused by the in-bottle client through the symlink, with no second download.
 
 ## T-009 · First launch — apply the four known fixes before debugging
 **Steps**
 1. Launch options: `-novid -nojoy -console`. **Not** `-vulkan`.
-2. **Black screen** → `CS2Video.txt` with `fullscreen = 0`.
+2. **Black screen** → `CS2Video.txt` with `fullscreen = 0`. *(If the whole Steam client is black, this is not your
+   problem — it is the wrong engine. See T-004 and [10-troubleshooting.md](10-troubleshooting.md) entry 19.)*
 3. **Audio crackling** → set `cs2.exe` to **Windows 8** (`winecfg` → Applications). Documented permanent fix.
 4. **Retina off**, render at **1920×1080** or lower. Native 3024×1964 costs ~4× (an M2 Max drops to 23 FPS).
 5. Only if it still fails: `WINEDEBUG=+loaddll,+seh` before changing anything else.
+6. Launch the game itself by running `game/bin/win64/cs2.exe` with the client logged in and running.
+   `Steam.exe -applaunch 730` refuses to relaunch while the client believes a session is still open — the state you
+   are in after any hard kill. MEASURED 2026-08-24.
 **Deliverable:** `docs/reference/first-launch.md`.
 **Acceptance:** the CS2 main menu renders and accepts mouse input.
 **Effort:** 4 h · **Risk:** medium.
+**DONE on the machine of record 2026-08-24**: the video-settings screen with live 3D previews rendered at
+3024×1964, mean luminance 98/255, DXMT at `D3D_FEATURE_LEVEL_11_1` with **zero** metal-view errors, and the loaded
+`d3d11.dll` hashing to DXMT v0.80's release binary rather than Wine's own.
 
 ## T-010 · `[GATE]` Offline playable
 **Steps** Bot match on **Dust2, Mirage, Ancient**; play each **twice** (the first pass is shader compilation, not
 representative); 30 min continuous.
+Two procedure fixes learned on the first pass: set `mp_match_end_restart 1` (or a long `mp_maxrounds`) and
+re-assert `bot_quota` per round, or the match ends and the "30 minute" soak silently becomes a ten-minute one; and
+send `jointeam 2` after the map loads, or you measure a spectator camera.
 **Acceptance / GATE:** 30 min across 3 maps, no crash, no audio dropout, playable input.
 Failure = the free stack is not viable on this machine → the only remaining lever is the D3DMetal fallback (T-012).
 **Effort:** 2 h · **Risk:** low once T-009 passes.
+**Partial, 2026-08-24:** first Dust2 pass, 10 minutes, **0 crashes, 0 frozen frames in 22 samples**, RSS
+0.7–1.4 GB ([reference/t010-dust2-log.jsonl](reference/t010-dust2-log.jsonl)). Audio is **not** assessed — it needs
+ears (T-016). Five passes and the human ear remain.
 
 ---
 

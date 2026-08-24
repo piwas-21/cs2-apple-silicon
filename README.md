@@ -3,7 +3,10 @@
 Run **Counter-Strike 2** on an **Apple Silicon MacBook**, using **only free software**, and build `CS2Kit` — a small
 CLI that makes the setup reproducible, diagnosable and measurable.
 
-**Status:** planning complete, ready to implement. **Cost to us and to every future user: €0.**
+**Status: it runs.** On 2026-08-24 CS2 launched, rendered through DXMT and played a bot match on Dust2 on the
+machine of record — on **Sikarugir Wine 10.0**, which is the only engine of the three we measured that works
+([docs/implementation-status.md](docs/implementation-status.md)). Competitive validation (T-020) is still open.
+**Cost to us and to every future user: €0.**
 **Machine of record:** MacBook Pro **M2 Pro, 32 GB, macOS 26.5.2**, 16-core GPU, Metal 4.
 
 ---
@@ -13,16 +16,27 @@ CLI that makes the setup reproducible, diagnosable and measurable.
 ```
 cs2.exe (Windows x64)
    └─ Windows Steam client        ← runs INSIDE the bottle; macOS Steam cannot serve CS2
-        └─ Wine 11.15 staging  (Gcenx tarball, LGPL-2.1)
-             ├─ DXMT   (MIT ≤ v0.80, LGPL after)  DirectX 11 → Metal
+        └─ Sikarugir Wine 10.0  (WS12WineSikarugir10.0_6.tar.xz, LGPL-2.1)
+             ├─ DXMT   v0.80 (MIT; LGPL from v0.81)  DirectX 11 → Metal
              └─ MSync  (LGPL-2.1)  synchronisation
                   └─ Rosetta 2 → Metal 4 → Apple M2 Pro
 ```
 
-Every component is free software. `CS2Kit` redistributes **none** of it — the user fetches Wine and DXMT with two
-`curl` commands ([docs/reference/toolchain.md](docs/reference/toolchain.md), checksums included), so no licence
-follows our code at all. **Homebrew is not the route:** the cask the plan used to name was deleted upstream on
-2026-04-16, and Homebrew's own Wine casks are disabled on 2026-09-01 for failing Gatekeeper.
+**The engine is not interchangeable.** Three free Wine builds were measured on the machine of record on 2026-08-24
+and **only one runs CS2**:
+
+| Engine | Steam UI | Steam client↔helper transport | DXMT Metal view | Verdict |
+|---|---|---|---|---|
+| Gcenx Wine 11.15 staging/devel | **black** (0.0/255 luminance) | OK | **fails** — *"Failed to create metal view"* | unusable |
+| FOSS CrossOver 24.0.7 (Wine 9.0 base) | renders | **rejected — 0x3008**, 82 times in one session | works | unusable |
+| **Sikarugir Wine 10.0** | **renders** | **OK** | **works** (`_macdrv_functions` exported) | **the Wine of record** |
+
+Evidence: [docs/implementation-status.md](docs/implementation-status.md) and
+[research/steam-black-window-2026-08-24.md](research/steam-black-window-2026-08-24.md).
+Every component is free software. `CS2Kit` redistributes **none** of it — `cs2kit engine install` fetches the
+engine from its upstream release and verifies its SHA-256 ([docs/reference/toolchain.md](docs/reference/toolchain.md)),
+so no licence follows our code at all. **Homebrew is not the route:** the cask the plan used to name was deleted
+upstream on 2026-04-16, and Homebrew's own Wine casks are disabled on 2026-09-01 for failing Gatekeeper.
 Apple's proprietary **D3DMetal is deliberately excluded**; if T-012 ever shows DXMT is inadequate on some machine,
 the user installs GPTK themselves — we never redistribute it.
 
@@ -54,11 +68,14 @@ bash scripts/preflight.sh          # grades the machine, finds the disk trap
 ```
 
 `bin/cs2kit` runs from a checkout with the **system `python3`** — no `pip`, no venv, no dependencies.
-On the machine of record it currently reports **3 FAIL / 7 WARN / 8 PASS**, and the FAILs are exactly the
-three things Phase 0–1 exists to fix: no Wine, no bottle, no `cs2.exe`.
+On a bare machine the FAILs it prints are exactly the three things Phase 0–1 exists to fix: no Wine, no bottle,
+no `cs2.exe`. Its `winemac.drv exports` check is the one that would have saved us a day — it fails any engine that
+cannot give DXMT a Metal view.
 
 What is actually built and what still needs hardware time is spelled out task by task in
-[docs/implementation-status.md](docs/implementation-status.md) — **no FPS, latency or VAC number is recorded
+[docs/implementation-status.md](docs/implementation-status.md). **One indicative FPS sample exists** (117 fps,
+Dust2 bot match, CS2's auto-selected Low preset, 2026-08-24) and it is a single reading, not a benchmark — the
+T-011 protocol produces the number this project will stand behind. **No latency and no VAC number is recorded
 anywhere in this repo, because none has been measured.**
 
 Then read [docs/00-executive-summary.md](docs/00-executive-summary.md) and work
@@ -68,13 +85,16 @@ The **⚡ Fast path** at the top of that file is seven tasks to a playable game 
 ## CS2Kit
 
 ```
-cs2kit doctor                       grade machine + bottle + game; one fix line per fault   T-024
+cs2kit doctor                       grade machine + bottle + game; one fix line per fault    T-024
+cs2kit engine list | install        fetch the one Wine build measured to run CS2             T-004
 cs2kit env --save <file>            freeze the environment of record                        T-005
 cs2kit bottle create --dxmt <dir>   build the prefix from profiles/bottle-recipe.yaml        T-006/T-025
+cs2kit bottle link-steamapps        reuse an existing CS2 install, no second download        T-008
 cs2kit bottle diff | repair         report and undo drift from the recipe                    T-025
 cs2kit config list | apply <name>   situational profiles (env, launch options, cvars)        T-027
 cs2kit verify baseline | check      SHA-256 guard on game/bin/win64                          T-021
 cs2kit launch                       integrity-guarded start via the in-bottle Steam client   T-021
+cs2kit app create                   a double-clickable launcher: verify, then launch         T-007/T-029
 cs2kit bench run | compare          the T-011 protocol, and regression detection             T-011/T-026
 cs2kit report                       a redacted bundle you can share                          T-028
 cs2kit watch check | drill          CS2 buildid watch + the regression drill                 T-030
