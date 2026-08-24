@@ -249,3 +249,44 @@ worse than publishing none.
 **So T-011 stays open, with a precise unblock:** subscribe to the map (one click), then
 `cs2kit bench run` has a deterministic scene and the protocol can run as written — 3 warm-ups,
 5 measured runs, median avg / median 1 % low / p99 frametime / hitch count.
+
+
+---
+
+## T-011 — first numbers from the real benchmark map, 2026-08-24
+
+The **CS2 FPS BENCHMARK ANCIENT** workshop map (3472126051) is subscribed and runs. It cannot be started
+from the command line — `+map`, `+map_workshop` and `map workshop/<id>/<name>` are all rejected
+(`invalid map name`); the only thing that works is **`map_workshop 3472126051` typed into the in-game
+console**, which `cs2kit` can drive but a launch flag cannot.
+
+### What the game's own instrumentation reported
+
+The map enables CS2's detailed frame counter, which reports rolling windows rather than a single figure:
+
+| window | FPS | avg frametime | min | max |
+|---|---|---|---|---|
+| instantaneous | 148 | 5.6 ms | — | — |
+| 60 frames | 155.5 | 6.43 ms | 4.83 ms | 12.82 ms |
+| 240 frames | 158.3 | 6.32 ms ± 6.50 | 4.78 ms | 12.82 ms |
+| **1000 frames** | **127.9** | ± 5.61 | 4.78 ms | **13.43 ms** |
+
+Fragments from two earlier runs of the same map, for consistency: **166.3 fps** (avg 6.01 ms) and
+**183.5 fps** (avg 5.45 ms).
+
+**Read the 1000-frame row as the honest one** — 127.9 fps with a worst frame of 13.43 ms, on CS2's auto-Low
+preset at the Retina backing resolution. No severe hitch appears in that window: 13.43 ms is under one
+60 Hz frame.
+
+**These come from the game, not from my sampler**, and they are materially higher than the 101–130 fps my
+screenshot sampling produced on the same stack — exactly the perturbation effect recorded in
+`docs/07-benchmark-protocol.md`. It is the difference between measuring the game and measuring the observer.
+
+### What is still missing for a protocol run
+
+* **3 discarded warm-ups + 5 measured runs** were not performed; this is a single run.
+* **Median 1 % low and hitch count** are not captured. The map prints a final summary, but it does so on a
+  console channel flagged `donotecho`, so it **never reaches `console.log`** even with `-condebug`, and on
+  screen the console panel overlaps it. Capturing it needs either a screenshot timed to the two-second
+  results window or a change of approach.
+* Nothing here is tuned: **auto-Low, Retina backing resolution**. T-014's resolution sweep is untouched.

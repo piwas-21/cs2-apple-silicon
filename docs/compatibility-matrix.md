@@ -69,3 +69,4 @@ Newest rows are appended at the bottom. **Nothing may be added below this table.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-08-23 | 24828357 | 26.5.2 | ? | ? | ? | ? | ? |
 | 2026-08-24 | 24828357 | 26.5.2 (25F84) | wine-10.0 (Sikarugir) | v0.80 | 101–130 (indicative, screenshot-sampled, auto-Low) | not measured | PASS — T-010 gate: 6 passes, 0 crashes, 0 frozen frames |
+| 2026-08-24 | 24828357 | 26.5.2 (25F84) | wine-10.0 (Sikarugir) | v0.80 | **127.9** (benchmark map, 1000-frame window, auto-Low) | not captured | T-011 preliminary — single run, not the 5-run protocol |
