@@ -121,3 +121,57 @@ CrossOver's published FOSS sources, which the user downloads themselves, exactly
   with zero GPU-process crashes, but no window was observed within ~5 minutes, and the log shows
   `err:bcrypt:key_asymmetric_create no encryption support`, which may block the login handshake until the
   wrapper's crypto dylibs are wired correctly).
+
+
+---
+
+# The 0x3008 transport error — narrowed, 2026-08-24 (CrossOver engine)
+
+**First, the good news, confirmed independently by the user and by the agent: on the FOSS CrossOver 24.0.7 engine
+Steam's UI RENDERS.** A fully drawn Steam dialog (mean luminance 37.3/255, 90.6 % non-black pixels — against 0.0 on
+every Gcenx run). The black-window failure is **solved by the engine change**, and the earlier "no window at all"
+observations were an artefact of the agent's own process, not of the stack.
+
+What remains is a different, smaller fault:
+
+> **Onverwachte transportfout** — "An unexpected error occurred while starting Steam (**0x3008**)"
+
+## The measurement that names it
+
+`logs/transport_client.txt`, repeating **82 times** in one session:
+
+```
+WebUITransport: Websocket connection from: https://steamloopback.host
+WebUITransport: Connection from: 127.0.0.1:64431
+WebUITransport: TCP connection request
+WebUITransport: Connection rejected
+```
+
+and in `logs/console_log.txt`:
+
+```
+src\steamUI\webuitransportcontroller.cpp (165) : Failed to reconnect to websocket: wine
+```
+
+So `steamwebhelper.exe` **successfully connects** to the client over loopback TCP, and **the client rejects it**.
+This is not a rendering fault, not a GPU fault and not a socket-availability fault: the connection is made and then
+refused at Steam's own layer. **CONFIRMED.**
+
+## Hypotheses eliminated by experiment
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| DXMT breaks the client | `cs2kit bottle restore-wine`, relaunch | **0x3008 unchanged** — DXMT is innocent |
+| CEF sandbox | `-no-cef-sandbox` (now always passed by `cs2kit launch`) | necessary but **not sufficient** |
+| GPU/compositing | `-cef-disable-gpu` | unchanged |
+| Corrupt web cache | deleted `htmlcache` + `appcache/httpcache` | unchanged |
+| Stale helper processes | full `pkill` + `wineserver -k` before every launch | unchanged |
+
+## Not yet tried
+
+1. **The dialog's own third option — "(Valve only) Continue anyway".** One click; it may proceed to the login
+   screen with a degraded UI. This is the cheapest untested action and it needs a human at the keyboard.
+2. Building the bottle with **Sikarugir Creator** rather than by hand — the wrapper may configure something the
+   hand-built prefix lacks.
+3. A **newer CrossOver engine** (25.x). Sikarugir's public engine list stops at 24.0.7; the Kegworks tap now
+   redirects to Sikarugir, so there is no newer free build to fetch today.
