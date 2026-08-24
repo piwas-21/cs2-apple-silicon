@@ -50,6 +50,8 @@ def test_command_is_a_plain_steam_applaunch(sandbox, cs2_tree):
     cmd = launch.build_command(rec, sandbox.prefix)
     assert cmd[-3:] == ["-novid", "-nojoy", "-console"]
     assert "-applaunch" in cmd and "730" in cmd
+    # Without this the client dies with "Unexpected transport error (0x3008)".
+    assert "-no-cef-sandbox" in cmd
     env = launch.launch_env(rec, sandbox.prefix)
     assert env["WINEPREFIX"] == str(sandbox.prefix) and env["WINEMSYNC"] == "1"
 

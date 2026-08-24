@@ -21,6 +21,12 @@ from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_err
 STEAM_DIR = Path("drive_c") / "Program Files (x86)" / "Steam"
 STEAM_EXE = STEAM_DIR / "steam.exe"
 
+#: Client-side flags, distinct from the game's launch options.
+#: `-no-cef-sandbox` is not optional under Wine: with the sandbox on, Steam's
+#: Chromium helper cannot talk to the client and Steam dies on startup with
+#: "Unexpected transport error ... (0x3008)" - measured 2026-08-24.
+STEAM_CLIENT_FLAGS = ["-no-cef-sandbox"]
+
 
 def steam_exe(prefix: Optional[Path] = None) -> Optional[Path]:
     """Find the in-bottle Steam client.
@@ -57,7 +63,7 @@ def build_command(rec: Optional[recipe_mod.Recipe], prefix: Path,
         raise recipe_mod.RecipeError(
             f"refusing to launch with {' '.join(bad)}: on Apple Silicon CS2 falls back to DX11 "
             "silently, so the session measures something other than what it claims (docs/02)")
-    args = ["-applaunch", probe.APPID] + options
+    args = list(STEAM_CLIENT_FLAGS) + ["-applaunch", probe.APPID] + options
     return [wine, str(exe or (prefix / STEAM_EXE)), *args]
 
 

@@ -545,3 +545,36 @@ cs2kit report            # redacted: no SteamID, no account name, no usernames i
 [09-install-guide.md](09-install-guide.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
 community dataset (T-033) - what is stripped and where to send it is in
 [12-maintenance.md](12-maintenance.md) - which is the one thing this ecosystem has never had.
+
+
+---
+
+## 18. Steam dies on startup with "Unexpected transport error (0x3008)"
+
+**Symptom.** The Steam client window renders (so this is not the black-window failure), and immediately shows
+*"An unexpected error occurred while starting Steam (0x3008)"* with four options: restart Steam, restart
+steamwebhelper, continue anyway, quit. **Measured 2026-08-24 on FOSS CrossOver 24.0.7.**
+
+**Cause.** 0x3008 is a transport failure between `Steam.exe` and its Chromium helper, `steamwebhelper.exe`.
+Under Wine the helper's sandbox cannot establish that channel, so the client aborts before the login screen.
+A second, independent cause is a stale `steamwebhelper.exe` left over from a previous launch.
+
+**One-command check.**
+
+```bash
+pgrep -f "Steam.exe|steamwebhelper" | wc -l      # must be 0 before a clean start
+```
+
+**Fix.** Always start the client with `-no-cef-sandbox`, from a clean process table:
+
+```bash
+pkill -f steamwebhelper; pkill -f "Steam.exe"; wineserver -k
+cd "$WINEPREFIX/drive_c/Program Files (x86)/Steam" && wine Steam.exe -no-cef-sandbox
+```
+
+`cs2kit launch` passes `-no-cef-sandbox` automatically (`launch.STEAM_CLIENT_FLAGS`) — it is a client flag, not a
+game launch option, and it is not optional. If the dialog still appears, pick **Restart steamwebhelper** once; if
+it recurs, delete the helper's cache: `rm -rf "$WINEPREFIX/drive_c/users/$USER/AppData/Local/Steam/htmlcache"`.
+
+**Evidence.** `research/steam-black-window-2026-08-24.md`; the rendered dialog is what proved the CrossOver engine
+draws Steam's UI correctly, which the Gcenx builds never did.
