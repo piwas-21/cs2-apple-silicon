@@ -106,3 +106,24 @@ def test_app_create_without_wine_is_not_ready(sandbox, monkeypatch, tmp_path, ca
     assert app_mod.cmd_create(args) == EXIT_NOT_READY
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is False and "engine install" in payload["detail"]
+
+
+def test_download_prefers_curl_because_urllib_has_no_ca_bundle(tmp_path, monkeypatch):
+    """A python.org interpreter has no CA bundle; curl uses the system store."""
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        Path(cmd[cmd.index("-o") + 1]).write_bytes(b"payload")
+        from cs2kit.util import Proc
+        return Proc(0, "", "")
+
+    def no_urllib(*a, **k):
+        raise AssertionError("urllib was used even though curl is available")
+
+    monkeypatch.setattr(engine, "run", fake_run)
+    monkeypatch.setattr(engine.urllib.request, "urlopen", no_urllib)
+    dest = tmp_path / "thing.tar.xz"
+    engine.download("https://example.invalid/thing.tar.xz", dest)
+    assert dest.read_bytes() == b"payload"
+    assert calls and calls[0][0].endswith("curl")

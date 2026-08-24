@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, state_dir
+from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, state_dir
 
 #: Wrapper dylibs the Sikarugir/CrossOver engines link against. Without them
 #: `wineserver` aborts with `Library not loaded: @rpath/libinotify.0.dylib`.
@@ -78,19 +78,37 @@ def engines_dir() -> Path:
     return Path(state_dir()) / "engines"
 
 
+def _fetch(url: str, tmp: Path, progress=None) -> None:
+    """Download with curl first, urllib second.
+
+    Why curl leads: a Python installed from python.org ships no CA bundle, so
+    `urllib` dies with `CERTIFICATE_VERIFY_FAILED` on a perfectly good machine -
+    which is exactly what happened the first time `cs2kit setup` was run on a
+    clean path. `curl` is on every Mac and uses the system trust store."""
+    from cs2kit.util import which as _which
+
+    curl = _which("curl")
+    if curl:
+        proc = run([curl, "-fL", "--retry", "3", "--connect-timeout", "30",
+                    "-o", str(tmp), url], timeout=3600)
+        if proc.ok and tmp.exists() and tmp.stat().st_size:
+            return
+    with urllib.request.urlopen(url, timeout=120) as src, open(tmp, "wb") as out:
+        while True:
+            chunk = src.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            if progress:
+                progress(out.tell())
+
+
 def download(url: str, dest: Path, sha256: Optional[str] = None,
              progress=None) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not dest.exists():
         tmp = dest.with_suffix(dest.suffix + ".part")
-        with urllib.request.urlopen(url, timeout=120) as src, open(tmp, "wb") as out:
-            while True:
-                chunk = src.read(1 << 20)
-                if not chunk:
-                    break
-                out.write(chunk)
-                if progress:
-                    progress(out.tell())
+        _fetch(url, tmp, progress)
         tmp.replace(dest)
     digest = sha256_of(dest)
     if sha256 and digest != sha256:
