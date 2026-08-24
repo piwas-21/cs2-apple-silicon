@@ -1,6 +1,9 @@
 
 # CS2 on Apple Silicon
 
+[![ci](https://github.com/piwas-21/cs2-apple-silicon/actions/workflows/ci.yml/badge.svg)](https://github.com/piwas-21/cs2-apple-silicon/actions/workflows/ci.yml)
+[![licence: GPL-3.0](https://img.shields.io/badge/licence-GPL--3.0-blue.svg)](LICENSE)
+
 **Counter-Strike 2 running on an Apple Silicon Mac, on a stack that costs nothing.**
 Plus `CS2Kit` — a small CLI that makes the setup reproducible, diagnosable and measurable.
 
