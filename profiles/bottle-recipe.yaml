@@ -10,12 +10,15 @@
 schema: 1
 kind: bottle
 name: cs2-default
-description: "CS2 on Apple Silicon - Wine 11.15 staging (Gcenx tarball) + DXMT + MSync"
+description: "CS2 on Apple Silicon - Wine 11.15 devel (Gcenx tarball) + DXMT + MSync"
 
 wine:
   # Where the Wine build lives. cs2kit derives it from `which wine` when null;
   # set it when you keep several builds side by side.
   root: null
+  # MEASURED 2026-08-24: prefer the *devel* tarball over *staging*. Staging
+  # crashes Steam's Chromium GPU process with 0xC0000005 nine times per launch;
+  # devel does it zero times (research/steam-black-window-2026-08-24.md).
   # Windows 10 globally: what the Windows Steam client expects.
   windows_version: win10
   # EMPTY ON PURPOSE. DXMT's builtin build ships d3d11/dxgi/d3d10core as Wine
@@ -27,6 +30,13 @@ wine:
     cs2.exe:
       # T-009 step 3: documented permanent fix for audio crackling under Wine.
       windows_version: win8
+      # OPEN ITEM (research/steam-black-window-2026-08-24.md): DXMT's builtin
+      # build applies bottle-wide, and bottle-wide it breaks Steam's own UI -
+      # ANGLE cannot query the driver version from DXMT's DXGI adapter and then
+      # refuses a GLES 3.0 context. Scoping DXMT to cs2.exe means giving Steam
+      # back Wine's original d3d11/dxgi as *native* DLLs in system32 (cs2kit now
+      # keeps them: cs2kit bottle restore-wine). Whether Wine will load its own
+      # builtin PE as native is UNTESTED - do not write the override until it is.
 
 dxmt:
   # MEASURED 2026-08-24: v0.80 loads and initialises Metal under stock Wine 11.15
