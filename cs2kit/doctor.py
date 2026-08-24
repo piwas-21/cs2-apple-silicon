@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -19,6 +20,7 @@ from cs2kit.util import (EXIT_FAIL, EXIT_OK, FAIL, PASS, SKIP, WARN, Check, Chec
 
 MIN_FREE_GIB = 80          # T-024: CS2 + bottle + headroom
 MIN_WINE_MAJOR = 11
+MIN_CROSSOVER_MAJOR = 24   # DXMT's floor: the first CX whose winemac.drv API it can use
 ROSETTA_LAST_MAJOR = 27    # Apple: general-purpose Rosetta through macOS 27 (R-1)
 
 
@@ -65,6 +67,16 @@ def _hw_checks(snap: Dict[str, Any]) -> List[Check]:
 def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
     stable, volatile = snap["stable"], snap["volatile"]
     out = []
+    exports = volatile.get("wine_exports_macdrv")
+    if exports is False:
+        out.append(Check("wine-dxmt-abi", "Wine exports DXMT's API", FAIL,
+                         "this Wine does not export the winemac.drv API",
+                         "DXMT will create a device and then fail with 'Failed to create metal "
+                         "view'. Use a FOSS CrossOver 24+ build (docs/reference/toolchain.md)",
+                         "T-004"))
+    elif exports:
+        out.append(Check("wine-dxmt-abi", "Wine exports DXMT's API", PASS,
+                         "winemac.drv symbols present", "", "T-004"))
     version = stable["wine_version"]
     if not version:
         out.append(Check("wine", "Wine", FAIL, "not installed (the old brew cask is gone)",
@@ -74,9 +86,17 @@ def _toolchain_checks(snap: Dict[str, Any]) -> List[Check]:
         for part in version.replace("wine-", "").split("."):
             major = int(part) if part.isdigit() else 0
             break
-        ok = major >= MIN_WINE_MAJOR
-        out.append(Check("wine", "Wine", PASS if ok else WARN, version,
-                         "" if ok else f"the plan targets Wine {MIN_WINE_MAJOR}.x (Gcenx build)", "T-004"))
+        # A CrossOver-sourced build reports its Wine base (9.0) and its own CX
+        # version in the same string. CX 24+ is what DXMT requires, so a low Wine
+        # number there is correct, not stale.
+        crossover = re.search(r"CX\s*(\d+)|CrossOver\s*(\d+)", version, re.I)
+        cx_major = int(next(g for g in crossover.groups() if g)) if crossover else 0
+        ok = major >= MIN_WINE_MAJOR or cx_major >= MIN_CROSSOVER_MAJOR
+        detail = version + (f" (CrossOver {cx_major})" if cx_major else "")
+        out.append(Check("wine", "Wine", PASS if ok else WARN, detail,
+                         "" if ok else f"use Wine {MIN_WINE_MAJOR}.x, or a FOSS CrossOver "
+                                       f"{MIN_CROSSOVER_MAJOR}+ build (docs/reference/toolchain.md)",
+                         "T-004"))
     prefix = Path(volatile["prefix"])
     if not volatile["prefix_exists"]:
         out.append(Check("bottle", "Bottle", FAIL, f"{prefix} is not a Wine prefix",

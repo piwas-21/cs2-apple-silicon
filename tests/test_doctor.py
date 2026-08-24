@@ -91,3 +91,30 @@ def test_json_output_is_machine_readable(sandbox, capsys, monkeypatch):
 def test_strict_turns_warnings_into_failure(sandbox, monkeypatch, capsys):
     monkeypatch.setattr(probe, "snapshot", lambda *a, **k: healthy_snapshot(sandbox))
     assert doctor.cmd_doctor(argparse.Namespace(json=False, strict=True, verbose=False)) == EXIT_FAIL
+
+
+def test_wine_that_cannot_run_dxmt_is_a_hard_failure(sandbox):
+    """2026-08-24: a Wine without the winemac.drv exports installs DXMT fine and
+    then CS2 dies with "Failed to create metal view". Doctor must say so first."""
+    checks = by_id(doctor.run_checks(healthy_snapshot(
+        sandbox, volatile={"wine_exports_macdrv": False})))
+    assert checks["wine-dxmt-abi"].status == FAIL
+    assert "CrossOver 24+" in checks["wine-dxmt-abi"].fix
+
+    ok = by_id(doctor.run_checks(healthy_snapshot(sandbox, volatile={"wine_exports_macdrv": True})))
+    assert ok["wine-dxmt-abi"].status == PASS
+
+    unknown = by_id(doctor.run_checks(healthy_snapshot(sandbox, volatile={"wine_exports_macdrv": None})))
+    assert "wine-dxmt-abi" not in unknown          # never guess
+
+
+def test_a_crossover_build_is_not_graded_as_stale_wine(sandbox):
+    """CX 24.0.7 reports `wine-9.0 (SikarugirCX 24.0.7)`. The 9.0 is its Wine
+    base, not an out-of-date install - and it is the build DXMT requires."""
+    cx = by_id(doctor.run_checks(healthy_snapshot(
+        sandbox, stable={"wine_version": "wine-9.0 (SikarugirCX 24.0.7)"})))
+    assert cx["wine"].status == PASS and "CrossOver 24" in cx["wine"].detail
+
+    old = by_id(doctor.run_checks(healthy_snapshot(
+        sandbox, stable={"wine_version": "wine-8.0.1 (CrossOver 23.7.1)"})))
+    assert old["wine"].status == WARN

@@ -137,6 +137,30 @@ def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
     return _wine_root(explicit)
 
 
+def wine_exports_macdrv(wine: Optional[Path] = None) -> Optional[bool]:
+    """Does this Wine export the `winemac.drv` API that DXMT needs?
+
+    THE check that cost this project a day on 2026-08-24. DXMT resolves those
+    entry points at runtime, so a build without them installs perfectly, creates
+    a D3D11 device at feature level 11_1, and then dies with
+    `Failed to create metal view, it seems like your Wine has no exported symbols
+    needed by DXMT` - at which point the game window is simply never drawn.
+
+    Gcenx's Wine 11.15 (staging and devel) exports none of it. A FOSS CrossOver
+    24+ build exports `_macdrv_functions`. Returns None when it cannot be
+    determined (no wine, no `nm`)."""
+    wine = wine or wine_root()
+    if not wine:
+        return None
+    driver = Path(wine) / "lib" / "wine" / "x86_64-unix" / "winemac.so"
+    if not driver.is_file():
+        return None
+    proc = run(["nm", "-g", str(driver)], timeout=60)
+    if not proc.ok:
+        return None
+    return "macdrv" in proc.out
+
+
 def dxmt_installed(prefix: Path, build: str = "builtin",
                    wine: Optional[Path] = None) -> bool:
     """Is DXMT actually where this build of it has to be?
@@ -223,6 +247,8 @@ def snapshot(steam: Optional[Path] = None, prefix: Optional[Path] = None) -> Dic
         "dxmt_installed": bottle["dxmt_installed"],
         "dxmt_build": bottle["dxmt_build"],
         "wine_root": bottle["wine_root"],
+        "wine_exports_macdrv": wine_exports_macdrv(
+            Path(bottle["wine_root"]) if bottle["wine_root"] else None),
         "cs2_exe": str(cs2_exe(steam) or ""),
         "installed_depots": installed_depots(steam),
         "steam_root": str(steam or steam_root()),
