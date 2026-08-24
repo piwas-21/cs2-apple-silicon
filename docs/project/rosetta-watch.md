@@ -6,7 +6,7 @@ entire Wine process tree - and `cs2.exe` inside it - runs under Rosetta 2 (CONFI
 `research/tooling-licensing-findings.md` sections 4 and 7). When general-purpose Rosetta goes, this stack goes with
 it, and **no amount of work inside this repository changes that date.**
 
-This file is the quarterly log required by T-031 ([03-development-plan.md](03-development-plan.md)). One dated entry
+This file is the quarterly log required by T-031 ([03-development-plan.md](development-plan.md)). One dated entry
 per quarter, whether or not anything changed. "Nothing changed" is a finding and must be written down.
 
 ---
@@ -102,12 +102,12 @@ a five-minute act rather than a fortnight of hesitation.
 > ARM64EC path requires a 4 KB system page size that Apple Silicon does not provide.
 >
 > **If you have not upgraded macOS: do not upgrade** if CS2 matters to you. The last known-good configuration is
-> recorded in [compatibility-matrix.md](compatibility-matrix.md). Disable automatic macOS updates.
+> recorded in [compatibility-matrix.md](../compatibility-matrix.md). Disable automatic macOS updates.
 >
 > **If you have upgraded:** CS2Kit cannot help you. The honest options, in order of how much we can vouch for them:
 > 1. **GeForce NOW.** CS2 is served on GFN through Valve's own arrangement, from a cloud Windows VM, on an
 >    unmodified client. It is the recommendation this project has carried as its fallback from day one
->    ([02-architecture.md](02-architecture.md)).
+>    ([02-architecture.md](../architecture.md)).
 > 2. **A separate Windows machine**, or Steam Remote Play / Sunshine+Moonlight from one.
 > 3. **A Windows-on-ARM VM** - adds virtualisation *plus* Windows-on-ARM's own x86 translation, and anti-cheat
 >    behaviour inside a VM is an unresolved UNKNOWN. We do not recommend it for VAC-protected play.
@@ -128,7 +128,7 @@ successor we can build.
 | Item | Finding | Tag |
 |---|---|---|
 | Apple wording | Unchanged from the text quoted in section 1; re-read on 2026-08-23. General-purpose Rosetta **through macOS 27**; afterwards only *"a subset ... aimed at supporting older unmaintained gaming titles"*. | CONFIRMED |
-| Current macOS on the machine of record | **26.5.2** (build 25F84) - see [reference/target-machine.md](reference/target-machine.md) | CONFIRMED |
+| Current macOS on the machine of record | **26.5.2** (build 25F84) - see [reference/target-machine.md](../reference/target-machine.md) | CONFIRMED |
 | Expected cliff | **macOS 28, expected autumn 2027.** macOS 27 is the last release with the general-purpose grant. | CONFIRMED (grant), assessment (date) |
 | Does the carve-out cover us? | No evidence that it does. CS2 is actively maintained (buildid 24828357, updated 2026-08-19), and Wine is a translation host rather than a "title". | UNKNOWN, leaning no |
 | Wine ARM64EC | ARM64EC fully supported since Wine 10.0; **blocked on macOS by the 16K page size**. Wine 11.0 simulates 4K pages for "simple applications" only. | CONFIRMED |
@@ -141,7 +141,7 @@ successor we can build.
 Actions carried forward:
 * Re-fetch the Apple page verbatim each quarter (it is a JS-only HTML page; use the docs JSON API).
 * When the macOS 27 beta appears, run T-032 on a separate APFS volume and record the row in
-  [compatibility-matrix.md](compatibility-matrix.md).
-* Keep `docs/05-risk-register.md` R-1 in sync with the decision line above.
+  [compatibility-matrix.md](../compatibility-matrix.md).
+* Keep `docs/project/risk-register.md` R-1 in sync with the decision line above.
 
 <!-- Append the next entry immediately below this comment, newest last, using the table shape above. -->

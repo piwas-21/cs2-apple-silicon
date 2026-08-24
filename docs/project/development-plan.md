@@ -13,12 +13,12 @@ cs2.exe (Windows x64)  →  Windows Steam client  →  Sikarugir Wine 10.0 (LGPL
 Gcenx Wine 11.15 exports no `winemac.drv` symbols, so DXMT cannot create a Metal view and Steam's window is black;
 FOSS CrossOver 24.0.7 renders Steam but its Wine 9.0 base rejects the client↔helper websocket (0x3008), so login is
 impossible; **Sikarugir Wine 10.0 does all three jobs.** The table and the evidence are in
-[02-architecture.md](02-architecture.md); `cs2kit engine list` prints the same verdicts.
+[02-architecture.md](../architecture.md); `cs2kit engine list` prints the same verdicts.
 
 Everything is free software. Nothing here costs money. `CS2Kit` may be licensed however we like.
 **Every component is downloaded as a signed-by-nobody archive and pinned by SHA-256 — no Homebrew** (T-004; the
 cask route died on 2026-04-16 and Homebrew's own Wine casks are disabled on 2026-09-01,
-[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md)).
+[../research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md)).
 
 **Fallback, only if T-012 shows DXMT is unusable:** the user installs Apple's D3DMetal themselves. That is
 `brew trust gcenx/wine && brew install --cask gcenx/wine/game-porting-toolkit` — the `brew trust` is not optional,
@@ -90,7 +90,7 @@ exactly what the Windows install needs**, so we keep it and close a 4.99 GB gap 
    (**MIT** through v0.80, LGPL from v0.81) from the URLs in T-004 and CS2Kit only places files they already have.
    If we ever do ship them, the LGPL rules apply: licence texts, unmodified, dynamically linked. We **never**
    redistribute D3DMetal; if a user wants it, they install GPTK themselves.
-3. Write the absolute rules (see `docs/06-legal-and-policy.md`): never modify game files, never touch VAC, never wrap
+3. Write the absolute rules (see `docs/legal-and-vac.md`): never modify game files, never touch VAC, never wrap
    Steam authentication.
 **Acceptance:** `LICENSE` exists; `docs/06` §Distribution model has one box ticked and no open questions.
 **Effort:** 1 h · **Risk:** low.
@@ -103,8 +103,8 @@ DXMT"*, and Steam's own window renders black for the same reason. Before that it
 `brew install --cask --no-quarantine gcenx/wine/wine-crossover`, which had been **deleted from its tap on
 2026-04-16** and had shipped **wine-8.0.1**. Homebrew's own `wine-stable` / `wine@staging` are **disabled on
 2026-09-01** for failing Gatekeeper. All CONFIRMED on the machine of record 2026-08-24 —
-[../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md),
-[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md).
+[../research/steam-black-window-2026-08-24.md](../../research/steam-black-window-2026-08-24.md),
+[../research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md).
 **No Homebrew route to Wine survives the month, and only one free engine runs the game.**
 
 **Steps**
@@ -189,7 +189,7 @@ macOS updates** for the project's duration.
    Only the unpublished `-Dwine_builtin_dll=false` build goes into the prefix and needs
    `WINEDLLOVERRIDES="dxgi,d3d11,d3d10core=n,b;"` — that is `dxmt.build: prefix`, and it is not what upstream ships.
    *(The v0 recipe did the opposite of both and would have lost DXMT silently — corrected 2026-08-24,
-   [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4.)*
+   [../research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md) §4.)*
    Note the DLLs land in the **engine**, so a new engine needs the placement re-run: `cs2kit bottle create` again.
 3. Enable **MSync** (`WINEMSYNC=1`).
 4. Record every deviation from defaults — this file becomes the machine-readable recipe in T-025.
@@ -199,7 +199,7 @@ macOS updates** for the project's duration.
 `Software\Wine\DllOverrides`.
 **Effort:** 1 h · **Risk:** medium.
 **DONE on the machine of record 2026-08-24** on the Sikarugir engine: zero drift, DXMT in the Wine tree, Wine's own
-DLLs backed up ([implementation-status.md](implementation-status.md)).
+DLLs backed up ([implementation-status.md](measured-results.md)).
 
 ## T-007 · Windows Steam inside the bottle
 **Why:** CS2 launches with `-steam` and needs a **same-platform** Steam client for Steamworks, SDR relays and
@@ -220,7 +220,7 @@ matchmaking. macOS Steam cannot serve it.
 **Acceptance:** the in-bottle client shows your library and idles 10 min without crashing.
 **Effort:** 3 h · **Risk:** **the most likely place to lose a day.** If Steam will not run, that is a Wine/stack
 problem — fix it here, not after CS2 is involved. Two of the three engines we measured fail *at this task*
-([02-architecture.md](02-architecture.md)).
+([02-architecture.md](../architecture.md)).
 **DONE on the machine of record 2026-08-24**, on Sikarugir Wine 10.0 only.
 
 ## T-008 · Install CS2 — reuse what is already on the disk
@@ -249,7 +249,7 @@ but the finished install was then reused by the in-bottle client through the sym
 **Steps**
 1. Launch options: `-novid -nojoy -console`. **Not** `-vulkan`.
 2. **Black screen** → `CS2Video.txt` with `fullscreen = 0`. *(If the whole Steam client is black, this is not your
-   problem — it is the wrong engine. See T-004 and [10-troubleshooting.md](10-troubleshooting.md) entry 20.)*
+   problem — it is the wrong engine. See T-004 and [10-troubleshooting.md](../troubleshooting.md) entry 20.)*
 3. **Audio crackling** → set `cs2.exe` to **Windows 8** (`winecfg` → Applications). Documented permanent fix.
 4. **Retina off**, render at **1920×1080** or lower. Native 3024×1964 costs ~4× (an M2 Max drops to 23 FPS).
 5. Only if it still fails: `WINEDEBUG=+loaddll,+seh` before changing anything else.
@@ -273,7 +273,7 @@ send `jointeam 2` after the map loads, or you measure a spectator camera.
 Failure = the free stack is not viable on this machine → the only remaining lever is the D3DMetal fallback (T-012).
 **Effort:** 2 h · **Risk:** low once T-009 passes.
 **Partial, 2026-08-24:** first Dust2 pass, 10 minutes, **0 crashes, 0 frozen frames in 22 samples**, RSS
-0.7–1.4 GB ([reference/t010-dust2-log.jsonl](reference/t010-dust2-log.jsonl)). Audio is **not** assessed — it needs
+0.7–1.4 GB ([reference/t010-dust2-log.jsonl](../reference/t010-dust2-log.jsonl)). Audio is **not** assessed — it needs
 ears (T-016). Five passes and the human ear remain.
 
 ---
@@ -282,7 +282,7 @@ ears (T-016). Five passes and the human ear remain.
 
 ## T-011 · Benchmark protocol + baseline
 **Why:** published Mac FPS numbers are unusable — no named map, no shader warm-up. *Ancient* is 25–30 % heavier than *Dust2*.
-**Steps** Implement `docs/07-benchmark-protocol.md`: **Ancient FPS Benchmark `3472126051`**, 3 discarded warm-ups,
+**Steps** Implement `docs/benchmarking.md`: **Ancient FPS Benchmark `3472126051`**, 3 discarded warm-ups,
 5 measured runs, report **median avg, median 1 % low, p99 frametime, hitch count**. Log `powermetrics` alongside.
 **Acceptance:** two baseline sessions on different days agree within **±5 %**.
 **Expected for M2 Pro/32 GB:** ~100–125 avg @1080p medium. Far outside → the protocol or config is wrong.
@@ -395,7 +395,7 @@ env vars, launch options, `autoexec.cfg`. Nothing else.
 ## T-023 · Specify v0.1 (CLI only, no GUI)
 CLI is testable and CI-able; a SwiftUI app is the least valuable part and comes last, if ever.
 Commands: `doctor`, `bottle create|repair`, `config apply <profile>`, `bench`, `report`.
-**Deliverable:** `docs/cs2kit-spec.md` — exact surface, exit codes, file layout.
+**Deliverable:** `docs/cli-reference.md` — exact surface, exit codes, file layout.
 **Acceptance:** every command maps to a Phase 1–3 procedure already proven.
 **Effort:** 4 h.
 
@@ -452,7 +452,7 @@ macOS 27**, then only *"a subset … aimed at supporting older unmaintained gami
 maintained, so it likely does **not** qualify. Our whole stack is x86-64. ARM64EC Wine + FEX is blocked by Apple
 Silicon's **16 KB page size** (Wine needs 4 KB; Wine 11.0's simulation is "simple applications" only).
 Track quarterly; pre-write the decommission notice and the migration recommendation.
-**Acceptance:** a dated entry every quarter in `docs/rosetta-watch.md`. **Effort:** 2 h/quarter.
+**Acceptance:** a dated entry every quarter in `docs/project/rosetta-watch.md`. **Effort:** 2 h/quarter.
 
 ## T-032 · macOS beta testing
 Install each macOS beta to a **separate APFS volume**; run `doctor` + `bench` + smoke test; publish before public release.

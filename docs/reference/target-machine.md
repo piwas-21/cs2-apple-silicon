@@ -60,7 +60,7 @@ Free space: **90 GiB**.
 
 ## Expected performance for this machine
 
-Interpolating the reference field (`docs/07-benchmark-protocol.md`): **~100–125 avg FPS at 1080p medium** on the
+Interpolating the reference field (`docs/benchmarking.md`): **~100–125 avg FPS at 1080p medium** on the
 Ancient benchmark — between the M1 Pro (~100) and the M4 Pro (122). The 32 GB of unified memory is comfortable
 (CS2 alone ≈ 6.1 GB); **RAM is not this machine's constraint — backend choice, shader-cache warmth and resolution
 are.** Note the actively-cooled MacBook **Pro** chassis matters: fanless M-series machines fall to 30–40 FPS under

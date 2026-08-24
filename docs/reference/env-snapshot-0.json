@@ -19,9 +19,10 @@
     "wine_version": "wine-10.0 (Sikarugir)"
   },
   "volatile": {
+    "_note": "user paths redacted for publication; regenerate locally with `cs2kit env --save`",
     "awdl_up": true,
     "captured_at": "2026-08-24T19:07:03Z",
-    "cs2_exe": "/Users/mahmutkaya/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/game/bin/win64/cs2.exe",
+    "cs2_exe": "/Users/<redacted>/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/game/bin/win64/cs2.exe",
     "dxmt_build": "builtin",
     "dxmt_installed": true,
     "free_gib": 41,
@@ -34,12 +35,12 @@
       "735"
     ],
     "low_power_mode": false,
-    "prefix": "/Users/mahmutkaya/CS2/prefix-sk",
+    "prefix": "/Users/<redacted>/CS2/prefix-sk",
     "prefix_exists": true,
     "rosetta": true,
-    "steam_root": "/Users/mahmutkaya/Library/Application Support/Steam",
+    "steam_root": "/Users/<redacted>/Library/Application Support/Steam",
     "wine_exports_macdrv": true,
-    "wine_path": "/Users/mahmutkaya/CS2/wine-sk/wswine.bundle/bin/wine",
-    "wine_root": "/Users/mahmutkaya/CS2/wine-sk/wswine.bundle"
+    "wine_path": "/Users/<redacted>/CS2/wine-sk/wswine.bundle/bin/wine",
+    "wine_root": "/Users/<redacted>/CS2/wine-sk/wswine.bundle"
   }
 }

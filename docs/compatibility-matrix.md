@@ -1,7 +1,7 @@
 # Compatibility matrix
 
 What has actually been run, on what, with what result. **Every number in this file is either measured under
-[07-benchmark-protocol.md](07-benchmark-protocol.md) or the literal string `not measured`.** There is no third
+[07-benchmark-protocol.md](benchmarking.md) or the literal string `not measured`.** There is no third
 category. If a cell would need a guess, it says `not measured` - or `?`, which is what `cs2kit watch drill` writes
 when it has no value for a column.
 
@@ -29,20 +29,20 @@ zero.
 
 Unless a row note says otherwise, the benchmark is the **Ancient FPS Benchmark (Workshop `3472126051`) at 1080p
 medium**. A Dust2 number is **not** comparable with an Ancient number - Ancient runs 25-30 % heavier
-([07-benchmark-protocol.md](07-benchmark-protocol.md)).
+([07-benchmark-protocol.md](benchmarking.md)).
 
 ## Expectation, so that a surprising row is investigated rather than published
 
 For the M2 Pro / 32 GB machine of record the plan expects **~100-125 avg FPS at 1080p medium on Ancient**,
 interpolated between an M1 Pro (~100) and an M4 Pro (122) in the reference field of
-[07-benchmark-protocol.md](07-benchmark-protocol.md). A result far outside that band means the protocol or the
+[07-benchmark-protocol.md](benchmarking.md). A result far outside that band means the protocol or the
 configuration is wrong - most often a cold shader cache or an accidental Retina backing-store resolution. That
 expectation is an **interpolation, not a measurement**, and it must never be entered as a row.
 
 ## What this matrix is not
 
 * **Not a claim of support.** CS2 has no macOS build and Valve does not support this configuration
-  ([06-legal-and-policy.md](06-legal-and-policy.md), section 3).
+  ([06-legal-and-policy.md](legal-and-vac.md), section 3).
 * **Not a per-chip recommendation table.** The variance that matters is
   backend x chassis x resolution x macOS build, which is why the project ships three situational profiles rather than
   one file per chip (T-027).

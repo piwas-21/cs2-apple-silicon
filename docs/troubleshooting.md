@@ -11,7 +11,7 @@ cs2kit doctor          # most problems are environment problems; every line ends
 cs2kit doctor --json   # the same thing for an issue report
 ```
 
-`cs2kit doctor` exits `1` if anything FAILs. Exit codes are documented in [cs2kit-spec.md](cs2kit-spec.md).
+`cs2kit doctor` exits `1` if anything FAILs. Exit codes are documented in [cs2kit-spec.md](cli-reference.md).
 
 | # | Symptom | Jump to |
 |---|---|---|
@@ -47,7 +47,7 @@ wine --version                                                       # must prin
 nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv     # must print: _macdrv_functions
 ```
 
-The three-engine table, with what each one fails at, is in [02-architecture.md](02-architecture.md) and in
+The three-engine table, with what each one fails at, is in [02-architecture.md](architecture.md) and in
 `cs2kit engine list`.
 
 ---
@@ -134,7 +134,7 @@ cs2kit doctor            # the 'HiDPI / Retina' check
 **Fix.** Turn Retina/HiDPI off in the bottle and set the game to **1920x1080 or lower**. `cs2kit config apply
 balanced-1080p` sets the intended resolution; verify in-game that it took effect rather than assuming.
 
-**Evidence.** CONFIRMED - [07-benchmark-protocol.md](07-benchmark-protocol.md) reference field and its trap 2;
+**Evidence.** CONFIRMED - [07-benchmark-protocol.md](benchmarking.md) reference field and its trap 2;
 [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md) item 10.
 
 ## 4. `-vulkan` changes nothing, or makes it worse
@@ -155,7 +155,7 @@ gave it to you: it is a CS:GO-era flag and Source 2 has no D3D9 path.
 **Evidence.** CONFIRMED (renderer exists) / flagged CONTRADICTION with AppleGamingWiki (community reports) -
 [../research/steam-vac-findings.md](../research/steam-vac-findings.md) section 5 and
 [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md) items 12-13;
-trap 3 in [07-benchmark-protocol.md](07-benchmark-protocol.md).
+trap 3 in [07-benchmark-protocol.md](benchmarking.md).
 
 ## 5. Stutters and micro-freezes on a map you have not played before
 
@@ -175,7 +175,7 @@ judging performance (T-013, T-030).
 
 **Evidence.** CONFIRMED, multiple independent reports -
 [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md) item 1;
-trap 1 in [07-benchmark-protocol.md](07-benchmark-protocol.md).
+trap 1 in [07-benchmark-protocol.md](benchmarking.md).
 
 ## 6. Steam inside the bottle will not log in (Steam Guard)
 
@@ -199,10 +199,10 @@ If the login window never appears, or appears black, you are not looking at a St
 [20](#20-failed-to-create-metal-view-and-the-black-steam-window-are-one-fault).
 
 **CS2Kit never wraps, replaces or automates Steam authentication** - you log into Valve's own client, every time.
-That is an absolute rule, not an omission ([06-legal-and-policy.md](06-legal-and-policy.md)).
+That is an absolute rule, not an omission ([06-legal-and-policy.md](legal-and-vac.md)).
 
 **Evidence.** Procedure and the errors-and-fixes table: [reference/steam-in-bottle.md](reference/steam-in-bottle.md);
-risk R-11 in [05-risk-register.md](05-risk-register.md).
+risk R-11 in [05-risk-register.md](project/risk-register.md).
 
 ## 7. "VAC was unable to verify your game session"
 
@@ -226,7 +226,7 @@ that converts a low risk into a real one. VAC bans are permanent and non-appeala
 
 **Evidence.** CONFIRMED (the error is generic and common) / UNKNOWN (Wine-specific rate) -
 [../research/steam-vac-findings.md](../research/steam-vac-findings.md), *Named failure modes*;
-policy in [06-legal-and-policy.md](06-legal-and-policy.md) section 2.
+policy in [06-legal-and-policy.md](legal-and-vac.md) section 2.
 
 ## 8. Jitter, rubber-banding, and `SteamNetworkingSockets lock held` spam
 
@@ -252,7 +252,7 @@ the data is worth having.
 
 **Evidence.** CONFIRMED (reported), UNKNOWN (fix) -
 [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md) items 5 and 6;
-risk R-12 in [05-risk-register.md](05-risk-register.md).
+risk R-12 in [05-risk-register.md](project/risk-register.md).
 
 ## 9. Nothing runs at all (Rosetta 2)
 
@@ -276,10 +276,10 @@ softwareupdate --install-rosetta --agree-to-license
 general-purpose Rosetta is *"available through macOS 27"*, after which only *"a subset ... aimed at supporting older
 unmaintained gaming titles"* remains - and CS2 is actively maintained, so it probably does not qualify. Do not
 upgrade past macOS 27 on a machine you play on. The full position, the ARM64EC/FEX blocker and the migration
-recommendation: [rosetta-watch.md](rosetta-watch.md).
+recommendation: [rosetta-watch.md](project/rosetta-watch.md).
 
 **Evidence.** CONFIRMED, Apple primary - [../research/tooling-licensing-findings.md](../research/tooling-licensing-findings.md)
-sections 6 and 7; risk R-1 in [05-risk-register.md](05-risk-register.md).
+sections 6 and 7; risk R-1 in [05-risk-register.md](project/risk-register.md).
 
 ## 10. Out of disk
 
@@ -300,7 +300,7 @@ depot 2347770 - it has no OS filter and a Windows install can reuse it, which is
 into the bottle.
 
 **Evidence.** MEASURED on the machine of record - [reference/target-machine.md](reference/target-machine.md), disk
-budget; risk R-6 (*"already occurring"*) in [05-risk-register.md](05-risk-register.md).
+budget; risk R-6 (*"already occurring"*) in [05-risk-register.md](project/risk-register.md).
 
 ## 11. DXMT is not actually in use
 
@@ -332,7 +332,7 @@ WINEDEBUG=+loaddll,+dxmt wine rundll32 d3d11.dll,NoSuchEntry
 
 The last command is the direct answer: `d3d11.dll`, `DXGI.DLL` and `winemetal.dll` must all load, all tagged
 **`builtin`**, followed by DXMT's own `info:` line. The `err:rundll32 ... Unable to find the entry point` at the end
-is expected - see step 4 of [09-install-guide.md](09-install-guide.md).
+is expected - see step 4 of [09-install-guide.md](install.md).
 
 **Fix.**
 
@@ -347,9 +347,9 @@ backend version is unrecorded cannot be compared with anything.
 **Evidence.** The layout and the "no overrides" rule are CONFIRMED from DXMT's own installation guide and were
 verified on the machine of record 2026-08-24 -
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §4.
-DXMT is the project's chosen backend and its critical dependency ([02-architecture.md](02-architecture.md));
+DXMT is the project's chosen backend and its critical dependency ([02-architecture.md](architecture.md));
 community data shows 10x swings between backends across machines, which is why T-012 measures rather than assumes
-(risk R-5, [05-risk-register.md](05-risk-register.md)).
+(risk R-5, [05-risk-register.md](project/risk-register.md)).
 
 ## 12. Steam says CS2 is installed but there is no `cs2.exe`
 
@@ -368,7 +368,7 @@ cs2kit doctor            # 'CS2 (Windows build)' -> FAIL, naming depot 2347771
 ```
 
 **Fix.** Install CS2 from the **Windows Steam client inside the bottle** (step 6 of
-[09-install-guide.md](09-install-guide.md)). Keep the macOS content depot 2347770 - the in-bottle client may be able
+[09-install-guide.md](install.md)). Keep the macOS content depot 2347770 - the in-bottle client may be able
 to reuse it and fetch only the missing ~4.99 GB.
 
 **Evidence.** MEASURED, with byte counts and the full depot table -
@@ -400,8 +400,8 @@ cs2kit verify baseline
 If the `buildid` did **not** change, do not re-baseline. Find out what wrote to that directory, remove it, and let
 Steam restore the original files before you play online again.
 
-**Evidence.** T-021 and absolute rule 1 - [06-legal-and-policy.md](06-legal-and-policy.md); post-update drill in
-[03-development-plan.md](03-development-plan.md) T-030.
+**Evidence.** T-021 and absolute rule 1 - [06-legal-and-policy.md](legal-and-vac.md); post-update drill in
+[03-development-plan.md](project/development-plan.md) T-030.
 
 ## 14. `brew`: "Cask 'wine-crossover' is unavailable"
 
@@ -423,14 +423,14 @@ git -C /opt/homebrew/Library/Taps/gcenx/homebrew-wine log --oneline -3
 ```
 
 **Fix.** Stop using Homebrew for Wine. Use the tarball in step 3 of
-[09-install-guide.md](09-install-guide.md) - two `curl`s, two checksums, one `tar`. There is nothing to salvage
+[09-install-guide.md](install.md) - two `curl`s, two checksums, one `tar`. There is nothing to salvage
 here: even when the cask existed it shipped **wine-8.0.1** (crossover-sources-23.7.1), not the "Wine 11.x" our own
 plan claimed. If you did install it before it disappeared, you were running a Wine three major versions behind this
 guide.
 
 **Evidence.** CONFIRMED on the machine of record 2026-08-24, from the tap's own git history -
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §1;
-risk R-16 in [05-risk-register.md](05-risk-register.md).
+risk R-16 in [05-risk-register.md](project/risk-register.md).
 
 ## 15. `brew`: "Refusing to load cask ... from untrusted tap"
 
@@ -482,7 +482,7 @@ brew info --cask wine@staging | head -4
 wine --version                 # which Wine is actually on your PATH right now?
 ```
 
-**Fix.** Move to the tarball (step 3 of [09-install-guide.md](09-install-guide.md)). It is the **same upstream** -
+**Fix.** Move to the tarball (step 3 of [09-install-guide.md](install.md)). It is the **same upstream** -
 Gcenx builds the official WineHQ macOS packages - delivered as an archive rather than a cask, so there is no
 Gatekeeper check to fail, no admin password, and a SHA-256 you can pin. Then remove the cask so you do not end up
 with two Wines on `PATH`:
@@ -499,7 +499,7 @@ wine --version                           # must now print wine-10.0 (Sikarugir)
 
 **Evidence.** CONFIRMED, both `brew info` outputs read on the machine of record 2026-08-24 -
 [../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §2;
-risk **R-15** in [05-risk-register.md](05-risk-register.md), the second dated risk in this project after Rosetta-27.
+risk **R-15** in [05-risk-register.md](project/risk-register.md), the second dated risk in this project after Rosetta-27.
 
 ## 17. DXMT's DLLs load as `native` instead of `builtin`
 
@@ -594,7 +594,7 @@ cs2kit engine install   # sikarugir-10; then re-run `cs2kit bottle create` to pu
 ```
 
 **Evidence.** [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md),
-*"The 0x3008 transport error — narrowed"*; the engine matrix in [02-architecture.md](02-architecture.md).
+*"The 0x3008 transport error — narrowed"*; the engine matrix in [02-architecture.md](architecture.md).
 
 
 ---
@@ -690,7 +690,7 @@ mattered, and all nine left the window black.
 
 **Evidence.** CONFIRMED, with the full experiment table -
 [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md); engine matrix in
-[02-architecture.md](02-architecture.md) and in `cs2kit engine list`.
+[02-architecture.md](architecture.md) and in `cs2kit engine list`.
 
 ## 21. `wineserver`: `Library not loaded: @rpath/libinotify.0.dylib`
 
@@ -747,7 +747,7 @@ You are bypassing `cs2kit launch`, so you are also bypassing its integrity guard
 every time. If you would rather not remember that, `cs2kit app create` writes a launcher that verifies and then
 launches.
 
-**Evidence.** [implementation-status.md](implementation-status.md), T-010 first pass.
+**Evidence.** [implementation-status.md](project/measured-results.md), T-010 first pass.
 
 ## 23. Steam forgets the library folder, and offers a full re-download
 
@@ -774,8 +774,8 @@ after a `steamcmd` install with `+force_install_dir`). Promote `appmanifest_730.
 `InstalledDepots` listing 2347770 / 2347771 / 2347774, and keep the macOS-era manifest as a `.bak`. That is a file
 move, not a download.
 
-**Evidence.** [implementation-status.md](implementation-status.md), *"Reusing the existing install — no second
-download"*; step 6 of [09-install-guide.md](09-install-guide.md).
+**Evidence.** [implementation-status.md](project/measured-results.md), *"Reusing the existing install — no second
+download"*; step 6 of [09-install-guide.md](install.md).
 
 ---
 
@@ -803,6 +803,6 @@ cs2kit report            # redacted: no SteamID, no account name, no usernames i
 ```
 
 `cs2kit report` prints exactly what it will share before it writes anything. Attach the bundle, say which step of
-[09-install-guide.md](09-install-guide.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
+[09-install-guide.md](install.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
 community dataset (T-033) - what is stripped and where to send it is in
-[12-maintenance.md](12-maintenance.md) - which is the one thing this ecosystem has never had.
+[12-maintenance.md](project/maintenance.md) - which is the one thing this ecosystem has never had.

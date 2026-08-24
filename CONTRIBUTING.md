@@ -2,11 +2,11 @@
 
 CS2Kit configures, diagnoses and measures a Counter-Strike 2 Wine bottle on Apple Silicon. It **never patches the
 game, never wraps Steam authentication, never implements graphics and never touches VAC**
-([docs/03-development-plan.md](docs/03-development-plan.md), Phase 4 scope rule). Every rule below exists because
+([docs/project/development-plan.md](docs/project/development-plan.md), Phase 4 scope rule). Every rule below exists because
 breaking it would either endanger a user's Steam account or quietly destroy the project's one real asset: that its
 numbers and procedures can be reproduced.
 
-Work is tracked as tasks `T-001` .. `T-034` in [docs/03-development-plan.md](docs/03-development-plan.md). A change
+Work is tracked as tasks `T-001` .. `T-034` in [docs/project/development-plan.md](docs/project/development-plan.md). A change
 that does not serve a task probably belongs in an issue first.
 
 ---
@@ -59,7 +59,7 @@ Test-time dependencies are different: `pytest` lives in the `dev` dependency gro
 ## Rule 2 - never modify game files
 
 Valve's VAC FAQ names *"modifications to a game's core executable files and dynamic link libraries"* as cheating
-([docs/06-legal-and-policy.md](docs/06-legal-and-policy.md)). This is the single action that would convert a low ban
+([docs/legal-and-vac.md](docs/legal-and-vac.md)). This is the single action that would convert a low ban
 risk into a real one, so it is enforced mechanically by the T-021 hash guard in
 [cs2kit/integrity.py](cs2kit/integrity.py): CS2Kit records a SHA-256 baseline of `game/bin/win64/` after Steam's own
 verify pass and refuses to launch when a guarded file differs.
@@ -82,7 +82,7 @@ it is written. If you are unsure which column your change is in, it is in the ri
 
 Every factual claim in `docs/` must trace to a file in `docs/` or `research/` and carry a **CONFIRMED** (vendor or
 primary source), **LIKELY** (community) or **UNKNOWN** (not verified) tag. Benchmarks follow
-[docs/07-benchmark-protocol.md](docs/07-benchmark-protocol.md) - median of 5 measured runs after 3 discarded
+[docs/benchmarking.md](docs/benchmarking.md) - median of 5 measured runs after 3 discarded
 warm-ups, reported as median avg **and** median 1 % low. Never a maximum, never a single run.
 
 Unmeasured cells say `not measured` (compatibility matrix) or **UNRECORDED** (the `docs/reference/` templates).
@@ -114,8 +114,8 @@ Check(id, label, status, detail, fix, task)
 5. **Name the task.** `task="T-019"` tells the user which document explains the check.
 6. **Test it against the sandbox** with a passing case and a failing case, and assert on the `Check.status` and
    `Check.id` rather than on printed text - `--json` output is a contract, formatting is not.
-7. **Document it** in [docs/cs2kit-spec.md](docs/cs2kit-spec.md) and, if it corresponds to a known failure mode,
-   in [docs/10-troubleshooting.md](docs/10-troubleshooting.md).
+7. **Document it** in [docs/cli-reference.md](docs/cli-reference.md) and, if it corresponds to a known failure mode,
+   in [docs/troubleshooting.md](docs/troubleshooting.md).
 
 A check that cannot state its remediation in one line is usually two checks.
 
@@ -134,7 +134,7 @@ def register(subparsers) -> None:
 `EXIT_NOT_READY`, `EXIT_INTEGRITY`, `EXIT_REGRESSION`) - it never calls `sys.exit()` and never raises for an
 expected condition. **Any command that prints results must support `--json` and print a single JSON object to
 stdout**; the exit codes and the JSON shapes are a stable contract documented in
-[docs/cs2kit-spec.md](docs/cs2kit-spec.md). Update that document in the same PR.
+[docs/cli-reference.md](docs/cli-reference.md). Update that document in the same PR.
 
 ## Style
 
@@ -161,4 +161,4 @@ evidence and the risk. CI runs the same four checks on Linux and macOS with Pyth
 CS2Kit is **GPL-3.0-or-later** ([LICENSE](LICENSE)). By contributing you agree your contribution is licensed under
 it. We redistribute no third-party binary at all - the user downloads Wine/MSync (LGPL-2.1) and DXMT (MIT through
 v0.80, LGPL after) themselves, unmodified; we
-**never** redistribute Apple's D3DMetal ([docs/06-legal-and-policy.md](docs/06-legal-and-policy.md)).
+**never** redistribute Apple's D3DMetal ([docs/legal-and-vac.md](docs/legal-and-vac.md)).

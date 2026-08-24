@@ -41,7 +41,7 @@ Free software end to end. The Steam client runs **inside** the bottle — macOS 
 **This is the single most important decision in the architecture, and it is decided by measurement, not by
 version number.** All three builds below are free software, all three install the same way, and two of them
 cannot run CS2 at all. MEASURED on the machine of record 2026-08-24
-([implementation-status.md](implementation-status.md),
+([implementation-status.md](project/measured-results.md),
 [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md)):
 
 | Engine | `wine --version` | Steam UI | client↔helper transport | DXMT Metal view | Verdict |
@@ -91,7 +91,7 @@ The Homebrew route this project originally specified is **gone**, in three ways,
 `gcenx/wine/wine-crossover` was **deleted from its tap on 2026-04-16** (and had been shipping **wine-8.0.1**, never
 the "11.x" our own plan claimed); Homebrew now **refuses third-party casks by default** (`brew trust gcenx/wine`
 required); and Homebrew's own `wine-stable` / `wine@staging` casks are **deprecated and will be disabled on
-2026-09-01** for failing the Gatekeeper check (R-15, [05-risk-register.md](05-risk-register.md)). A tarball carries
+2026-09-01** for failing the Gatekeeper check (R-15, [05-risk-register.md](project/risk-register.md)). A tarball carries
 no quarantine attribute, needs no admin rights, and can be pinned by checksum — which is why the install path is now
 a `curl`, a `shasum` and a `tar`.
 
@@ -143,7 +143,7 @@ user-installed; neither changes what this project distributes, which is **only i
 ## How the game and the client are actually started
 
 Two rules that are architecture, not preference, both MEASURED on 2026-08-24
-([implementation-status.md](implementation-status.md)):
+([implementation-status.md](project/measured-results.md)):
 
 * **The Steam client is always started with `-no-cef-sandbox`.** Under Wine the sandboxed Chromium helper cannot
   establish its transport, and the client aborts on 0x3008 before login. `cs2kit launch` passes the flag itself

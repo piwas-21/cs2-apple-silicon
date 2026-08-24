@@ -7,7 +7,7 @@ Every command below was read off `cs2kit <command> --help` in this checkout.
 ## Scope rule
 
 > **CS2Kit configures and diagnoses. It never patches the game, never wraps Steam authentication, never implements
-> graphics, never touches VAC.** ([03-development-plan.md](03-development-plan.md), Phase 4)
+> graphics, never touches VAC.** ([03-development-plan.md](project/development-plan.md), Phase 4)
 
 That is a boundary, not a slogan, and it is what each half of the tool is allowed to do:
 
@@ -23,7 +23,7 @@ That is a boundary, not a slogan, and it is what each half of the tool is allowe
 Valve's VAC FAQ names *"modifications to a game's core executable files and dynamic link libraries"* as cheating.
 That is the single action that would turn this project's low risk into a real one, so `cs2kit verify` (T-021) makes
 it mechanically visible and `cs2kit launch` refuses to start the game when it happens
-([06-legal-and-policy.md](06-legal-and-policy.md)).
+([06-legal-and-policy.md](legal-and-vac.md)).
 
 ## Standard library only
 
@@ -153,7 +153,7 @@ single actionable fix. `--strict` treats `WARN` as failure; `--verbose` shows `S
 | `ram` | >= 16 GB (WARN below) | T-017 |
 | `chassis` | fanless machines warn about sustained throttling | T-017 |
 | `rosetta` | `oahd` is running | T-004 |
-| `rosetta-horizon` | macOS <= 27; WARN on 27, FAIL beyond ([rosetta-watch.md](rosetta-watch.md)) | T-031 |
+| `rosetta-horizon` | macOS <= 27; WARN on 27, FAIL beyond ([rosetta-watch.md](project/rosetta-watch.md)) | T-031 |
 | `disk` | >= 80 GiB free | T-001 |
 | `wine` | installed, major >= 11 | T-004 |
 | `bottle` | the prefix exists | T-006 |
@@ -325,7 +325,7 @@ cs2kit bench show    [id] [--env-id ID] [--json]
 cs2kit bench compare [id] [--against ID] [--tolerance PCT] [--env-id ID] [--json]
 ```
 
-Automates [07-benchmark-protocol.md](07-benchmark-protocol.md): **3 discarded warm-up runs, 5 measured runs**, on the
+Automates [07-benchmark-protocol.md](benchmarking.md): **3 discarded warm-up runs, 5 measured runs**, on the
 **Ancient FPS Benchmark (workshop `3472126051`)** by default, with Dust2 (`3240880604`) as the explicitly
 non-comparable secondary. CS2Kit **measures, it does not play**: `bench run` prints the protocol and then consumes
 the frametime logs you produced, so nothing here launches the game or needs `sudo`.
@@ -422,18 +422,18 @@ buildid to record.
 |---|---|
 | A GUI | A CLI is testable and CI-able; a SwiftUI app is the least valuable part and comes last, if ever (T-023). |
 | Downloading or installing CS2 | Valve's client owns the install. CS2Kit points Steam at a library folder; it never fetches depots. |
-| Any Steam login handling | Absolute rule 3 ([06-legal-and-policy.md](06-legal-and-policy.md)). |
+| Any Steam login handling | Absolute rule 3 ([06-legal-and-policy.md](legal-and-vac.md)). |
 | Anything that reads or writes the game's memory or binaries | Absolute rule 1; enforced by `verify` and `launch`. |
-| Shipping D3DMetal | Never redistributed; a user-installed local fallback only ([06-legal-and-policy.md](06-legal-and-policy.md), section 1). |
+| Shipping D3DMetal | Never redistributed; a user-installed local fallback only ([06-legal-and-policy.md](legal-and-vac.md), section 1). |
 | Uploading reports anywhere | `report` writes local files; sharing is the user's act (T-028). |
 | Per-chip profiles | Three situational profiles instead; the variance is not the model name on the lid (T-027). |
 
 ## Related documents
 
-* [09-install-guide.md](09-install-guide.md) - the ordered procedure these commands automate.
-* [10-troubleshooting.md](10-troubleshooting.md) - symptom-keyed, using these commands as the checks.
-* [07-benchmark-protocol.md](07-benchmark-protocol.md) - the protocol `bench` implements.
-* [06-legal-and-policy.md](06-legal-and-policy.md) - the rules the scope section enforces.
-* [11-validation-log.md](11-validation-log.md) - the Phase 3 online and anti-cheat record these commands feed.
-* [12-maintenance.md](12-maintenance.md) - the Phase 5 cadence for `watch`, `bench` and `report`.
+* [09-install-guide.md](install.md) - the ordered procedure these commands automate.
+* [10-troubleshooting.md](troubleshooting.md) - symptom-keyed, using these commands as the checks.
+* [07-benchmark-protocol.md](benchmarking.md) - the protocol `bench` implements.
+* [06-legal-and-policy.md](legal-and-vac.md) - the rules the scope section enforces.
+* [11-validation-log.md](project/validation-log.md) - the Phase 3 online and anti-cheat record these commands feed.
+* [12-maintenance.md](project/maintenance.md) - the Phase 5 cadence for `watch`, `bench` and `report`.
 * [../CONTRIBUTING.md](../CONTRIBUTING.md) - how to add a check or a command without breaking the contracts above.

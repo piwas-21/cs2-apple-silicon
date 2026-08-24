@@ -5,9 +5,9 @@ filled, and every number slot reads `not measured`. Nothing in this file is data
 summarise it, and do not let a reader mistake a printed table for a result.
 
 Phase 3 is the part of the project that decides whether any of it counts. T-010 answered *does it run?*; T-020
-answers *does it count?* ([03-development-plan.md](03-development-plan.md)). The corresponding rows of the test
+answers *does it count?* ([03-development-plan.md](development-plan.md)). The corresponding rows of the test
 matrix are sections **F** (network) and **G** (anti-cheat and competitive) in
-[04-test-matrix.md](04-test-matrix.md).
+[04-test-matrix.md](test-matrix.md).
 
 ---
 
@@ -25,9 +25,9 @@ ban is **permanent and non-appealable** (CONFIRMED, Steam Support) and because P
       Steam's own. `cs2kit verify check` is clean before and after every session.
 - [ ] The only configuration in play is the legitimate surface: bottle settings, Wine's own DLL overrides,
       environment variables, CS2 launch options and `autoexec.cfg`. Nothing else
-      ([06-legal-and-policy.md](06-legal-and-policy.md), absolute rule 4).
+      ([06-legal-and-policy.md](../legal-and-vac.md), absolute rule 4).
 - [ ] `-untrusted` is **not** in the launch options. Valve's 2020 Trusted Mode post says it may reduce your Trust
-      score; CS2's status is UNKNOWN ([../research/steam-vac-findings.md](../research/steam-vac-findings.md)).
+      score; CS2's status is UNKNOWN ([../research/steam-vac-findings.md](../../research/steam-vac-findings.md)).
 
 | Field | Value |
 |---|---|
@@ -75,14 +75,14 @@ sudo ifconfig awdl0 down   # AirDrop/Handoff off: community-reported Wi-Fi jitte
 4. Log every anomaly with timestamp, `buildid` and environment snapshot:
    `cs2kit doctor --json > ~/cs2kit-match-<n>.json`.
 5. Re-run `cs2kit verify check` after every session - the game files must be unchanged, every time
-   (test matrix G, [04-test-matrix.md](04-test-matrix.md)).
+   (test matrix G, [04-test-matrix.md](test-matrix.md)).
 
 ### One kick is not a verdict
 
 *"VAC was unable to verify your game session"* is a **kick, not a ban**, and it is an extremely common generic CS2
 error **on plain Windows too** - nine separate threads in Valve's own CS2 forum. Whether it fires more often under
 Wine is **UNKNOWN**; no Wine-specific dataset exists. Budget for it as "expected occasional kick, retry"
-([../research/steam-vac-findings.md](../research/steam-vac-findings.md), *Named failure modes*). Record every
+([../research/steam-vac-findings.md](../../research/steam-vac-findings.md), *Named failure modes*). Record every
 occurrence in the log below; a **pattern** is the finding, a single line is not.
 
 ### Match log
@@ -121,7 +121,7 @@ gets a row too, with the reason in `notes`.
 | Decided by / date | not recorded |
 
 Under NO-GO the correct response is to **stop**, not to engineer around it. Nothing in this project may be used to
-interfere with, disable, spoof or study VAC ([06-legal-and-policy.md](06-legal-and-policy.md), absolute rule 2).
+interfere with, disable, spoof or study VAC ([06-legal-and-policy.md](../legal-and-vac.md), absolute rule 2).
 
 ## T-022 - Competitive-readiness sign-off
 
@@ -144,7 +144,7 @@ measured it**. Below is the template with the slots named. Do not publish it wit
 >
 > On a `<machine>` running macOS `<version>` with Wine `<version>`, DXMT `<release>` and CS2 buildid `<buildid>`,
 > CS2 sustains `<avg>` avg FPS with a `<1% low>` 1 % low at `<resolution>` on the Ancient benchmark, measured under
-> [07-benchmark-protocol.md](07-benchmark-protocol.md) (median of 5 runs after 3 discarded warm-ups). Input latency
+> [07-benchmark-protocol.md](../benchmarking.md) (median of 5 runs after 3 discarded warm-ups). Input latency
 > is `<delta>` ms `<higher/lower>` than `<the reference rig>` (T-015, 20 trials). Audio and microphone are
 > `<verdict>`; networking is `<verdict>`, with ping within `<n>` ms of native macOS Steam to the same relay.
 > Across `<n>` competitive and `<n>` Premier matches on `<n>` separate days there were `<n>` anti-cheat kicks and
@@ -157,8 +157,8 @@ measured it**. Below is the template with the slots named. Do not publish it wit
 * **Not a claim.** Until the tables carry rows, the honest summary of Phase 3 is: *nobody has tested this on this
   machine yet.*
 * **Not a substitute for the matrix.** Per-run performance numbers live in
-  [compatibility-matrix.md](compatibility-matrix.md) and in stored `cs2kit bench` sessions; this file records
+  [compatibility-matrix.md](../compatibility-matrix.md) and in stored `cs2kit bench` sessions; this file records
   **online and anti-cheat** outcomes.
 * **Not evidence about VAC policy.** A clean run here shows that *this configuration was not kicked in these
   matches*. Valve has published no policy on Wine and VAC, and no amount of local testing turns that UNKNOWN into a
-  CONFIRMED ([06-legal-and-policy.md](06-legal-and-policy.md), section 2).
+  CONFIRMED ([06-legal-and-policy.md](../legal-and-vac.md), section 2).

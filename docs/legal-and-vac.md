@@ -26,7 +26,7 @@ to bundle D3DMetal re-opens it deliberately, with counsel, rather than by accide
 
 ### Distribution model — DECIDED (T-002)
 - [x] **Tier 1: we redistribute nothing but our own GPL-3.0 code.** The user downloads Wine (**LGPL-2.1**) and DXMT
-      (**MIT** — see below) themselves from the pinned URLs in [09-install-guide.md](09-install-guide.md); CS2Kit
+      (**MIT** — see below) themselves from the pinned URLs in [09-install-guide.md](install.md); CS2Kit
       only places files the user already has. **We do NOT bundle D3DMetal**, so §2A(iii) and the §2A(i) use-grant
       grey zone below **do not apply to this project**. Users who want D3DMetal install Apple's GPTK themselves.
       Should we ever bundle an LGPL library, the obligations attach then: ship the licence text, keep it unmodified
@@ -43,7 +43,7 @@ Wine itself is **LGPL-2.1** and freely redistributable (Apple's GPTK Wine half i
 **DXMT / DXVK / MoltenVK** are open source — no equivalent restriction.
 
 ### DXMT's licence — corrected 2026-08-24
-Earlier drafts of this file and of [08-cost-and-dependencies.md](08-cost-and-dependencies.md) called DXMT
+Earlier drafts of this file and of [08-cost-and-dependencies.md](project/cost-and-dependencies.md) called DXMT
 **LGPL-2.1**. That is **wrong**. DXMT's own v0.80 release notes say, verbatim:
 
 > *"We are changing the license of DXMT from MIT to LGPL. **v0.80 will be the last release distributed in MIT

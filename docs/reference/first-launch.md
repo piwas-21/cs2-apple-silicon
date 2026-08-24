@@ -14,7 +14,7 @@ Acceptance (T-009): **the CS2 main menu renders and accepts mouse input.** — *
 > `err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT`. The engine of
 > record is **Sikarugir Wine 10.0**; check it with
 > `nm -g "$WINE_ROOT/lib/wine/x86_64-unix/winemac.so" | grep macdrv` before anything else
-> ([../02-architecture.md](../02-architecture.md)).
+> ([../02-architecture.md](../architecture.md)).
 
 ---
 
@@ -27,7 +27,7 @@ cs2kit verify --json          # T-021 baseline: game files as Steam validated th
 
 If `cs2kit verify` has no baseline yet, take one immediately after Steam's own "Verify integrity of game files"
 pass - that is the byte-identical reference the project enforces forever
-([../06-legal-and-policy.md](../06-legal-and-policy.md), absolute rule 1).
+([../06-legal-and-policy.md](../legal-and-vac.md), absolute rule 1).
 
 ## 1. Launch options
 
@@ -85,7 +85,7 @@ from the recipe.
 ## 4. Fix 3 - Retina off, render at 1920x1080 or lower
 
 Native 3024x1964 costs roughly **4x**: a 96 GB M2 Max measured **23 FPS** at native Retina
-([../07-benchmark-protocol.md](../07-benchmark-protocol.md), reference field; CONFIRMED). Turn Retina/HiDPI off in
+([../07-benchmark-protocol.md](../benchmarking.md), reference field; CONFIRMED). Turn Retina/HiDPI off in
 the bottle and set the game to 1920x1080 or lower.
 
 Verify it actually took effect. Benchmarking at the Retina backing-store resolution by accident is trap 2 of the
@@ -93,7 +93,7 @@ benchmark protocol, and it invents a performance problem that does not exist.
 
 ## 5. Fix 4 - confirm which renderer you are actually on
 
-CS2 **silently falls back to DX11 when Vulkan initialisation fails** ([../07-benchmark-protocol.md](../07-benchmark-protocol.md),
+CS2 **silently falls back to DX11 when Vulkan initialisation fails** ([../07-benchmark-protocol.md](../benchmarking.md),
 trap 3). Read the console output - the launch option is not evidence. With DXMT installed and no `-vulkan`, DX11 via
 DXMT is the intended and correct answer; the point of the check is that you *know*, rather than assume.
 
@@ -145,7 +145,7 @@ it (trap 1). T-013 quantifies it.
 | DXMT version | **v0.80**, the builtin build; the loaded `d3d11.dll` hashes to DXMT's release binary (`7ca382af…`), not Wine's own (`e333b8c6…`) |
 | CS2 `buildid` | **24828357** |
 | Launch options actually used | `-novid -nojoy -console` (recipe default; the direct-launch runs used the same) |
-| Steam client flags | `-no-cef-sandbox` — **mandatory**, see [../10-troubleshooting.md](../10-troubleshooting.md) entry 18 |
+| Steam client flags | `-no-cef-sandbox` — **mandatory**, see [../10-troubleshooting.md](../troubleshooting.md) entry 18 |
 
 ### Which fixes were needed
 
@@ -175,15 +175,15 @@ it (trap 1). T-013 quantifies it.
 | Time from launch to menu (cold) | **~2 min 46 s** — `launch` 17:33:02Z to first rendered frame 17:35:48Z ([t010-dust2-log.jsonl](t010-dust2-log.jsonl)) |
 | First-map hitching (subjective, cold) | **UNRECORDED** — no human sat through the cold pass; the automated monitor saw 0 frozen frames in 22 samples |
 | Renderer reported by the console | **DX11 through DXMT v0.80**, `D3D_FEATURE_LEVEL_11_1` |
-| Frame rate | **117 fps**, one sample, Dust2 bot match, auto-selected Low preset, 1512x982-point window. **Not a benchmark** — T-011 produces the number this project stands behind ([../07-benchmark-protocol.md](../07-benchmark-protocol.md)) |
-| Measurement hazard found the same day | `screencapture -l` sampling every 20 s dropped the game from **72 fps to 3 fps**. Never sample frame rate by screenshot ([../07-benchmark-protocol.md](../07-benchmark-protocol.md)) |
+| Frame rate | **117 fps**, one sample, Dust2 bot match, auto-selected Low preset, 1512x982-point window. **Not a benchmark** — T-011 produces the number this project stands behind ([../07-benchmark-protocol.md](../benchmarking.md)) |
+| Measurement hazard found the same day | `screencapture -l` sampling every 20 s dropped the game from **72 fps to 3 fps**. Never sample frame rate by screenshot ([../07-benchmark-protocol.md](../benchmarking.md)) |
 | Audio | **UNRECORDED** — no automated signal exists and nobody has listened yet (T-016) |
 
 ### Acceptance (T-009)
 
 * Main menu renders and accepts mouse input: **YES, 2026-08-24**, on Sikarugir Wine 10.0 + DXMT v0.80.
-* Recorded by: the session logged in [../implementation-status.md](../implementation-status.md) - Date: **2026-08-24**
+* Recorded by: the session logged in [../implementation-status.md](../project/measured-results.md) - Date: **2026-08-24**
 
 Next: **T-010 [GATE]** - bot match on Dust2, Mirage and Ancient, each played twice, 30 minutes continuous
-([../03-development-plan.md](../03-development-plan.md)). One Dust2 pass is done: 10 minutes, 0 crashes,
+([../03-development-plan.md](../project/development-plan.md)). One Dust2 pass is done: 10 minutes, 0 crashes,
 0 frozen frames, RSS 0.7-1.4 GB. Five passes and a human ear remain.

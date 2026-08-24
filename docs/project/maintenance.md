@@ -20,7 +20,7 @@ Cadence at a glance:
 ## T-030 - CS2 update watch and regression drill
 
 **Why:** whether a CS2 patch has ever broken a working Wine bottle is recorded as **UNKNOWN** - no source was found
-either way ([../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md),
+either way ([../research/performance-alternatives-findings.md](../../research/performance-alternatives-findings.md),
 item 15). This drill is how that becomes data instead of an anecdote.
 
 ### Detection
@@ -58,19 +58,19 @@ their own exit codes and the smoke test needs a human at the mouse. The steps, a
 4. `cs2kit bench run` - 3 warm-up runs, 5 measured runs, Ancient (workshop `3472126051`).
 5. `cs2kit bench compare` - exits `5` if a headline metric moved more than 5 % (T-026).
 6. One-match smoke test - a bot match on Dust2: audio, mouse, alt-tab, no crash (test matrix rows A/B/E,
-   [04-test-matrix.md](04-test-matrix.md)).
+   [04-test-matrix.md](test-matrix.md)).
 7. `cs2kit watch record` - store the new buildid so the next check compares against it.
-8. Append the result to [compatibility-matrix.md](compatibility-matrix.md), verdict `PASS` / `DEGRADED` / `BROKEN`.
+8. Append the result to [compatibility-matrix.md](../compatibility-matrix.md), verdict `PASS` / `DEGRADED` / `BROKEN`.
 
 Two things a CS2 update is **expected** to do, and which must not be reported as regressions:
 
 * **Invalidate the shader cache.** Re-warm before benchmarking, or step 5 measures shader compilation (T-013).
 * **Change the guarded binaries.** `cs2kit verify check` will report a mismatch. If - and only if - the `buildid`
   changed, run Steam's *Verify integrity of game files* and then `cs2kit verify baseline` again. If the `buildid`
-  did **not** change, do not re-baseline: find out what wrote to `game/bin/win64/` ([10-troubleshooting.md](10-troubleshooting.md), entry 13).
+  did **not** change, do not re-baseline: find out what wrote to `game/bin/win64/` ([10-troubleshooting.md](../troubleshooting.md), entry 13).
 
 When the drill finds a real regression, run the **full** test matrix, not just the smoke subset
-([04-test-matrix.md](04-test-matrix.md), section I).
+([04-test-matrix.md](test-matrix.md), section I).
 
 ## T-032 - macOS beta testing
 
@@ -99,13 +99,13 @@ is to hold macOS still on a play machine. That advice is only credible if someon
 * `verdict` is `PASS` (playable, within +/-5 % of the previous macOS), `DEGRADED` (measurably worse or defective but
   playable) or `BROKEN` (not playable).
 
-Add the row and its note to [compatibility-matrix.md](compatibility-matrix.md); rows are appended, never rewritten.
+Add the row and its note to [compatibility-matrix.md](../compatibility-matrix.md); rows are appended, never rewritten.
 
 ## T-033 - Community data intake
 
 **Why this is the project's most durable contribution:** the CS2-on-Mac ecosystem has published essentially no 1 %-low
 data and **no ms-level input-latency measurement at all**. Aggregating honest bundles is something nobody else is
-doing ([07-benchmark-protocol.md](07-benchmark-protocol.md)).
+doing ([07-benchmark-protocol.md](../benchmarking.md)).
 
 ### What a contributor does
 
@@ -135,8 +135,8 @@ site-specific.
 
 ### Where to send it
 
-Open an issue on <https://github.com/mahmutkaya/cs2-apple-silicon> and attach the `.tar.gz`, or paste `report.md`.
-Say which step of [09-install-guide.md](09-install-guide.md) you reached and what you were doing. **Read the preview
+Open an issue on <https://github.com/piwas-21/cs2-apple-silicon> and attach the `.tar.gz`, or paste `report.md`.
+Say which step of [09-install-guide.md](../install.md) you reached and what you were doing. **Read the preview
 `cs2kit report` printed before you attach anything** - it is your data, and the redaction is a tool, not a promise
 about your particular machine.
 
@@ -160,18 +160,18 @@ about your particular machine.
 ## T-034 - Quarterly upstream tracking
 
 Four dependencies, one review per quarter, one dated row each. **DXMT is the critical one:** it is the graphics path,
-it is **MIT through v0.80 and LGPL from v0.81**, and it moves fast ([02-architecture.md](02-architecture.md)).
+it is **MIT through v0.80 and LGPL from v0.81**, and it moves fast ([02-architecture.md](../architecture.md)).
 
 | Project | Why it matters | What to check | Trigger to act |
 |---|---|---|---|
-| **DXMT** | our D3D11-to-Metal path; the project's critical dependency | new release, changelog, open CS2-relevant issues | a release lands -> update the bottle, re-run the T-030 drill, record the version in [reference/toolchain.md](reference/toolchain.md) |
+| **DXMT** | our D3D11-to-Metal path; the project's critical dependency | new release, changelog, open CS2-relevant issues | a release lands -> update the bottle, re-run the T-030 drill, record the version in [reference/toolchain.md](../reference/toolchain.md) |
 | **Wine** (**Sikarugir Engines** — the engine of record; Gcenx only as a comparison point) | the runtime host | version, `--enable-archs` line, ARM64EC and 4K-page notes in `ANNOUNCE.md` | any `--enable-archs` that is not `i386,x86_64`, or 16K-page support beyond "simple applications" -> [rosetta-watch.md](rosetta-watch.md) |
 | **MSync** | synchronisation; ESync is being removed from CrossOver | still maintained, still the 2026 consensus | if MSync stalls, re-run the MSync-vs-ESync A/B from T-012 |
 | **MoltenVK** | would make the Vulkan renderer viable | **geometry shaders** and **`VK_EXT_transform_feedback`** | **if either lands, revisit T-012** - the `-vulkan` verdict was measured against their absence and would have to be re-measured |
 
 The Vulkan trigger is the one worth restating: the project rejected `-vulkan` because on Apple Silicon it routes
 through a frozen DXVK-macOS fork and a MoltenVK with **no geometry shaders and no `VK_EXT_transform_feedback`**
-(CONFIRMED from MoltenVK source, [../research/tooling-licensing-findings.md](../research/tooling-licensing-findings.md)
+(CONFIRMED from MoltenVK source, [../research/tooling-licensing-findings.md](../../research/tooling-licensing-findings.md)
 section 5). The Vulkan *version* objection is already dead - MoltenVK shipped Vulkan 1.4 in 2025-08 - so the feature
 gaps are the whole argument, and if they close the verdict must be re-measured rather than re-asserted.
 
@@ -189,7 +189,7 @@ share most of their sources.
 ## What a maintainer must never do
 
 * Never respond to a regression by modifying a game file. The drill's answer to an integrity mismatch is Steam's
-  *Verify integrity*, never an edit ([06-legal-and-policy.md](06-legal-and-policy.md), absolute rule 1).
+  *Verify integrity*, never an edit ([06-legal-and-policy.md](../legal-and-vac.md), absolute rule 1).
 * Never publish a matrix row or an aggregate that contains a number nobody measured. `?` and `not measured` are
   answers.
 * Never rewrite matrix history to make a stack look better. Append a correcting row and explain it.

@@ -151,7 +151,7 @@ info:  Failed to set Metal cache path, fallback to system default     <- DXMT's 
   **real and binding**. That mistake cost this project a day; the `nm -g … | grep macdrv` check in step 2 is what
   catches it, and `cs2kit doctor` runs it.
 * **CONFIRMED on 2026-08-24:** CS2 renders through this stack — DXMT at `D3D_FEATURE_LEVEL_11_1`, zero metal-view
-  errors, a played bot match on Dust2 ([../implementation-status.md](../implementation-status.md)).
+  errors, a played bot match on Dust2 ([../implementation-status.md](../project/measured-results.md)).
 * **Lead for T-013:** DXMT could not set its Metal shader-cache path and fell back to the system default.
 
 ## Environment of record
@@ -168,5 +168,5 @@ benchmark is keyed by; re-run it after any toolchain change — **including an e
 | `brew install --cask gcenx/wine/wine-crossover` | **Deleted from the tap 2026-04-16**; last shipped Wine 8.0.1 |
 | `brew install --cask wine-stable` / `wine@staging` | Deprecated for failing Gatekeeper; **disabled 2026-09-01** |
 | Building FOSS CrossOver Wine 24+ from CodeWeavers sources | The DXMT wiki's recommendation, and the requirement it states is real — but Sikarugir publishes a prebuilt engine that satisfies it. Keep as the fallback if those releases disappear |
-| Apple's D3DMetal / GPTK | Deliberately excluded — we redistribute nothing of Apple's ([docs/06](../06-legal-and-policy.md)) |
-| Whisky, Porting Kit, CrossOver | Not part of this plan ([docs/02](../02-architecture.md)) |
+| Apple's D3DMetal / GPTK | Deliberately excluded — we redistribute nothing of Apple's ([docs/06](../legal-and-vac.md)) |
+| Whisky, Porting Kit, CrossOver | Not part of this plan ([docs/02](../architecture.md)) |

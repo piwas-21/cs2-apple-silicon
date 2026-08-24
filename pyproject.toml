@@ -13,7 +13,7 @@ dependencies = []          # stdlib only, on purpose: see docs/cs2kit-spec.md
 cs2kit = "cs2kit.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/mahmutkaya/cs2-apple-silicon"
+Homepage = "https://github.com/piwas-21/cs2-apple-silicon"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

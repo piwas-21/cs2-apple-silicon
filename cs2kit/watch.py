@@ -41,7 +41,7 @@ APPID = probe.APPID
 BRANCH = "public"
 DEFAULT_TIMEOUT = 8.0
 MAX_BYTES = 8 * 1024 * 1024      # the 730 appinfo blob is large but not unbounded
-USER_AGENT = "CS2Kit/%s (+https://github.com/mahmutkaya/cs2-apple-silicon)" % __version__
+USER_AGENT = "CS2Kit/%s (+https://github.com/piwas-21/cs2-apple-silicon)" % __version__
 
 #: One public mirror today. The loop is deliberate: a second source drops in here
 #: without any caller learning about it.

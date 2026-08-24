@@ -8,7 +8,7 @@ measured; anything still marked **UNRECORDED** was not measured and must not be 
 > **Before anything else: the engine decides this task.** Gcenx Wine 11.15 renders Steam's window **black**
 > (0.0/255) because DXMT cannot create a Metal view on it. FOSS CrossOver 24.0.7 renders the UI and then dies on
 > *"Unexpected transport error (0x3008)"* because its Wine 9.0 base rejects the client's own helper websocket.
-> **Sikarugir Wine 10.0 does both jobs.** Table and evidence: [../02-architecture.md](../02-architecture.md);
+> **Sikarugir Wine 10.0 does both jobs.** Table and evidence: [../02-architecture.md](../architecture.md);
 > `cs2kit engine list` prints the same verdicts.
 
 ## Why the Steam client must run inside the bottle
@@ -24,7 +24,7 @@ macOS Steam cannot serve CS2 at all: appid 730 is `oslist = "windows,linux"`, an
 task exists.
 
 **Rule 3 of the project applies to every line below: never wrap, replace or automate Steam authentication**
-([../06-legal-and-policy.md](../06-legal-and-policy.md)). You type your password into Valve's own client. CS2Kit
+([../06-legal-and-policy.md](../legal-and-vac.md)). You type your password into Valve's own client. CS2Kit
 never sees it, never stores it, and has no code path that touches it.
 
 ---
@@ -43,7 +43,7 @@ The bottle must already exist (T-006 / `cs2kit bottle create`). Do not create it
 ### 2. Have the Steam mobile app in your hand
 
 You will log in by **scanning a QR code**, not by typing a password (step 4). Keep Steam Guard **enabled** -
-([../06-legal-and-policy.md](../06-legal-and-policy.md), Account safety).
+([../06-legal-and-policy.md](../legal-and-vac.md), Account safety).
 
 ### 3. Install the Windows Steam client
 
@@ -104,7 +104,7 @@ installed.
 
 If the client still offers a full download, the manifest is in the wrong place — promote `appmanifest_730.acf` to
 the library root with `InstalledDepots` 2347770 / 2347771 / 2347774 (see
-[../10-troubleshooting.md](../10-troubleshooting.md) entry 23).
+[../10-troubleshooting.md](../troubleshooting.md) entry 23).
 
 **Timebox the reuse attempt to 2 hours** (T-008 step 2). If the in-bottle client insists on re-downloading
 everything and the disk cannot hold both copies, uninstall the macOS copy first and install cleanly. The fallback
@@ -122,7 +122,7 @@ cs2kit app create        # writes a double-clickable .app: verify the game files
 
 | Symptom | Cause | Action |
 |---|---|---|
-| The client's window is **black** (0.0/255) while `wine notepad` renders fine | the engine exports no `winemac.drv` symbols, so DXMT has no Metal view and ANGLE has no surface | change the engine — `cs2kit engine install`; [../10-troubleshooting.md](../10-troubleshooting.md) entry 20 |
+| The client's window is **black** (0.0/255) while `wine notepad` renders fine | the engine exports no `winemac.drv` symbols, so DXMT has no Metal view and ANGLE has no surface | change the engine — `cs2kit engine install`; [../10-troubleshooting.md](../troubleshooting.md) entry 20 |
 | *"An unexpected error occurred while starting Steam (0x3008)"* | the CEF sandbox, a stale helper, **or** a Wine 9.0-based engine whose client rejects its own helper websocket | `-no-cef-sandbox` + clean process table; if it persists, the engine — entry 18 |
 | `wineserver` aborts: `Library not loaded: @rpath/libinotify.0.dylib` | the wrapper dylibs were never staged beside the engine | `cs2kit engine install`; entry 21 |
 | Client installs, then crashes on first run | usually an incomplete self-update, occasionally a missing DLL override | let it finish updating; `WINEDEBUG=+loaddll` and read the log before changing the bottle |
@@ -173,10 +173,10 @@ Paste the exact text. An approximated error message cannot be searched for.
 | Bytes actually downloaded for appid 730 | **~71.7 GB** (steamcmd, full install). The ~4.99 GB depot-gap route remains **unproven** |
 | `game/bin/win64/cs2.exe` present afterwards? | **Yes** — 2 967 704 bytes, one of 123 files in that directory |
 | `buildid` after install | **24828357** (`StateFlags 4`, `SizeOnDisk 71 644 882 396`) |
-| "Verify integrity of game files" clean on first pass? | **Yes** — `steamcmd`'s own `validate` pass; 137 binaries were baselined immediately after ([../11-validation-log.md](../11-validation-log.md), T-021) |
+| "Verify integrity of game files" clean on first pass? | **Yes** — `steamcmd`'s own `validate` pass; 137 binaries were baselined immediately after ([../11-validation-log.md](../project/validation-log.md), T-021) |
 
 ### Acceptance (T-007)
 
 * In-bottle client shows the library and idles 10 minutes without crashing: **YES, 2026-08-24, on Sikarugir Wine
   10.0.** On the other two engines: **NO** — black window, and 0x3008 respectively.
-* Recorded by: the session logged in [../implementation-status.md](../implementation-status.md) - Date: **2026-08-24**
+* Recorded by: the session logged in [../implementation-status.md](../project/measured-results.md) - Date: **2026-08-24**

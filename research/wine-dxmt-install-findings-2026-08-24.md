@@ -7,7 +7,7 @@ HTTPS on that date. No secondary sources, no forum posts, no inference presented
 Confidence tags: **CONFIRMED** = executed here or read from the vendor's own artefact; **LIKELY** = consistent
 primary evidence but not directly executed; **UNKNOWN** = not established.
 
-> **Why this file exists.** `docs/03-development-plan.md` T-004 and `docs/09-install-guide.md` step 3 told the
+> **Why this file exists.** `docs/project/development-plan.md` T-004 and `docs/install.md` step 3 told the
 > reader to install Wine with `brew install --cask gcenx/wine/wine-crossover`. That command **cannot succeed on any
 > machine today** — the cask was deleted upstream four months ago. The plan was also wrong about which Wine that
 > cask would have installed. This file records what was measured instead, and §9 names the exact lines it corrects.
@@ -120,7 +120,7 @@ Required (1): gstreamer-runtime (cask)
 the software — Homebrew's own words are *"does not pass the macOS Gatekeeper check"*; that the mechanism is an
 unsigned/un-notarised `.app` is **LIKELY**, inferred from the message, not quoted from it. This is a **second dated
 risk** alongside the Rosetta-27 horizon and is scored as **R-15** in
-[../docs/05-risk-register.md](../docs/05-risk-register.md).
+[../docs/project/risk-register.md](../docs/project/risk-register.md).
 
 Consequence for this project: **no Homebrew route to Wine survives the month.** Not `gcenx/wine/wine-crossover`
 (gone), not `wine-stable`, not `wine@staging` (disabled 2026-09-01). This is not a reason to pick a different cask;
@@ -374,15 +374,15 @@ Line numbers are as of commit `f0fd474`, before this file's corrections were app
 
 | File:line | What it said | Correction |
 |---|---|---|
-| `docs/03-development-plan.md:91-92` | `brew tap gcenx/wine` / `brew install --cask --no-quarantine gcenx/wine/wine-crossover   # Wine 11.x, LGPL-2.1` | Command fails (§1a); the cask shipped **wine-8.0.1**, not 11.x (§1c). Replaced by the tarball route (§3). |
-| `docs/09-install-guide.md:110-111` | the same two `brew` lines | Same. Replaced by `curl` + `shasum -a 256` + `tar` (§3). |
-| `docs/09-install-guide.md`, step 3 note | *"`--no-quarantine` is not optional"* | Moot: no cask, no quarantine. A tarball is not quarantined. |
-| `docs/03-development-plan.md:14`, `docs/06-legal-and-policy.md:19` | `brew install --cask game-porting-toolkit` | Still exists, but only in the `gcenx/wine` tap, which Homebrew now refuses by default: needs `brew trust gcenx/wine` first (§1d). |
-| `docs/02-architecture.md:17` | `Wine 11.x  (Gcenx macOS build, LGPL-2.1)` | Pinned: **Wine 11.15 staging**, Gcenx **tarball** (not cask), 2026-08-08 (§3). |
-| `docs/02-architecture.md:19,41`; `docs/08-cost-and-dependencies.md:11` | DXMT is **LGPL-2.1** | **MIT through v0.80**; LGPL from v0.81 (§7). |
-| `docs/05-risk-register.md:12` (R-5), `:17` (R-10) | "DXMT is LGPL-2.1"; "we ship only LGPL-2.1/Zlib/Apache components" | MIT through v0.80 (§7); and we ship **no** third-party components at all. |
-| `docs/03-development-plan.md`, T-006 step 2 | *"place the DLLs, set the `d3d11`/`dxgi` overrides to `native`"* | **Wrong for the published build.** Files go into the Wine tree and the overrides must stay **off** (§4). |
-| `docs/09-install-guide.md`, step 4 | *"installs the DXMT DLLs, sets the `d3d11`/`dxgi` overrides to `native`"* | Same correction. |
+| `docs/project/development-plan.md:91-92` | `brew tap gcenx/wine` / `brew install --cask --no-quarantine gcenx/wine/wine-crossover   # Wine 11.x, LGPL-2.1` | Command fails (§1a); the cask shipped **wine-8.0.1**, not 11.x (§1c). Replaced by the tarball route (§3). |
+| `docs/install.md:110-111` | the same two `brew` lines | Same. Replaced by `curl` + `shasum -a 256` + `tar` (§3). |
+| `docs/install.md`, step 3 note | *"`--no-quarantine` is not optional"* | Moot: no cask, no quarantine. A tarball is not quarantined. |
+| `docs/project/development-plan.md:14`, `docs/legal-and-vac.md:19` | `brew install --cask game-porting-toolkit` | Still exists, but only in the `gcenx/wine` tap, which Homebrew now refuses by default: needs `brew trust gcenx/wine` first (§1d). |
+| `docs/architecture.md:17` | `Wine 11.x  (Gcenx macOS build, LGPL-2.1)` | Pinned: **Wine 11.15 staging**, Gcenx **tarball** (not cask), 2026-08-08 (§3). |
+| `docs/architecture.md:19,41`; `docs/project/cost-and-dependencies.md:11` | DXMT is **LGPL-2.1** | **MIT through v0.80**; LGPL from v0.81 (§7). |
+| `docs/project/risk-register.md:12` (R-5), `:17` (R-10) | "DXMT is LGPL-2.1"; "we ship only LGPL-2.1/Zlib/Apache components" | MIT through v0.80 (§7); and we ship **no** third-party components at all. |
+| `docs/project/development-plan.md`, T-006 step 2 | *"place the DLLs, set the `d3d11`/`dxgi` overrides to `native`"* | **Wrong for the published build.** Files go into the Wine tree and the overrides must stay **off** (§4). |
+| `docs/install.md`, step 4 | *"installs the DXMT DLLs, sets the `d3d11`/`dxgi` overrides to `native`"* | Same correction. |
 | `profiles/bottle-recipe.yaml` v0 | `dll_overrides:` `d3d11`, `dxgi`, `d3d10core`, `winemetal` all `"native,builtin"`, with the DLLs copied into `system32`/`syswow64`, under the comment *"without 'native' first, Wine loads its builtin and DXMT never runs"* — which is **exactly backwards** for the published build | Same correction; the recipe gains `dxmt.build: builtin\|prefix` and `wine.root` so the two layouts can no longer be confused. Applied in commit `1cb46cd`. |
 | `docs/reference/toolchain.md:40,43-44,103` | `wine-crossover` cask as the Wine row, its `brew` install commands and its `brew info` version probe, with `UNRECORDED` checksums | Superseded by §3's URL + SHA-256 rows. Rewritten in commit `1cb46cd`. |
 | — | *(nothing said it)* | **New:** Homebrew's `wine-stable` / `wine@staging` casks are **disabled 2026-09-01** (§2) → R-15. |

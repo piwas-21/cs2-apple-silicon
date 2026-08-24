@@ -25,8 +25,8 @@ D3DMetal**, which is the one Apple-proprietary piece.
 changing the license of DXMT from MIT to LGPL. **v0.80 will be the last release distributed in MIT license.**"* The
 version we ship instructions for is therefore **MIT**; v0.81 onward will be LGPL. MIT is more permissive, so no
 conclusion below changes — but the claim was wrong and is corrected here and in
-[06-legal-and-policy.md](06-legal-and-policy.md). CONFIRMED —
-[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md) §7.
+[06-legal-and-policy.md](../legal-and-vac.md). CONFIRMED —
+[../research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md) §7.
 
 ## How the stack is actually obtained (measured 2026-08-24)
 
@@ -42,9 +42,9 @@ licence in the table above binds this project.
 **Not Homebrew.** `gcenx/wine/wine-crossover` — the command this project used to print — was deleted from its tap on
 2026-04-16 and had been shipping wine-8.0.1, not the 11.x we claimed; Homebrew now refuses third-party casks without
 `brew trust`; and `wine-stable` / `wine@staging` are **disabled on 2026-09-01** for failing Gatekeeper (R-15 and
-R-16 in [05-risk-register.md](05-risk-register.md)). A tarball has no package name to delete and no quarantine
+R-16 in [05-risk-register.md](risk-register.md)). A tarball has no package name to delete and no quarantine
 attribute, and it can be pinned by checksum. All CONFIRMED —
-[../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md).
+[../research/wine-dxmt-install-findings-2026-08-24.md](../../research/wine-dxmt-install-findings-2026-08-24.md).
 
 **Total download for the toolchain: ~202 MB. Admin rights required: none.** Everything lives under `~/CS2`.
 
@@ -56,7 +56,7 @@ may be relicensed or monetised later without renegotiating anything.
 
 Rejected: **CrossOver** (€74 per user — and the components that matter, DXMT and MSync, are free anyway; note that
 CrossOver-sources *Wine* remains a documented **fallback**, not a purchase — see
-[02-architecture.md](02-architecture.md)) and
+[02-architecture.md](../architecture.md)) and
 **D3DMetal** (free to download, but redistributable only non-commercially, with a use grant worded for
 "developing, testing, or evaluating"). D3DMetal survives only as a **user-installed local fallback** if T-012 shows
 DXMT is inadequate on a given machine — we never ship it, so its licence never binds us.

@@ -2,7 +2,7 @@
 
 **Who this is for:** someone with an Apple Silicon Mac who has never used Wine and wants to shoot a bot on Dust2.
 Follow the steps in order and paste the commands as written. Everything is free software; the total cost is EUR 0
-([08-cost-and-dependencies.md](08-cost-and-dependencies.md)).
+([08-cost-and-dependencies.md](project/cost-and-dependencies.md)).
 
 **Read this box before you start.**
 
@@ -15,7 +15,7 @@ Follow the steps in order and paste the commands as written. Everything is free 
 > **This is not supported by Valve, Apple or CodeWeavers, and it can stop working with any update.** We have found no
 > evidence of a legitimate player being banned for using a compatibility layer, but **Valve has published no policy on
 > Wine and VAC** - that is genuinely UNKNOWN and cannot be resolved by engineering
-> ([06-legal-and-policy.md](06-legal-and-policy.md)). Use a **secondary Steam account** for your first sessions and do
+> ([06-legal-and-policy.md](legal-and-vac.md)). Use a **secondary Steam account** for your first sessions and do
 > not buy Prime until you know the setup works.
 
 ## The one thing that will waste your day if you skip it: the engine
@@ -35,7 +35,7 @@ The Gcenx builds fail because they export none of the `winemac.drv` API that DXM
 `err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT` - and Steam's own
 window, which reaches D3D11 through ANGLE, paints black for the same reason. **Two symptoms, one cause.**
 `cs2kit engine install` fetches the right one, and `cs2kit engine list` prints this table with the verdicts baked
-in. MEASURED - [02-architecture.md](02-architecture.md),
+in. MEASURED - [02-architecture.md](architecture.md),
 [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md).
 
 ## What is measured, what is inferred, what is unknown
@@ -45,16 +45,16 @@ Honesty about provenance is the point of this project, so every claim below is t
 | Claim | Status |
 |---|---|
 | macOS Steam cannot produce a working CS2 - a "complete" 66 GB install has no `cs2.exe` | **MEASURED** on the machine of record, [reference/target-machine.md](reference/target-machine.md) |
-| **CS2 launches, renders through DXMT and plays a bot match** on Sikarugir Wine 10.0 | **MEASURED** 2026-08-24, M2 Pro / macOS 26.5.2: 10 minutes on Dust2, 0 crashes, 0 frozen frames in 22 samples ([implementation-status.md](implementation-status.md), [reference/t010-dust2-log.jsonl](reference/t010-dust2-log.jsonl)) |
+| **CS2 launches, renders through DXMT and plays a bot match** on Sikarugir Wine 10.0 | **MEASURED** 2026-08-24, M2 Pro / macOS 26.5.2: 10 minutes on Dust2, 0 crashes, 0 frozen frames in 22 samples ([implementation-status.md](project/measured-results.md), [reference/t010-dust2-log.jsonl](reference/t010-dust2-log.jsonl)) |
 | Gcenx Wine 11.15 and FOSS CrossOver 24.0.7 **cannot** run this stack | **MEASURED**, with the log lines, in [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md) |
-| **117 fps** in a Dust2 bot match at CS2's auto-selected Low preset, window 1512x982 points | **MEASURED once, 2026-08-24 - a single indicative sample, not a benchmark.** The number this project will stand behind comes from the T-011 protocol ([07-benchmark-protocol.md](07-benchmark-protocol.md)), which discards three warm-up runs and reports 1 % lows |
+| **117 fps** in a Dust2 bot match at CS2's auto-selected Low preset, window 1512x982 points | **MEASURED once, 2026-08-24 - a single indicative sample, not a benchmark.** The number this project will stand behind comes from the T-011 protocol ([07-benchmark-protocol.md](benchmarking.md)), which discards three warm-up runs and reports 1 % lows |
 | The 58 GB content depot 2347770 has no OS filter and is reusable by a Windows install | **MEASURED** (depot table, [reference/target-machine.md](reference/target-machine.md)). On this machine `steamcmd` re-downloaded anyway; the finished install was then **reused with no second download** by symlinking the bottle's `steamapps` |
 | Adding the macOS library as a Steam *library folder* survives a client restart | **FALSE, MEASURED.** Steam rewrites `libraryfolders.vdf` on every start. The symlink survives; the library folder does not |
-| Playing CS2 online, competitively, without incident | **UNKNOWN.** T-020 is the project's real gate and it is empty - [11-validation-log.md](11-validation-log.md) |
+| Playing CS2 online, competitively, without incident | **UNKNOWN.** T-020 is the project's real gate and it is empty - [11-validation-log.md](project/validation-log.md) |
 | The black-screen, audio-crackle, Retina and `-vulkan` fixes in step 8 | **MEASURED by others**, CONFIRMED from multiple independent reports ([../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md)) |
-| The Homebrew install route this guide used to print | **DEAD, MEASURED.** The cask was deleted 2026-04-16; the remaining Wine casks are disabled 2026-09-01 ([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md); R-15/R-16 in [05-risk-register.md](05-risk-register.md)) |
-| VAC's behaviour under Wine | **UNKNOWN.** Structural argument for low risk in [06-legal-and-policy.md](06-legal-and-policy.md) section 2; no Valve statement exists |
-| How long this will keep working | **Through macOS 27**, then unknown. Apple retires general-purpose Rosetta 2 after macOS 27 and this whole stack is x86-64 ([rosetta-watch.md](rosetta-watch.md)) |
+| The Homebrew install route this guide used to print | **DEAD, MEASURED.** The cask was deleted 2026-04-16; the remaining Wine casks are disabled 2026-09-01 ([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md); R-15/R-16 in [05-risk-register.md](project/risk-register.md)) |
+| VAC's behaviour under Wine | **UNKNOWN.** Structural argument for low risk in [06-legal-and-policy.md](legal-and-vac.md) section 2; no Valve statement exists |
+| How long this will keep working | **Through macOS 27**, then unknown. Apple retires general-purpose Rosetta 2 after macOS 27 and this whole stack is x86-64 ([rosetta-watch.md](project/rosetta-watch.md)) |
 
 ## Budget
 
@@ -66,14 +66,14 @@ Honesty about provenance is the point of this project, so every claim below is t
 | Requirements | Apple Silicon (M1 or later), macOS 14 or later, a Steam account, the Steam mobile app (for the QR login). |
 
 A **fanless** Mac (Air) will work but throttles to roughly 30-40 FPS under sustained load - CONFIRMED datapoint in
-[07-benchmark-protocol.md](07-benchmark-protocol.md). An actively-cooled MacBook Pro is the machine of record.
+[07-benchmark-protocol.md](benchmarking.md). An actively-cooled MacBook Pro is the machine of record.
 
 ---
 
 ## Step 1 - Grade your machine (5 min)
 
 ```bash
-git clone https://github.com/mahmutkaya/cs2-apple-silicon.git
+git clone https://github.com/piwas-21/cs2-apple-silicon.git
 cd cs2-apple-silicon
 bash scripts/preflight.sh
 ```
@@ -241,9 +241,9 @@ Notes that save an hour:
   refuses to start, clear it once: `xattr -dr com.apple.quarantine ~/.cs2kit/engines`.
 * Do **not** install CrossOver (EUR 74), Whisky (archived by its author on 2025-05-11), Heroic or Porting Kit. They
   are different ways to run the same Wine and they are not what this guide configures
-  ([02-architecture.md](02-architecture.md)).
+  ([02-architecture.md](architecture.md)).
 * Do **not** install Apple's Game Porting Toolkit / D3DMetal. This project configures DXMT instead, which keeps the
-  licensing clean ([06-legal-and-policy.md](06-legal-and-policy.md)). It stays available as a fallback you install
+  licensing clean ([06-legal-and-policy.md](legal-and-vac.md)). It stays available as a fallback you install
   yourself if measurement ever demands it - and note that it now needs `brew trust gcenx/wine` first.
 
 ## Step 4 - Create the bottle (15 min) - T-006 / T-025
@@ -300,7 +300,7 @@ info:  Failed to set Metal cache path, fallback to system default
 Reading it:
 
 * **`builtin` on all three lines** is the whole point. `native` means you have overrides set that you should not -
-  see [10-troubleshooting.md](10-troubleshooting.md) entry 17.
+  see [10-troubleshooting.md](troubleshooting.md) entry 17.
 * `info:  Failed to set Metal cache path...` is **DXMT's own log line**. Seeing it means DXMT ran its initialisation,
   which is what you are testing. It is a known open question (T-013), not a failure.
 * The `err:rundll32 ... Unable to find the entry point` line is **expected and required** - `NoSuchEntry` does not
@@ -355,7 +355,7 @@ wine Steam.exe -no-cef-sandbox
 **Log in with the QR code.** The client shows one on its sign-in screen; scan it with the Steam mobile app and
 confirm. No password is typed into anything, no Steam Guard code has to be transcribed, and the whole
 keyboard-focus problem disappears. **CS2Kit never sees your Steam password** - automating or wrapping Steam
-authentication is one of this project's absolute rules ([06-legal-and-policy.md](06-legal-and-policy.md)).
+authentication is one of this project's absolute rules ([06-legal-and-policy.md](legal-and-vac.md)).
 
 Then:
 
@@ -496,7 +496,7 @@ cs2kit launch                     # verifies the hash guard, sets the environmen
 > ```
 > Run `cs2kit verify check` first if you skip `cs2kit launch`, because you are also skipping its integrity guard.
 
-If it still does not start, go to [10-troubleshooting.md](10-troubleshooting.md) - it is keyed by symptom - and only
+If it still does not start, go to [10-troubleshooting.md](troubleshooting.md) - it is keyed by symptom - and only
 then start changing things one at a time with `WINEDEBUG=+loaddll,+seh`.
 
 ## Step 9 - Your bot match on Dust2 (20 min) - T-010
@@ -507,7 +507,7 @@ Expect the first two or three minutes to hitch while shaders compile. That is in
 Metal and it is CONFIRMED by multiple independent reports; the same map is *"much smoother"* after one or two
 matches. **Play Dust2 twice.** The first pass is shader compilation, not performance - and it is exactly why
 benchmarks in this project discard three warm-up runs
-([07-benchmark-protocol.md](07-benchmark-protocol.md)).
+([07-benchmark-protocol.md](benchmarking.md)).
 
 Two things that make a bot match behave like a soak test rather than a ten-minute demo (both learned the hard way on
 2026-08-24):
@@ -522,12 +522,12 @@ Two things that make a bot match behave like a soak test rather than a ten-minut
 For reference, the first pass on the machine of record: 10 minutes, **0 crashes**, **0 frozen frames across 22
 samples**, 0.7-1.4 GB resident, and a single indicative **117 fps** reading at CS2's auto-selected Low preset in a
 1512x982-point window. **That is one sample, not a benchmark** - `cs2kit bench run` and
-[07-benchmark-protocol.md](07-benchmark-protocol.md) exist because a single number proves nothing.
+[07-benchmark-protocol.md](benchmarking.md) exist because a single number proves nothing.
 
 **Do not measure FPS by taking screenshots.** Sampling the CS2 window with `screencapture -l` every 20 s took the
 game from **72 fps to 3 fps** on this stack - the capture forces a readback that costs more than the frame it
 observes. MEASURED 2026-08-24; the rule and its consequences are in
-[07-benchmark-protocol.md](07-benchmark-protocol.md).
+[07-benchmark-protocol.md](benchmarking.md).
 
 Then, before you go online:
 
@@ -539,7 +539,7 @@ cs2kit report                     # a redacted bundle: no SteamID, no account na
 ## Step 10 - Before you play online
 
 * Use a **secondary, non-Prime account** for your first online sessions
-  ([06-legal-and-policy.md](06-legal-and-policy.md), Account safety).
+  ([06-legal-and-policy.md](legal-and-vac.md), Account safety).
 * **Prime is EUR 13.29 / USD 14.99 and explicitly non-refundable.** Do not buy it until your setup has survived
   several complete matches.
 * Disable AirDrop/Handoff (AWDL) during a match - it adds Wi-Fi jitter (LIKELY). `cs2kit doctor` warns when `awdl0`
@@ -548,24 +548,24 @@ cs2kit report                     # a redacted bundle: no SteamID, no account na
   occurrence is not a verdict; restart Steam and re-queue.
 * Never install anything that injects into, overlays or patches CS2. That is the one action that turns a low risk
   into a real one.
-* Log what happens. The online and anti-cheat record lives in [11-validation-log.md](11-validation-log.md); it is
+* Log what happens. The online and anti-cheat record lives in [11-validation-log.md](project/validation-log.md); it is
   empty until somebody plays, and one honest row there is worth more than any claim in this guide.
 
 ## When something breaks
 
 1. `cs2kit doctor` - most problems are environment problems and it names the fix on one line.
-2. [10-troubleshooting.md](10-troubleshooting.md) - keyed by symptom, with the one-command check for each.
+2. [10-troubleshooting.md](troubleshooting.md) - keyed by symptom, with the one-command check for each.
 3. `cs2kit report` - a redacted bundle you can paste into an issue without leaking your SteamID or your username.
 
 The three failures that cost this project the most time, and where they are answered:
 
 | What you see | Entry |
 |---|---|
-| `Failed to create metal view ... no exported symbols needed by DXMT` | [10-troubleshooting.md](10-troubleshooting.md) entry 20 - wrong engine |
-| Steam's window is **black** but `wine notepad` renders fine | [10-troubleshooting.md](10-troubleshooting.md) entry 20 - the same cause |
-| CS2 will not relaunch after you killed it | [10-troubleshooting.md](10-troubleshooting.md) entry 22 - launch `cs2.exe` directly |
-| Steam forgot your library folder and wants 72 GB again | [10-troubleshooting.md](10-troubleshooting.md) entry 23 - use the symlink |
-| *"Unexpected transport error (0x3008)"* | [10-troubleshooting.md](10-troubleshooting.md) entry 18 - `-no-cef-sandbox`, then the engine |
+| `Failed to create metal view ... no exported symbols needed by DXMT` | [10-troubleshooting.md](troubleshooting.md) entry 20 - wrong engine |
+| Steam's window is **black** but `wine notepad` renders fine | [10-troubleshooting.md](troubleshooting.md) entry 20 - the same cause |
+| CS2 will not relaunch after you killed it | [10-troubleshooting.md](troubleshooting.md) entry 22 - launch `cs2.exe` directly |
+| Steam forgot your library folder and wants 72 GB again | [10-troubleshooting.md](troubleshooting.md) entry 23 - use the symlink |
+| *"Unexpected transport error (0x3008)"* | [10-troubleshooting.md](troubleshooting.md) entry 18 - `-no-cef-sandbox`, then the engine |
 
 ## What this guide does not promise
 
@@ -574,7 +574,7 @@ The three failures that cost this project the most time, and where they are answ
 * **No number until it is measured.** The compatibility matrix says `not measured` where nobody has measured, and it
   will keep saying that until somebody does. The 117 fps above is one sample from one session on one machine.
 * **A dated shelf life.** General-purpose Rosetta 2 is available **through macOS 27**; after that this stack has no
-  successor we can build ([rosetta-watch.md](rosetta-watch.md)). Do not upgrade past macOS 27 on a machine you play
+  successor we can build ([rosetta-watch.md](project/rosetta-watch.md)). Do not upgrade past macOS 27 on a machine you play
   on until that file says otherwise.
 
-Full command reference: [cs2kit-spec.md](cs2kit-spec.md). The plan behind every step: [03-development-plan.md](03-development-plan.md).
+Full command reference: [cs2kit-spec.md](cli-reference.md). The plan behind every step: [03-development-plan.md](project/development-plan.md).
