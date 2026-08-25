@@ -914,3 +914,45 @@ A parenthesised bundle name (`Counter-Strike 2 (CS2Kit).app`) also refused to la
 after being replaced in place, while the same bundle named `CS2Kit.app` opened fine — most likely a stale
 LaunchServices registration. The generated app is called **CS2Kit.app** for that reason. If you ever hit
 it, `lsregister -f /Applications/YourApp.app` re-registers a bundle.
+
+
+---
+
+## 27. Steam has no "Installed Files" tab, so you cannot verify
+
+**Symptom.** Right-click CS2 → Properties shows General, Updates, Betas, Controller, DLC, Workshop …
+but **no Installed Files**, so the *Verify integrity of game files* button that every other guide tells you
+to press does not exist.
+
+**Cause.** That tab only appears for a game Steam believes is **installed**. After moving the game into a
+bottle-only library (`cs2kit bottle migrate`) the files are all there, but the `appmanifest_730.acf` that
+tells Steam so is not — Steam therefore offers *Install*, not *Verify*.
+
+**Fix — let Steam adopt the files instead of re-downloading 70 GB.** Put a minimal manifest beside the
+game and restart the client:
+
+```
+~/CS2/library/steamapps/appmanifest_730.acf
+"AppState"
+{
+    "appid"        "730"
+    "Universe"     "1"
+    "name"         "Counter-Strike 2"
+    "StateFlags"   "6"                       // 4 = installed, 2 = update required
+    "installdir"   "Counter-Strike Global Offensive"
+    "buildid"      "24828357"                // whatever you had; Steam corrects it
+    "LastOwner"    "<your SteamID64>"
+}
+```
+
+Steam then shows **"Update Queued"**, verifies what is on disk and downloads only the difference. Measured
+2026-08-25: it counted ~55 GB as already present and fetched roughly 5 GB.
+
+**Do not list `InstalledDepots` with a `"manifest" "0"` entry.** Steam requests that manifest id verbatim
+and fails with `BYldRequestDepotManifest(...): Fail` / `No connection`. Leave the block out entirely.
+
+**Afterwards,** re-arm the integrity guard, because the build has changed:
+
+```bash
+cs2kit verify baseline
+```
