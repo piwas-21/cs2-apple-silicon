@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from cs2kit import bottle, integrity, probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_error, run,
+from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, WARN, emit_error, run,
                          which, wineprefix)
 
 
@@ -134,6 +134,18 @@ def cmd_play(args) -> int:
     prefix = Path(args.prefix) if args.prefix else wineprefix()
 
     verdict = integrity.verify()
+    if (verdict.status == WARN and verdict.baseline_buildid and verdict.buildid
+            and verdict.baseline_buildid != verdict.buildid):
+        # A new buildid means Steam updated the game - legitimate, and the only
+        # honest response is to re-arm the guard against the new build. Tampering
+        # *within* a build still fails, which is the case T-021 actually guards.
+        try:
+            new = integrity.create_baseline()
+            print(f"cs2kit: CS2 updated {verdict.baseline_buildid} -> {verdict.buildid}; "
+                  f"re-baselined {new.count} files")
+            verdict = integrity.verify()
+        except integrity.IntegrityError as exc:
+            print(f"cs2kit: could not re-baseline: {exc}")
     if verdict.status == FAIL and not args.force:
         # Fixing this needs Steam, so open it rather than leaving the player stuck
         # in front of a dialog telling them to use an app that is not running.
@@ -161,8 +173,12 @@ def cmd_play(args) -> int:
     if client and not steam_running():
         _start_steam(prefix, client, plan["env"])
 
-    cmd = [str(Path(plan["wine_root"] or "") / "bin" / "wine") if plan["wine_root"] else (which("wine") or "wine"),
-           "cs2.exe", *plan["options"]]
+    wine = (str(Path(plan["wine_root"]) / "bin" / "wine") if plan["wine_root"]
+            else (which("wine") or "wine"))
+    # Note: the Dock will show this process as "Wine", not "CS2Kit". macOS names it
+    # after the binary it executes, and a symlink inside the bundle does not change
+    # that (measured 2026-08-25) - renaming it needs a native wrapper binary.
+    cmd = [wine, "cs2.exe", *plan["options"]]
     if args.json or args.print_only:
         print(json.dumps({**plan, "command": cmd}, indent=2, sort_keys=True))
         return EXIT_OK

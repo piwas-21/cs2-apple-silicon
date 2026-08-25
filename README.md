@@ -29,6 +29,12 @@ Double-click **CS2Kit** in Applications. No terminal.
 (That app just runs `./bin/cs2kit play`, which resolves everything at launch and
 tells you in one sentence if something is missing.)
 
+To quit everything cleanly (Wine's menu bar only closes a window — Steam puts it straight back):
+
+```bash
+./bin/cs2kit stop
+```
+
 ## When something breaks
 
 ```bash

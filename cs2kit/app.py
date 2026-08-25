@@ -137,9 +137,11 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     options = " ".join(rec.launch_options) if rec else "-novid -nojoy -console"
 
     profile_name = rec.name if rec else "balanced-1080p"
-    kind = _compile_applet(dest, prefix, profile_name)
-    if kind is None:
-        kind = _write_script_app(dest, prefix, profile_name, name)
+    if dest.exists():
+        shutil.rmtree(dest)
+    # A script bundle that `exec`s the game keeps the process inside this bundle,
+    # so the Dock shows this app's name and icon instead of a bare "wine".
+    kind = _write_script_app(dest, prefix, profile_name, name)
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():

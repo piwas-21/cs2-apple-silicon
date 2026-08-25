@@ -956,3 +956,33 @@ and fails with `BYldRequestDepotManifest(...): Fail` / `No connection`. Leave th
 ```bash
 cs2kit verify baseline
 ```
+
+
+---
+
+## 28. Wine in the Dock: two icons, wrong name, and it comes back when you quit it
+
+**All three are Wine's window layer, not a fault in your bottle.**
+
+**"I quit Wine from the menu bar and it reopened."** That menu quits a Wine *window server* process. The
+Steam client is still running underneath, notices its window is gone and creates a new one — so it looks
+like the app relaunches itself. Quit Steam from **its own** menu (Steam → Exit), or shut the whole bottle
+down in one step:
+
+```bash
+cs2kit stop
+```
+
+That stops the game, then Steam, then its helpers, then `wineserver` — in that order, because killing them
+in any other order lets the survivors restart each other.
+
+**"There are two Steam icons in the Dock, both called wine."** `Steam.exe` and `steamwebhelper.exe` are
+separate Windows processes, and Wine's Mac driver registers each one that owns a window as its own
+application. Two windows, two Dock tiles.
+
+**"Can the app be named properly instead of wine?"** The bundle in `/Applications` **is** named CS2Kit and
+carries its own icon — that is what you launch. The *running* process is named by macOS after the binary
+it executes, which is Wine's loader. We tried making the Dock show CS2Kit by exec'ing Wine through a
+symlink inside the bundle: macOS resolves the link and still shows "Wine" (measured 2026-08-25). Renaming
+it properly needs a small native wrapper binary compiled per release, which is what tools like Sikarugir
+and Kegworks ship. It is on the list, it is cosmetic, and nothing else depends on it.

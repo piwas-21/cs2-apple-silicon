@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from cs2kit import integrity, play, probe
-from cs2kit.util import EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK
+from cs2kit.util import EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, PASS
 
 
 def args(**kw):
@@ -123,3 +123,28 @@ def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
     monkeypatch.setattr(play, "run", fake_run)
     assert play.clean_stale_steam() == ["123", "123"]
     assert killed, "orphaned helpers block a new client from starting"
+
+
+def test_a_steam_update_re_baselines_itself(sandbox, cs2_tree, monkeypatch, capsys):
+    """A new buildid is an update, not tampering: the guard re-arms silently.
+    Non-technical users must never have to run `verify baseline` by hand."""
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    # Steam updates the game: files change AND the buildid moves.
+    (cs2_tree / "client.dll").write_bytes(b"MZ-new-build")
+    manifest = sandbox.steam / "steamapps" / "appmanifest_730.acf"
+    manifest.write_text(manifest.read_text().replace("24828357", "24916958"))
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+
+    assert play.cmd_play(args(print_only=True)) == EXIT_OK
+    out = capsys.readouterr().out
+    assert "re-baselined" in out and "24828357 -> 24916958" in out
+    assert integrity.verify().status == PASS
+
+
+def test_tampering_within_one_build_still_refuses(sandbox, cs2_tree, monkeypatch, capsys):
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    (cs2_tree / "client.dll").write_bytes(b"MZ-tampered")   # same buildid
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+    assert play.cmd_play(args(print_only=True)) == EXIT_INTEGRITY
