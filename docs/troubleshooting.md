@@ -845,3 +845,44 @@ library unless you pass `--allow-macos-library`.
 sounds), so only the Windows code has to come back: migrate the remains into the bottle-only library, then
 install CS2 from the **in-bottle** Steam client — it will verify what is there and fetch only the missing
 Windows depot rather than the whole 70 GB.
+
+
+---
+
+## 25. The launcher app says "cs2.exe not found", or Steam never appears
+
+**Two different faults produced this, and both are fixed in the tool. If you built the app before
+2026-08-25, regenerate it: `cs2kit app create`.**
+
+### a. A path baked in at build time
+
+The old launcher wrote the game directory into the app when it was created. Move the game to another
+Steam library — which `cs2kit bottle migrate` deliberately does — and the app kept pointing at the old
+place: *"cs2.exe not found at …/Library/Application Support/Steam/steamapps/common/…"*.
+
+The app now runs `cs2kit play`, which resolves the bottle, the engine and the game **at launch** and
+searches every library it knows: the bottle-only one first, then whatever the bottle's `steamapps` points
+at, then the macOS one.
+
+### b. Orphaned Steam helpers block a new client
+
+Symptom: the app reports its problem, Steam never opens, and nothing is obviously wrong. The client had
+started, **logged in, and exited immediately**.
+
+Cause: `steamservice.exe` processes left over from earlier runs. Four of them were alive here. They also
+break naive process checks — `pgrep -f steam` matches them, so the tool believed Steam was already
+running.
+
+```bash
+pgrep -ifl "steam.exe" | grep -v steamservice     # is the CLIENT actually up?
+```
+
+`cs2kit play` now kills orphaned `steamservice.exe` / `steamwebhelper.exe` before starting the client,
+and only counts the real client as "running".
+
+### c. You cannot find the app in Finder
+
+macOS has **two** Applications folders: `/Applications` (what Finder's sidebar shows) and
+`~/Applications` (your home folder — Spotlight finds it, Finder's sidebar does not). Early versions
+installed into the home one, so the app looked missing. `cs2kit app create` now installs into
+`/Applications` when it is writable, with an icon, and falls back to `~/Applications` otherwise.

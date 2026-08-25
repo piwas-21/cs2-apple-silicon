@@ -83,3 +83,36 @@ def test_the_game_is_found_in_a_bottle_only_library(sandbox, tmp_path, monkeypat
     (tmp_path / "cs2-library" / "steamapps" / "appmanifest_730.acf").write_text(
         '"AppState" { "installdir" "Counter-Strike Global Offensive" "buildid" "1" }')
     assert probe.cs2_exe() == win64 / "cs2.exe"
+
+
+def test_steam_running_ignores_the_helper_processes(monkeypatch):
+    from cs2kit.util import Proc
+
+    def listing(out):
+        return lambda cmd, **kw: Proc(0, out, "")
+
+    monkeypatch.setattr(play, "run", listing("123 steamservice.exe /RunAsUser"))
+    assert play.steam_running() is False, "steamservice is not the client"
+
+    monkeypatch.setattr(play, "run", listing("123 steamservice.exe\n456 Steam.exe -no-cef-sandbox"))
+    assert play.steam_running() is True
+
+
+def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
+    from cs2kit.util import Proc
+
+    killed = []
+
+    def fake_run(cmd, **kw):
+        if cmd[0] == "pgrep" and "-ifl" in cmd:
+            return Proc(0, "123 steamservice.exe", "")     # client not running
+        if cmd[0] == "pgrep":
+            return Proc(0, "123", "")
+        if cmd[0] == "kill":
+            killed.extend(cmd[2:])
+            return Proc(0, "", "")
+        return Proc(1, "", "")
+
+    monkeypatch.setattr(play, "run", fake_run)
+    assert play.clean_stale_steam() == ["123", "123"]
+    assert killed, "orphaned helpers block a new client from starting"

@@ -154,14 +154,29 @@ def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
     PATH. A Gcenx tarball puts it at
     `<app>/Contents/Resources/wine`; a Homebrew cask or a source build puts it
     somewhere else entirely, which is why this is derived, never assumed."""
+    def ok(path: Optional[Path]) -> Optional[Path]:
+        return path if path and (Path(path) / "lib" / "wine").is_dir() else None
+
     if explicit:
-        path = Path(explicit).expanduser()
-        return path if (path / "lib" / "wine").is_dir() else None
+        return ok(Path(explicit).expanduser())
+    # 1. what this bottle was built with. The launcher app runs without the engine
+    #    on PATH, so `which wine` alone is not enough - that is what made the app
+    #    fail to start Steam on 2026-08-25.
+    recorded = read_state().get("wine_root")
+    found = ok(Path(recorded)) if recorded else None
+    if found:
+        return found
+    # 2. whatever is on PATH
     binary = which("wine")
-    if not binary:
-        return None
-    root = Path(binary).resolve().parent.parent
-    return root if (root / "lib" / "wine").is_dir() else None
+    if binary:
+        found = ok(Path(binary).resolve().parent.parent)
+        if found:
+            return found
+    # 3. an engine installed by `cs2kit engine install`
+    engines = Path(os.environ.get("CS2KIT_HOME", Path.home() / ".cs2kit")) / "engines"
+    for candidate in sorted(engines.glob("*/*/lib/wine")) + sorted(engines.glob("*/lib/wine")):
+        return candidate.parent
+    return None
 
 
 #: DXMT ships one directory per Wine ABI; these are the ones a 64-bit CS2 plus a

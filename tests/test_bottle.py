@@ -145,14 +145,24 @@ def test_prefix_build_installs_into_system32(sandbox, tmp_path):
     assert (wine / "lib" / "wine" / "x86_64-unix" / "winemetal.so").is_file()
 
 
-def test_wine_root_is_derived_from_the_wine_binary(tmp_path, monkeypatch):
+def test_wine_root_resolution_order(sandbox, tmp_path, monkeypatch):
+    """The launcher app runs without the engine on PATH, so `which wine` cannot be
+    the only source - the bottle records what it was built with."""
     root = fake_wine(tmp_path)
     (root / "bin" / "wine").write_text("#!/bin/sh\n")
-    monkeypatch.setattr(bottle, "which", lambda name: str(root / "bin" / "wine"))
-    assert bottle.wine_root() == root
+
     monkeypatch.setattr(bottle, "which", lambda name: None)
-    assert bottle.wine_root() is None
-    assert bottle.wine_root(str(root)) == root
+    assert bottle.wine_root() is None                      # nothing known yet
+
+    monkeypatch.setattr(bottle, "which", lambda name: str(root / "bin" / "wine"))
+    assert bottle.wine_root() == root                      # from PATH
+
+    recorded = fake_wine(tmp_path / "recorded")
+    from cs2kit.util import write_json
+    write_json(bottle.state_file(sandbox.prefix), {"wine_root": str(recorded)})
+    assert bottle.wine_root() == recorded                  # the bottle wins over PATH
+
+    assert bottle.wine_root(str(root)) == root             # explicit wins over both
     assert bottle.wine_root(str(tmp_path / "nope")) is None
 
 

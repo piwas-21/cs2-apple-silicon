@@ -25,8 +25,35 @@ def steam_client(prefix: Path) -> Optional[Path]:
     return steam_exe(prefix)
 
 
+def _pids(pattern: str) -> List[str]:
+    return [p for p in run(["pgrep", "-if", pattern], timeout=10).out.split() if p.isdigit()]
+
+
 def steam_running() -> bool:
-    return run(["pgrep", "-f", "Steam.exe"], timeout=10).ok
+    """Is the Steam *client* up?
+
+    `steamservice.exe` and `steamwebhelper.exe` also match a naive "steam"
+    search, and they outlive the client - counting them makes CS2Kit think Steam
+    is running when it is not."""
+    listing = run(["pgrep", "-ifl", "steam.exe"], timeout=10).out.splitlines()
+    return any("steamservice" not in line.lower() for line in listing if line.strip())
+
+
+def clean_stale_steam() -> List[str]:
+    """Kill helpers left behind by a previous client.
+
+    Measured 2026-08-25: four orphaned `steamservice.exe` processes stopped a new
+    client from starting at all - it logged in, then exited silently, and the app
+    looked broken."""
+    killed = []
+    if steam_running():
+        return killed
+    for pattern in ("steamservice.exe", "steamwebhelper.exe"):
+        pids = _pids(pattern)
+        if pids:
+            run(["kill", "-9", *pids], timeout=10)
+            killed.extend(pids)
+    return killed
 
 
 def diagnose(prefix: Path) -> Optional[str]:
@@ -117,14 +144,20 @@ def cmd_play(args) -> int:
 
 
 def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = None) -> None:
+    clean_stale_steam()
     full = dict(os.environ)
     full.update(env or {"WINEPREFIX": str(prefix), "WINEMSYNC": "1", "WINEDEBUG": "-all"})
     wine_root = bottle.wine_root()
     if wine_root:
         full["PATH"] = f"{Path(wine_root) / 'bin'}:{full.get('PATH', '')}"
         full["DYLD_FALLBACK_LIBRARY_PATH"] = str(Path(wine_root) / "lib")
-    subprocess.Popen(["bash", "-lc", f'cd "{client.parent}" && exec wine "{client.name}" -no-cef-sandbox -silent'],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    wine = str(Path(wine_root) / "bin" / "wine") if wine_root else (which("wine") or "wine")
+    log = Path.home() / "CS2" / "cs2kit-app.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(log, "a")
+    handle.write(f"starting Steam with {wine}\n")
+    subprocess.Popen([wine, str(client), "-no-cef-sandbox", "-silent"],
+                     cwd=str(client.parent), stdout=handle, stderr=handle,
                      stdin=subprocess.DEVNULL, env=full, start_new_session=True)
     for _ in range(30):
         time.sleep(2)
