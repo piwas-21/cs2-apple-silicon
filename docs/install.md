@@ -17,7 +17,7 @@ cd cs2-apple-silicon
 4. builds the Wine bottle from `profiles/bottle-recipe.yaml`
 5. installs the **Windows** Steam client into it
 6. moves any CS2 you already have into a **bottle-only Steam library** (see the warning below)
-7. writes **Counter-Strike 2 (CS2Kit).app** into your Applications folder
+7. writes **CS2Kit.app** into your Applications folder
 
 Re-running it is safe: each step is skipped if it is already done.
 
@@ -327,7 +327,7 @@ helper process cannot establish its transport under Wine and the client dies on 
 
 ```bash
 cs2kit app create                     # a double-clickable .app: verify the game files, then launch
-open "$HOME/Applications/Counter-Strike 2 (CS2Kit).app"    # the path `app create` prints
+open "$HOME/Applications/CS2Kit.app"    # the path `app create` prints
 ```
 
 **Start it from your own desktop session, not from a terminal in a background/agent context.** On this machine every

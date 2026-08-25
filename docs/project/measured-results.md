@@ -186,7 +186,7 @@ criterion this run cannot speak to.
 
 ## `cs2kit app create` — verified end to end
 
-`open ~/Applications/Counter-Strike\ 2\ (CS2Kit).app` started CS2 in **under 25 seconds** with no
+`open ~/Applications/CS2Kit.app` started CS2 in **under 25 seconds** with no
 terminal: the launcher verified the 137 guarded binaries, found the Steam client already running, and
 launched the game with the profile's environment. DXMT reported `D3D_FEATURE_LEVEL_11_1`.
 

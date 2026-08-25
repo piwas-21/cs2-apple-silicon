@@ -836,7 +836,7 @@ library unless you pass `--allow-macos-library`.
 
 **Also.**
 
-* **Delete any `.url` shortcut** Steam put on your Desktop, and launch with the **Counter-Strike 2 (CS2Kit)**
+* **Delete any `.url` shortcut** Steam put on your Desktop, and launch with the **CS2Kit**
   app instead. A `steam://` link always goes to macOS Steam.
 * **Quit macOS Steam** while you play — `doctor` warns when it is running. Two clients on one account
   fight over the same downloads.
@@ -886,3 +886,31 @@ macOS has **two** Applications folders: `/Applications` (what Finder's sidebar s
 `~/Applications` (your home folder — Spotlight finds it, Finder's sidebar does not). Early versions
 installed into the home one, so the app looked missing. `cs2kit app create` now installs into
 `/Applications` when it is writable, with an icon, and falls back to `~/Applications` otherwise.
+
+
+---
+
+## 26. The launcher app will not open, or opens and nothing happens
+
+Four separate faults produced this over one afternoon. All are fixed; if your app predates
+2026-08-25, regenerate it with `cs2kit app create`.
+
+| symptom | cause | fix |
+|---|---|---|
+| `open` fails, `_LSOpenURLsWithCompletionHandler() failed … error -1712` | the bundle's executable was a **shell script**. LaunchServices waits for it to register as an application and times out | the app is now a compiled **AppleScript applet** — a real application bundle |
+| the app runs, Steam never appears | AppleScript's `do shell script` **reaps whatever it starts**, even with `nohup … &`. Steam logged in and vanished the moment the applet returned | `cs2kit play --detach` double-forks and `setsid`s first, so it is reparented to launchd |
+| the app reports its message but never starts Steam | `pgrep -f steam.exe` matches **any command line** mentioning it — including the shell that is about to launch Steam. CS2Kit believed Steam was already running | process detection is now `pgrep -ix steam.exe`, an exact **process name** match |
+| the app is nowhere in Finder | it was installed into `~/Applications`, which Finder's sidebar does not show (Spotlight does) | it installs into **`/Applications`** when writable, named **CS2Kit.app**, with an icon |
+
+**Check it yourself:**
+
+```bash
+open -a CS2Kit ; echo "rc=$?"     # must be 0
+pgrep -ix steam.exe                # the client, not steamservice/steamwebhelper
+tail -5 ~/CS2/cs2kit-app.log       # what the launcher actually did
+```
+
+A parenthesised bundle name (`Counter-Strike 2 (CS2Kit).app`) also refused to launch on this machine
+after being replaced in place, while the same bundle named `CS2Kit.app` opened fine — most likely a stale
+LaunchServices registration. The generated app is called **CS2Kit.app** for that reason. If you ever hit
+it, `lsregister -f /Applications/YourApp.app` re-registers a bundle.

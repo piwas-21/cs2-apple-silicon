@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -25,18 +26,20 @@ def steam_client(prefix: Path) -> Optional[Path]:
     return steam_exe(prefix)
 
 
-def _pids(pattern: str) -> List[str]:
-    return [p for p in run(["pgrep", "-if", pattern], timeout=10).out.split() if p.isdigit()]
+def _pids(name: str) -> List[str]:
+    """PIDs by exact process NAME.
+
+    Deliberately not `pgrep -f`: that matches the whole command line, so any shell
+    running a command that merely mentions `steam.exe` counts as Steam. That is
+    not hypothetical - it made the launcher believe Steam was already running and
+    silently skip starting it (measured 2026-08-25)."""
+    return [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
 
 
 def steam_running() -> bool:
-    """Is the Steam *client* up?
-
-    `steamservice.exe` and `steamwebhelper.exe` also match a naive "steam"
-    search, and they outlive the client - counting them makes CS2Kit think Steam
-    is running when it is not."""
-    listing = run(["pgrep", "-ifl", "steam.exe"], timeout=10).out.splitlines()
-    return any("steamservice" not in line.lower() for line in listing if line.strip())
+    """Is the Steam *client* up? `steamservice.exe` and `steamwebhelper.exe` are
+    helpers that outlive it and must not be counted."""
+    return bool(_pids("steam.exe"))
 
 
 def clean_stale_steam() -> List[str]:
@@ -100,7 +103,34 @@ def build(prefix: Optional[Path] = None, profile: Optional[str] = None,
             "profile": rec.name if rec else None}
 
 
+def notify(message: str) -> None:
+    """Surface a problem to someone who launched from Finder, not a terminal."""
+    text = message.replace('"', "'").replace("\\", "/")
+    subprocess.run(["osascript", "-e",
+                    f'display dialog "{text}" with title "CS2Kit" buttons {{"OK"}} default button 1'],
+                   capture_output=True, timeout=300)
+
+
+def daemonize(log: Optional[Path] = None) -> None:
+    """Detach from the caller so the work survives it.
+
+    AppleScript's `do shell script` reaps whatever it started, even with
+    `nohup ... &` - Steam launched that way logged in and vanished the moment the
+    applet returned (measured 2026-08-25). A double fork with `setsid` reparents
+    us to launchd, out of its reach."""
+    if os.fork() > 0:
+        os._exit(0)
+    os.setsid()
+    if os.fork() > 0:
+        os._exit(0)
+    handle = open(log or (Path.home() / "CS2" / "cs2kit-app.log"), "a")
+    os.dup2(handle.fileno(), 1)
+    os.dup2(handle.fileno(), 2)
+
+
 def cmd_play(args) -> int:
+    if getattr(args, "detach", False):
+        daemonize()
     prefix = Path(args.prefix) if args.prefix else wineprefix()
 
     verdict = integrity.verify()
@@ -110,9 +140,11 @@ def cmd_play(args) -> int:
         client = steam_client(prefix)
         if client and not steam_running() and not args.print_only:
             _start_steam(prefix, client)
-        return emit_error("play", f"{verdict.message}. Steam is opening: right-click CS2 > "
-                                  "Properties > Installed Files > Verify integrity of game files.",
-                          EXIT_INTEGRITY, args.json)
+        message = (f"{verdict.message}. Steam is opening: right-click CS2 > Properties > "
+                   "Installed Files > Verify integrity of game files.")
+        if getattr(args, "gui", False):
+            notify(message)
+        return emit_error("play", message, EXIT_INTEGRITY, args.json)
 
     problem = diagnose(prefix)
     if problem and not args.start_steam_anyway:
@@ -120,6 +152,8 @@ def cmd_play(args) -> int:
         client = steam_client(prefix)
         if client and probe.cs2_exe() is None and not steam_running():
             _start_steam(prefix, client)
+        if getattr(args, "gui", False):
+            notify(problem)
         return emit_error("play", problem, EXIT_NOT_READY, args.json)
 
     plan = build(prefix, args.profile, args.extra)
@@ -154,15 +188,30 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
     wine = str(Path(wine_root) / "bin" / "wine") if wine_root else (which("wine") or "wine")
     log = Path.home() / "CS2" / "cs2kit-app.log"
     log.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(log, "a")
-    handle.write(f"starting Steam with {wine}\n")
-    subprocess.Popen([wine, str(client), "-no-cef-sandbox", "-silent"],
-                     cwd=str(client.parent), stdout=handle, stderr=handle,
-                     stdin=subprocess.DEVNULL, env=full, start_new_session=True)
-    for _ in range(30):
-        time.sleep(2)
+    with open(log, "a") as handle:
+        handle.write(f"starting Steam with {wine}\n")
+        if os.environ.get("CS2KIT_DEBUG_ENV"):
+            keys = sorted(k for k in full if k.startswith(("WINE", "DYLD", "CX_", "PATH", "HOME", "TMPDIR", "USER")))
+            handle.write("env: " + " ".join(f"{k}={full[k]}" for k in keys) + "\n")
+    # Detach properly. Launched from a .app, this process tree dies with the app -
+    # Steam would start, log in and vanish the moment the launcher exited
+    # (measured 2026-08-25). `nohup ... &` inside its own session reparents Steam
+    # to launchd, so it outlives us.
+    quoted_wine = shlex.quote(wine)
+    quoted_client = shlex.quote(str(client))
+    quoted_log = shlex.quote(str(log))
+    subprocess.Popen(
+        ["bash", "-lc",
+         f'cd {shlex.quote(str(client.parent))} && '
+         # No -silent: with nothing owning Wine's system tray, a silent client
+         # logs in and then exits, which looks exactly like "Steam never opened".
+         f'nohup {quoted_wine} {quoted_client} -no-cef-sandbox >>{quoted_log} 2>&1 &'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+        env=full, start_new_session=True)
+    for _ in range(15):          # ~30 s: long enough to catch it, short enough
+        time.sleep(2)               # that nothing upstream looks hung
         if steam_running():
-            time.sleep(8)
+            time.sleep(5)
             return
 
 
@@ -177,6 +226,10 @@ def register(subparsers) -> None:
     parser.add_argument("--force", action="store_true", help="start despite an integrity failure")
     parser.add_argument("--start-steam-anyway", action="store_true",
                         help="skip the readiness checks")
+    parser.add_argument("--detach", action="store_true",
+                        help="double-fork first, so an AppleScript applet cannot reap us")
+    parser.add_argument("--gui", action="store_true",
+                        help="report problems in a dialog (used by the launcher app)")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("extra", nargs="*", help="extra launch options")
     parser.set_defaults(func=cmd_play)

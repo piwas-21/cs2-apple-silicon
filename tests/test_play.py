@@ -85,17 +85,24 @@ def test_the_game_is_found_in_a_bottle_only_library(sandbox, tmp_path, monkeypat
     assert probe.cs2_exe() == win64 / "cs2.exe"
 
 
-def test_steam_running_ignores_the_helper_processes(monkeypatch):
+def test_steam_running_matches_the_process_name_not_the_command_line(monkeypatch):
+    """`pgrep -f steam.exe` matches any shell whose command line mentions it -
+    including our own. That made the launcher skip starting Steam entirely."""
     from cs2kit.util import Proc
 
-    def listing(out):
-        return lambda cmd, **kw: Proc(0, out, "")
+    seen = {}
 
-    monkeypatch.setattr(play, "run", listing("123 steamservice.exe /RunAsUser"))
-    assert play.steam_running() is False, "steamservice is not the client"
+    def fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        return Proc(0, "4242", "") if "-ix" in cmd else Proc(0, "9999", "")
 
-    monkeypatch.setattr(play, "run", listing("123 steamservice.exe\n456 Steam.exe -no-cef-sandbox"))
+    monkeypatch.setattr(play, "run", fake_run)
     assert play.steam_running() is True
+    assert "-ix" in seen["cmd"], "must match the exact process name"
+    assert "-f" not in seen["cmd"], "must not match command lines"
+
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", ""))
+    assert play.steam_running() is False
 
 
 def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
@@ -104,10 +111,10 @@ def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
     killed = []
 
     def fake_run(cmd, **kw):
-        if cmd[0] == "pgrep" and "-ifl" in cmd:
-            return Proc(0, "123 steamservice.exe", "")     # client not running
+        if cmd[0] == "pgrep" and cmd[-1] == "steam.exe":
+            return Proc(1, "", "")                          # client not running
         if cmd[0] == "pgrep":
-            return Proc(0, "123", "")
+            return Proc(0, "123", "")                       # a stale helper
         if cmd[0] == "kill":
             killed.extend(cmd[2:])
             return Proc(0, "", "")

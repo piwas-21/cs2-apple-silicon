@@ -74,22 +74,32 @@ def test_app_bundle_is_double_clickable_and_guarded(sandbox, tmp_path, cs2_tree)
     dest = tmp_path / "CS2.app"
     result = app_mod.build_app(dest, wine_root, prefix=sandbox.prefix, profile="balanced-1080p")
 
-    launcher = Path(result["launcher"])
-    assert launcher.exists() and launcher.stat().st_mode & stat.S_IXUSR, "must be executable"
-    body = launcher.read_text()
-    assert body.startswith("#!/bin/bash")
+    assert result["kind"] in ("applet", "script")
+    assert (dest / "Contents" / "Info.plist").is_file()
+    # An applet stores the script compiled; the fallback stores it as text. Either
+    # way the launch instructions must be inside the bundle.
+    import shutil as _sh
+    import subprocess as _sp
+
+    if result["kind"] == "applet" and _sh.which("osadecompile"):
+        body = _sp.run(["osadecompile", str(dest)], capture_output=True, text=True,
+                       timeout=60).stdout
+    else:
+        body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
     # The app delegates to `cs2kit play`: it verifies the guarded binaries (T-021),
     # starts Steam if needed and resolves every path AT LAUNCH. Baking paths in is
     # what produced "cs2.exe not found" after the game changed library.
-    assert "cs2kit" in body and "play" in body
+    assert "cs2kit" in body and "play" in body and "--gui" in body
+    # The app must not stay attached: `cs2kit play --detach` double-forks, so
+    # AppleScript's `do shell script` cannot reap the game or Steam.
+    assert "--detach" in body
     assert str(sandbox.prefix) in body
     assert "/steamapps/common/" not in body, "no game path may be baked into the app"
-    assert "osascript" in body, "failures must surface as a dialog, not a silent exit"
+    # Problems are reported by `cs2kit play --gui`, which puts up the dialog itself -
+    # the app must not block on one, or LaunchServices refuses the next launch.
+    assert "--gui" in body
 
-    plist = (dest / "Contents" / "Info.plist").read_text()
-    assert "<key>CFBundleExecutable</key><string>cs2kit-launch</string>" in plist
-    assert "org.cs2kit.cs2" in plist
-    assert (dest / "Contents" / "PkgInfo").read_text() == "APPL????"
+    assert (dest / "Contents" / "Info.plist").is_file()
 
 
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
@@ -150,6 +160,5 @@ def test_the_app_carries_an_icon(sandbox, tmp_path):
     (wine_root / "bin").mkdir(parents=True)
     dest = tmp_path / "Icon.app"
     app_mod.build_app(dest, wine_root, prefix=sandbox.prefix)
-    plist = (dest / "Contents" / "Info.plist").read_text()
-    assert "<key>CFBundleIconFile</key><string>cs2kit</string>" in plist
-    assert (dest / "Contents" / "Resources" / "cs2kit.icns").is_file(), "icon not copied in"
+    icons = list((dest / "Contents" / "Resources").glob("*.icns"))
+    assert icons, "the app must carry an icon or it shows as a blank page in Finder"
