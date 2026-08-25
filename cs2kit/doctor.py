@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from cs2kit import bottle, config, integrity, probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_FAIL, EXIT_OK, FAIL, PASS, SKIP, WARN, Check, CheckSet,
+from cs2kit.util import (EXIT_FAIL, EXIT_OK, FAIL, PASS, SKIP, WARN, Check, CheckSet, run,
                          steam_root, which, wineprefix)
 
 MIN_FREE_GIB = 80          # T-024: CS2 + bottle + headroom
@@ -266,6 +266,17 @@ def _environment_checks(snap: Dict[str, Any]) -> List[Check]:
                      "render at 1920x1080 or lower; native costs roughly 4x (T-009)"
                      if hidpi and not wants_hidpi else "", "T-009"))
     out.append(config.active_check())
+    conflict = bottle.library_conflict(Path(volatile.get("prefix") or wineprefix()))
+    if conflict:
+        out.append(Check("library-conflict", "Steam library conflict", FAIL,
+                         f"the bottle's library is inside the macOS Steam library ({conflict})",
+                         "cs2kit bottle migrate && cs2kit bottle link-steamapps - macOS Steam will "
+                         "otherwise delete the Windows binaries to 'update' CS2 to the macOS build",
+                         "T-008"))
+    if run(["pgrep", "-f", "steam_osx"], timeout=10).ok:
+        out.append(Check("macos-steam-running", "macOS Steam", WARN, "running",
+                         "quit it while you play: it competes for the same account and can start "
+                         "downloading the macOS build over your install", "T-008"))
     macos_manifest = probe.appmanifest_path()
     if macos_manifest.is_file() and not volatile["cs2_exe"]:
         out.append(Check("macos-steam", "macOS Steam CS2 install", WARN,

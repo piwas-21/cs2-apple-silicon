@@ -135,3 +135,16 @@ def test_a_wineserver_without_msync_is_a_hard_failure(sandbox, monkeypatch):
 
     monkeypatch.setattr(doctor, "wineserver_env", lambda prefix: None)   # nothing running
     assert "wineserver-sync" not in by_id(doctor.run_checks(healthy_snapshot(sandbox)))
+
+
+def test_a_shared_steam_library_is_a_hard_failure(sandbox, monkeypatch):
+    """2026-08-25: macOS Steam deleted cs2.exe and started downloading 14 GB of
+    macOS depots over the Windows install, because both shared one library."""
+    monkeypatch.setattr(doctor.bottle, "library_conflict",
+                        lambda prefix: "/Users/x/Library/Application Support/Steam/steamapps")
+    checks = by_id(doctor.run_checks(healthy_snapshot(sandbox)))
+    assert checks["library-conflict"].status == FAIL
+    assert "bottle migrate" in checks["library-conflict"].fix
+
+    monkeypatch.setattr(doctor.bottle, "library_conflict", lambda prefix: None)
+    assert "library-conflict" not in by_id(doctor.run_checks(healthy_snapshot(sandbox)))

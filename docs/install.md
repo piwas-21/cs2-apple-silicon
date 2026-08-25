@@ -1,74 +1,66 @@
-# 09 - Install guide: from a bare Mac to a bot match on Dust2
+# Install
 
-**Who this is for:** someone with an Apple Silicon Mac who has never used Wine and wants to shoot a bot on Dust2.
-Follow the steps in order and paste the commands as written. Everything is free software; the total cost is EUR 0
-([08-cost-and-dependencies.md](project/cost-and-dependencies.md)).
+**The short version: one command, then log in.**
 
-**Read this box before you start.**
+```bash
+git clone https://github.com/piwas-21/cs2-apple-silicon.git
+cd cs2-apple-silicon
+./bin/cs2kit setup
+```
 
-> Counter-Strike 2 has **no macOS build** - Valve dropped it on 2023-10-10, and appid 730 is
-> `oslist = "windows,linux"` (CONFIRMED, [../research/steam-vac-findings.md](../research/steam-vac-findings.md)).
-> This guide does not port CS2. It builds a **Windows compatibility environment** (Wine) on your Mac and installs the
-> ordinary Windows CS2 into it. Nothing here modifies Counter-Strike 2, and nothing here interacts with Valve
-> Anti-Cheat.
->
-> **This is not supported by Valve, Apple or CodeWeavers, and it can stop working with any update.** We have found no
-> evidence of a legitimate player being banned for using a compatibility layer, but **Valve has published no policy on
-> Wine and VAC** - that is genuinely UNKNOWN and cannot be resolved by engineering
-> ([06-legal-and-policy.md](legal-and-vac.md)). Use a **secondary Steam account** for your first sessions and do
-> not buy Prime until you know the setup works.
+`setup` takes about 10 minutes and does all of this for you:
 
-## The one thing that will waste your day if you skip it: the engine
+1. checks your Mac (Apple Silicon, Rosetta 2, free space)
+2. downloads and verifies **Sikarugir Wine 10.0** — the only build measured to run CS2 — and stages the
+   dylibs it needs
+3. downloads and verifies **DXMT v0.80**, the Direct3D 11 → Metal layer
+4. builds the Wine bottle from `profiles/bottle-recipe.yaml`
+5. installs the **Windows** Steam client into it
+6. moves any CS2 you already have into a **bottle-only Steam library** (see the warning below)
+7. writes **Counter-Strike 2 (CS2Kit).app** into your Applications folder
 
-**Three free Wine builds were measured on the machine of record on 2026-08-24. Only one runs CS2.** They all install
-the same way and they all look equally plausible on a release page. Two of them cannot get you past the Steam login
-screen, and neither failure names itself.
+Re-running it is safe: each step is skipped if it is already done.
 
-| Engine | Steam UI | Steam client <-> helper transport | DXMT Metal view | Verdict |
-|---|---|---|---|---|
-| Gcenx Wine 11.15 **staging** | **black**, 0.0/255 luminance | OK | **fails** | **do not use** - also crashes Steam's CEF GPU process 9x per launch (`0xC0000005`) |
-| Gcenx Wine 11.15 **devel** | **black**, 0.0/255 | OK | **fails** | **do not use** - no crashes, still no Metal view |
-| FOSS CrossOver 24.0.7 (`wine-9.0`) | renders | **rejected - 0x3008**, 82x in one session | works | **do not use** - login is impossible |
-| **Sikarugir Wine 10.0** (`wine-10.0 (Sikarugir)`) | **renders** | **OK** | **works** | **use this one** |
+## Then two things only you can do
 
-The Gcenx builds fail because they export none of the `winemac.drv` API that DXMT needs, so CS2 prints
-`err: Failed to create metal view, it seems like your Wine has no exported symbols needed by DXMT` - and Steam's own
-window, which reaches D3D11 through ANGLE, paints black for the same reason. **Two symptoms, one cause.**
-`cs2kit engine install` fetches the right one, and `cs2kit engine list` prints this table with the verdicts baked
-in. MEASURED - [02-architecture.md](architecture.md),
-[../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md).
+**1. Log in.** Open the app from Applications. The Steam client starts; log in with the **QR code** and
+the Steam mobile app — no password typing.
 
-## What is measured, what is inferred, what is unknown
+**2. Install CS2** from your Steam library, inside that client. If you already own a copy, `setup` has
+already moved it into the bottle's library, so Steam verifies what is there and downloads only what is
+missing instead of 70 GB.
 
-Honesty about provenance is the point of this project, so every claim below is tagged.
+Then **double-click the app** to play. That is it — no terminal.
 
-| Claim | Status |
-|---|---|
-| macOS Steam cannot produce a working CS2 - a "complete" 66 GB install has no `cs2.exe` | **MEASURED** on the machine of record, [reference/target-machine.md](reference/target-machine.md) |
-| **CS2 launches, renders through DXMT and plays a bot match** on Sikarugir Wine 10.0 | **MEASURED** 2026-08-24, M2 Pro / macOS 26.5.2: 10 minutes on Dust2, 0 crashes, 0 frozen frames in 22 samples ([implementation-status.md](project/measured-results.md), [reference/t010-dust2-log.jsonl](reference/t010-dust2-log.jsonl)) |
-| Gcenx Wine 11.15 and FOSS CrossOver 24.0.7 **cannot** run this stack | **MEASURED**, with the log lines, in [../research/steam-black-window-2026-08-24.md](../research/steam-black-window-2026-08-24.md) |
-| **117 fps** in a Dust2 bot match at CS2's auto-selected Low preset, window 1512x982 points | **MEASURED once, 2026-08-24 - a single indicative sample, not a benchmark.** The number this project will stand behind comes from the T-011 protocol ([07-benchmark-protocol.md](benchmarking.md)), which discards three warm-up runs and reports 1 % lows |
-| The 58 GB content depot 2347770 has no OS filter and is reusable by a Windows install | **MEASURED** (depot table, [reference/target-machine.md](reference/target-machine.md)). On this machine `steamcmd` re-downloaded anyway; the finished install was then **reused with no second download** by symlinking the bottle's `steamapps` |
-| Adding the macOS library as a Steam *library folder* survives a client restart | **FALSE, MEASURED.** Steam rewrites `libraryfolders.vdf` on every start. The symlink survives; the library folder does not |
-| Playing CS2 online, competitively, without incident | **UNKNOWN.** T-020 is the project's real gate and it is empty - [11-validation-log.md](project/validation-log.md) |
-| The black-screen, audio-crackle, Retina and `-vulkan` fixes in step 8 | **MEASURED by others**, CONFIRMED from multiple independent reports ([../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md)) |
-| The Homebrew install route this guide used to print | **DEAD, MEASURED.** The cask was deleted 2026-04-16; the remaining Wine casks are disabled 2026-09-01 ([../research/wine-dxmt-install-findings-2026-08-24.md](../research/wine-dxmt-install-findings-2026-08-24.md); R-15/R-16 in [05-risk-register.md](project/risk-register.md)) |
-| VAC's behaviour under Wine | **UNKNOWN.** Structural argument for low risk in [06-legal-and-policy.md](legal-and-vac.md) section 2; no Valve statement exists |
-| How long this will keep working | **Through macOS 27**, then unknown. Apple retires general-purpose Rosetta 2 after macOS 27 and this whole stack is x86-64 ([rosetta-watch.md](project/rosetta-watch.md)) |
+## The one warning that matters
 
-## Budget
+**Never let macOS Steam manage the same library as the bottle.** It will delete the Windows binaries and
+download the macOS build over them. This is not theoretical: it happened here on 2026-08-25, triggered by
+double-clicking a `Counter-Strike 2.url` shortcut that Steam itself had put on the Desktop —
+`steam://` links always go to macOS Steam.
 
-| | |
-|---|---|
-| Money | **EUR 0.** Every component is free software. Do not buy CrossOver; do not buy Prime yet. |
-| Time | ~2 hours of your attention, plus a 5-72 GB game download. The toolchain itself is a ~270 MB download and no admin password - everything lives under `~/CS2` and `~/.cs2kit`. |
-| Disk | **>= 85 GiB free** if you already have the macOS CS2 assets and the reuse route works; **~150 GiB** for a clean install ([reference/target-machine.md](reference/target-machine.md), disk budget). |
-| Requirements | Apple Silicon (M1 or later), macOS 14 or later, a Steam account, the Steam mobile app (for the QR login). |
+* Delete those `.url` shortcuts. Launch with the **CS2Kit app**.
+* Quit macOS Steam while you play.
+* `cs2kit doctor` fails loudly if the libraries are shared — check it once after setup.
 
-A **fanless** Mac (Air) will work but throttles to roughly 30-40 FPS under sustained load - CONFIRMED datapoint in
-[07-benchmark-protocol.md](benchmarking.md). An actively-cooled MacBook Pro is the machine of record.
+Details and recovery: [troubleshooting.md](troubleshooting.md#24-macos-steam-deleted-your-windows-cs2-install).
+
+## If something goes wrong
+
+```bash
+./bin/cs2kit doctor
+```
+
+18 checks, each ending in one line telling you what to run. Then
+[troubleshooting.md](troubleshooting.md).
 
 ---
+
+# Appendix: doing it by hand
+
+Everything below is what `cs2kit setup` automates. You do not need it to install — it is here so the
+automation is auditable, and so you can recover a half-finished bottle. The task numbers (T-001, T-004 …)
+refer to [the development plan](project/development-plan.md).
 
 ## Step 1 - Grade your machine (5 min)
 

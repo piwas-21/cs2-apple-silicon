@@ -806,3 +806,42 @@ cs2kit report            # redacted: no SteamID, no account name, no usernames i
 [09-install-guide.md](install.md) you were on, and paste `cs2kit doctor --json`. A bundle also feeds the
 community dataset (T-033) - what is stripped and where to send it is in
 [12-maintenance.md](project/maintenance.md) - which is the one thing this ecosystem has never had.
+
+
+---
+
+## 24. macOS Steam deleted your Windows CS2 install
+
+**Symptom.** CS2 stops launching. `game/bin/win64/cs2.exe` is **gone**, `appmanifest_730.acf` shows
+`StateFlags 6` (update required) and a **new buildid**, `SizeOnDisk` has dropped, and
+`steamapps/downloading` is filling with gigabytes. **Measured 2026-08-25: 14 GB downloaded over a working
+install, `cs2.exe` deleted.**
+
+**Cause.** The bottle and macOS Steam were sharing one Steam library. macOS Steam sees appid 730 in *its*
+library, decides the copy is not the macOS build, and "updates" it — which means deleting the Windows
+binaries and downloading the macOS depots over them. **Nothing unusual triggers it.** In our case a
+`Counter-Strike 2.url` shortcut on the Desktop, created from Steam's own UI, was double-clicked: macOS
+routes `steam://rungameid/730` to **macOS Steam**, not to the bottle, and the update starts immediately.
+
+**Prevention — the game must live in a library macOS Steam does not know about.**
+
+```bash
+cs2kit bottle migrate            # moves the install to ~/CS2/library (instant: same-volume rename)
+cs2kit bottle link-steamapps     # points the bottle at it
+cs2kit doctor                    # "Steam library conflict" must not appear
+```
+
+`cs2kit setup` does this for you, and `cs2kit bottle link-steamapps` now **refuses** to share the macOS
+library unless you pass `--allow-macos-library`.
+
+**Also.**
+
+* **Delete any `.url` shortcut** Steam put on your Desktop, and launch with the **Counter-Strike 2 (CS2Kit)**
+  app instead. A `steam://` link always goes to macOS Steam.
+* **Quit macOS Steam** while you play — `doctor` warns when it is running. Two clients on one account
+  fight over the same downloads.
+
+**Recovery if it already happened.** The content depot survives (that is ~58 GB of maps, models and
+sounds), so only the Windows code has to come back: migrate the remains into the bottle-only library, then
+install CS2 from the **in-bottle** Steam client — it will verify what is there and fetch only the missing
+Windows depot rather than the whole 70 GB.

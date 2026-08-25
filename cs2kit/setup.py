@@ -90,7 +90,7 @@ def plan(args) -> List[str]:
         f"install DXMT {DXMT_RELEASE['version']}",
         "build the bottle from profiles/bottle-recipe.yaml",
         "install the Windows Steam client into the bottle",
-        "reuse an existing CS2 library if there is one",
+        "move any existing CS2 install into a bottle-only library",
         "write the double-clickable launcher app",
     ]
 
@@ -145,10 +145,13 @@ def cmd_setup(args) -> int:
         print("  5/7  Windows Steam client")
         install_steam_client(prefix, wine_root)
 
-        print("  6/7  existing CS2 library")
+        print("  6/7  CS2 library (kept out of macOS Steam\'s reach)")
+        moved = bottle.migrate_macos_install()
+        if moved["moved"]:
+            print(f"       moved your existing install into {moved['dest']}")
         try:
             linked = bottle.link_steamapps(prefix)
-            print(f"       linked {linked['target']}")
+            print(f"       library: {linked['target']}")
         except bottle.BottleError as exc:
             print(f"       skipped: {exc}")
 

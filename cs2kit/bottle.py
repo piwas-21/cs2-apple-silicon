@@ -9,13 +9,14 @@ bottle-drift check `cs2kit doctor` runs (T-024).
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from cs2kit import recipe as recipe_mod
+from cs2kit import probe, recipe as recipe_mod
 from cs2kit.util import (EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, Check,
                          Proc, emit_error, run, steam_root, which, wineprefix, write_json)
 
@@ -496,7 +497,71 @@ def cmd_restore_wine(args) -> int:
     return EXIT_OK
 
 
-def link_steamapps(prefix: Path, target: Optional[Path] = None) -> Dict[str, Any]:
+def dedicated_library() -> Path:
+    """A Steam library only the bottle knows about.
+
+    Sharing the macOS Steam library with the bottle looks efficient and is a
+    trap: macOS Steam sees appid 730 in its own library, decides the install is
+    "out of date" for macOS, and **deletes the Windows binaries** to replace them
+    with the macOS build. That happened on 2026-08-25 - `cs2.exe` was removed and
+    14 GB of macOS depots were downloaded over it, triggered by nothing more than
+    double-clicking a Steam desktop shortcut."""
+    return Path(os.environ.get("CS2KIT_LIBRARY", Path.home() / "CS2" / "library"))
+
+
+def ensure_library(path: Optional[Path] = None) -> Path:
+    path = Path(path or dedicated_library())
+    (path / "steamapps" / "common").mkdir(parents=True, exist_ok=True)
+    marker = path / "steamapps" / "libraryfolder.vdf"
+    if not marker.exists():
+        marker.write_text('"libraryfolder"\n{\n\t"contentid"\t\t"0"\n'
+                          '\t"label"\t\t"CS2Kit bottle library"\n}\n')
+    return path
+
+
+def migrate_macos_install(dest: Optional[Path] = None, dry_run: bool = False) -> Dict[str, Any]:
+    """Move an existing CS2 install out of the macOS Steam library.
+
+    A rename on the same volume, so 66 GB moves instantly. The macOS-era
+    appmanifest is taken with it: leaving it behind is what lets macOS Steam
+    claim the game again."""
+    dest = ensure_library(dest)
+    source_root = steam_root() / "steamapps"
+    game = source_root / "common" / "Counter-Strike Global Offensive"
+    manifest = source_root / f"appmanifest_{probe.APPID}.acf"
+    moved: List[str] = []
+    if not game.is_dir():
+        return {"moved": moved, "dest": str(dest), "note": "no CS2 install in the macOS library"}
+    target = dest / "steamapps" / "common" / game.name
+    if target.exists():
+        return {"moved": moved, "dest": str(dest),
+                "note": f"{target} already exists - move or delete it first"}
+    if not dry_run:
+        shutil.move(str(game), str(target))
+    moved.append(str(target))
+    if manifest.is_file():
+        if not dry_run:
+            shutil.move(str(manifest), str(dest / "steamapps" / manifest.name))
+        moved.append(str(dest / "steamapps" / manifest.name))
+    return {"moved": moved, "dest": str(dest), "note": "moved out of the macOS Steam library"}
+
+
+def library_conflict(prefix: Optional[Path] = None) -> Optional[str]:
+    """Is the bottle's library inside the macOS Steam library? That is the trap."""
+    prefix = Path(prefix or wineprefix())
+    link = prefix / "drive_c" / "Program Files (x86)" / "Steam" / "steamapps"
+    try:
+        resolved = link.resolve()
+    except OSError:
+        return None
+    macos = (steam_root() / "steamapps").resolve()
+    if resolved == macos or str(resolved).startswith(str(macos) + os.sep):
+        return str(resolved)
+    return None
+
+
+def link_steamapps(prefix: Path, target: Optional[Path] = None,
+                   allow_macos_library: bool = False) -> Dict[str, Any]:
     """Point the bottle's own library at an existing macOS Steam library.
 
     Adding a Library Folder through Steam's UI does not survive: the client
@@ -505,7 +570,14 @@ def link_steamapps(prefix: Path, target: Optional[Path] = None) -> Dict[str, Any
     Replacing the bottle's `steamapps` with a symlink does survive, because
     Steam simply reads its own default library (measured 2026-08-24, T-008)."""
     prefix = Path(prefix)
-    target = Path(target or (steam_root() / "steamapps")).expanduser()
+    target = Path(target).expanduser() if target else (ensure_library() / "steamapps")
+    macos = (steam_root() / "steamapps").resolve()
+    if not allow_macos_library and target.resolve() == macos:
+        raise BottleError(
+            "refusing to share the macOS Steam library with the bottle: macOS Steam will delete "
+            "the Windows binaries to 'update' CS2 to the macOS build. Run `cs2kit bottle migrate` "
+            "to move the install into a bottle-only library, or pass --allow-macos-library if you "
+            "really mean it")
     if not (target / "common").is_dir():
         raise BottleError(f"{target} does not look like a steamapps directory (no common/)")
     steam_dir = prefix / "drive_c" / "Program Files (x86)" / "Steam"
@@ -524,10 +596,28 @@ def link_steamapps(prefix: Path, target: Optional[Path] = None) -> Dict[str, Any
     return {"link": str(link), "target": str(target), "moved_aside": str(moved) if moved else None}
 
 
+def cmd_migrate(args) -> int:
+    """Get the game out of the shared library before macOS Steam eats it."""
+    try:
+        result = migrate_macos_install(Path(args.dest) if args.dest else None, dry_run=args.dry_run)
+    except (BottleError, OSError) as exc:
+        return emit_error("bottle migrate", str(exc), json_mode=args.json)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return EXIT_OK
+    print(result["note"])
+    for path in result["moved"]:
+        print(f"  -> {path}")
+    if result["moved"]:
+        print("\nNow point the bottle at it:  cs2kit bottle link-steamapps")
+    return EXIT_OK
+
+
 def cmd_link_steamapps(args) -> int:
     prefix = Path(args.prefix or wineprefix())
     try:
-        result = link_steamapps(prefix, Path(args.target) if args.target else None)
+        result = link_steamapps(prefix, Path(args.target) if args.target else None,
+                                allow_macos_library=getattr(args, "allow_macos_library", False))
     except BottleError as exc:
         return emit_error("bottle link-steamapps", str(exc), json_mode=args.json)
     if args.json:
@@ -583,6 +673,13 @@ def register(subparsers) -> None:
                                                "derived from `which wine` when omitted")
         p.set_defaults(func=func)
 
+    mig = sub.add_parser("migrate",
+                         help="move an existing CS2 install out of the macOS Steam library")
+    mig.add_argument("--dest", help="library to move it into (default: ~/CS2/library)")
+    mig.add_argument("--dry-run", action="store_true")
+    mig.add_argument("--json", action="store_true")
+    mig.set_defaults(func=cmd_migrate)
+
     rest = sub.add_parser("restore-wine", help="put Wine's own d3d11/dxgi back (undo DXMT)")
     rest.add_argument("--wine-root", help="the Wine installation to restore")
     rest.add_argument("--dry-run", action="store_true")
@@ -592,7 +689,10 @@ def register(subparsers) -> None:
     lnk = sub.add_parser("link-steamapps",
                          help="reuse an existing macOS Steam library (survives client restarts)")
     lnk.add_argument("--target", help="steamapps directory to link to "
-                                      "(default: ~/Library/Application Support/Steam/steamapps)")
+                                      "(default: the bottle-only library, ~/CS2/library/steamapps)")
+    lnk.add_argument("--allow-macos-library", action="store_true",
+                     help="share the macOS Steam library anyway (macOS Steam will eventually "
+                          "delete the Windows binaries - see docs/troubleshooting.md)")
     lnk.add_argument("--prefix", help="WINEPREFIX to operate on")
     lnk.add_argument("--json", action="store_true")
     lnk.set_defaults(func=cmd_link_steamapps)

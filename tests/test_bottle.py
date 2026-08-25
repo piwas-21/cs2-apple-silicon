@@ -223,3 +223,35 @@ def test_restore_without_a_backup_explains_itself(sandbox, tmp_path):
     with pytest.raises(bottle.BottleError) as exc:
         bottle.restore_wine_dlls(fake_wine(tmp_path))
     assert "re-extract the Wine tarball" in str(exc.value)
+
+
+def test_link_steamapps_refuses_the_macos_library_by_default(sandbox):
+    (sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam").mkdir(parents=True)
+    (sandbox.steam / "steamapps" / "common").mkdir(parents=True, exist_ok=True)
+    with pytest.raises(bottle.BottleError) as exc:
+        bottle.link_steamapps(sandbox.prefix, sandbox.steam / "steamapps")
+    assert "macOS Steam will delete" in str(exc.value)
+    # explicit opt-in still works, for someone who knows what they are doing
+    bottle.link_steamapps(sandbox.prefix, sandbox.steam / "steamapps", allow_macos_library=True)
+
+
+def test_link_steamapps_defaults_to_a_bottle_only_library(sandbox, monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_LIBRARY", str(tmp_path / "lib"))
+    (sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam").mkdir(parents=True)
+    result = bottle.link_steamapps(sandbox.prefix)
+    assert result["target"] == str(tmp_path / "lib" / "steamapps")
+    assert (tmp_path / "lib" / "steamapps" / "libraryfolder.vdf").is_file()
+
+
+def test_migrate_moves_the_game_and_its_manifest_out(sandbox, monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_LIBRARY", str(tmp_path / "lib"))
+    game = sandbox.steam / "steamapps" / "common" / "Counter-Strike Global Offensive"
+    (game / "game").mkdir(parents=True)
+    (sandbox.steam / "steamapps" / "appmanifest_730.acf").write_text('"AppState" { }')
+    result = bottle.migrate_macos_install()
+    assert len(result["moved"]) == 2
+    assert (tmp_path / "lib" / "steamapps" / "common" / game.name / "game").is_dir()
+    assert not game.exists()
+    assert not (sandbox.steam / "steamapps" / "appmanifest_730.acf").exists()
+    # idempotent: a second run finds nothing to do
+    assert bottle.migrate_macos_install()["moved"] == []
