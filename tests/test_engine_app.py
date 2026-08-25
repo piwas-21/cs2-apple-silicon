@@ -129,3 +129,27 @@ def test_download_prefers_curl_because_urllib_has_no_ca_bundle(tmp_path, monkeyp
     engine.download("https://example.invalid/thing.tar.xz", dest)
     assert dest.read_bytes() == b"payload"
     assert calls and calls[0][0].endswith("curl")
+
+
+def test_the_app_installs_where_users_actually_look(monkeypatch, tmp_path):
+    """Finder's sidebar "Applications" is /Applications; ~/Applications is invisible."""
+    from cs2kit import app as app_mod
+
+    monkeypatch.setattr(app_mod.os, "access", lambda path, mode: str(path) == "/Applications")
+    assert str(app_mod.default_dest()).startswith("/Applications/")
+
+    monkeypatch.setattr(app_mod.os, "access", lambda path, mode: False)
+    fallback = app_mod.default_dest()
+    assert fallback.parent == Path.home() / "Applications"
+
+
+def test_the_app_carries_an_icon(sandbox, tmp_path):
+    from cs2kit import app as app_mod
+
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    dest = tmp_path / "Icon.app"
+    app_mod.build_app(dest, wine_root, prefix=sandbox.prefix)
+    plist = (dest / "Contents" / "Info.plist").read_text()
+    assert "<key>CFBundleIconFile</key><string>cs2kit</string>" in plist
+    assert (dest / "Contents" / "Resources" / "cs2kit.icns").is_file(), "icon not copied in"

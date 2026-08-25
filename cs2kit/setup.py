@@ -172,7 +172,7 @@ def cmd_setup(args) -> int:
 
 
 def register(subparsers) -> None:
-    default_app = str(Path.home() / "Applications" / "Counter-Strike 2 (CS2Kit).app")
+    default_app = str(app_mod.default_dest())
     parser = subparsers.add_parser(
         "setup", help="one command: engine, DXMT, bottle, Steam, launcher",
         description="Runs every install step in order. Idempotent: re-running continues "

@@ -9,6 +9,8 @@ It embeds no third-party code - it is a plist and a shell script.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import stat
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -56,12 +58,26 @@ PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleShortVersionString</key><string>{version}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>{exe}</string>
+  <key>CFBundleIconFile</key><string>cs2kit</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.action-games</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 '''
+
+
+def default_dest() -> Path:
+    """Where a Mac user looks for apps: /Applications.
+
+    Finder's sidebar "Applications" is /Applications, not ~/Applications - an app
+    installed in the home folder is effectively invisible, which is exactly the
+    confusion this caused on 2026-08-25. Fall back to ~/Applications only when
+    /Applications is not writable."""
+    system = Path("/Applications")
+    if os.access(system, os.W_OK):
+        return system / "Counter-Strike 2 (CS2Kit).app"
+    return Path.home() / "Applications" / "Counter-Strike 2 (CS2Kit).app"
 
 
 def default_game_dir() -> Optional[Path]:
@@ -103,6 +119,12 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
         name=name, ident=dest.stem.lower().replace(" ", "-"), version=__version__, exe=exe_name))
     (dest / "Contents" / "PkgInfo").write_text("APPL????")
 
+    icon = repo_root() / "assets" / "cs2kit.icns"
+    if icon.is_file():
+        shutil.copy2(icon, dest / "Contents" / "Resources" / "cs2kit.icns")
+    # Finder caches bundles by path; touching it makes the new icon appear at once.
+    os.utime(dest, None)
+
     return {"app": str(dest), "launcher": str(target), "wine_root": str(wine_root),
             "prefix": str(prefix), "game_dir": str(game_dir),
             "profile": (rec.name if rec else None), "launch_options": options}
@@ -137,7 +159,7 @@ def cmd_create(args) -> int:
 
 
 def register(subparsers) -> None:
-    default_dest = str(Path.home() / "Applications" / "Counter-Strike 2 (CS2Kit).app")
+    dest_default = str(default_dest())
     parser = subparsers.add_parser(
         "app", help="generate a double-clickable launcher app",
         description="Playing should not need a terminal. This writes a small .app that runs the "
@@ -145,7 +167,7 @@ def register(subparsers) -> None:
     sub = parser.add_subparsers(dest="app_cmd")
 
     create = sub.add_parser("create", help="write the .app")
-    create.add_argument("--dest", default=default_dest)
+    create.add_argument("--dest", default=dest_default)
     create.add_argument("--wine-root", help="the Wine installation to bake in")
     create.add_argument("--prefix", help="WINEPREFIX to bake in")
     create.add_argument("--game-dir", help="directory containing cs2.exe")
@@ -155,6 +177,6 @@ def register(subparsers) -> None:
     create.add_argument("--json", action="store_true")
     create.set_defaults(func=cmd_create)
 
-    parser.set_defaults(func=cmd_create, dest=default_dest, wine_root=None, prefix=None,
+    parser.set_defaults(func=cmd_create, dest=dest_default, wine_root=None, prefix=None,
                         game_dir=None, profile="balanced-1080p",
                         name="Counter-Strike 2 (CS2Kit)", json=False)
