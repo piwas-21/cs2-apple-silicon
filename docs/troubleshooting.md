@@ -1022,3 +1022,35 @@ previous session is running (its state says `App Running` while no `cs2.exe` exi
 ```bash
 cs2kit stop && open -a CS2Kit
 ```
+
+
+---
+
+## 30. One click to play, and what the app actually does
+
+`open -a CS2Kit` now performs the full sequence, and every step exists because a simpler version of it
+broke something:
+
+1. **verify the guarded game binaries** — and, if the buildid moved, re-baseline automatically. A Steam
+   update is not tampering (entry 27).
+2. **start the Steam client** if it is not up, with `-no-cef-sandbox`, after clearing orphaned
+   `steamservice.exe` helpers (entry 26).
+3. **wait for `Logged On`** in the client's connection log. `-applaunch` sent before that is silently
+   dropped.
+4. **ask Steam to launch the game** (`steam.exe -applaunch 730`). Steam starts CS2 itself, which is what
+   keeps VAC satisfied and restores your cloud settings (entry 29).
+
+So the game does start on its own — but *Steam* starts it, not CS2Kit. If you would rather press Play
+yourself, the app can stop after step 2:
+
+```bash
+cs2kit play --steam-only        # open Steam and hand over
+cs2kit play                     # the full sequence above
+cs2kit play --direct            # bypass Steam: offline only, VAC will refuse secure servers
+cs2kit stop                     # game, Steam, helpers, wineserver - in that order
+```
+
+**One detection detail worth knowing** if you script around this: when Steam launches the game, the
+process carries its full Windows path
+(`C:\Program Files (x86)\Steam\steamapps\common\...\cs2.exe`), so `pgrep -x cs2.exe` finds nothing while
+the game is plainly on screen. Match the command line, not the process name.

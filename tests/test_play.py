@@ -182,3 +182,18 @@ def test_steam_only_hands_over_instead_of_launching(sandbox, cs2_tree, monkeypat
     monkeypatch.setattr(play, "steam_running", lambda: True)
     assert play.cmd_play(args(steam_only=True, json=False, print_only=False)) == EXIT_OK
     assert "Press Play" in capsys.readouterr().out
+
+
+def test_game_running_sees_the_windows_path_steam_uses(monkeypatch):
+    """Steam starts the game with its full Windows path, so an exact process-name
+    match misses it. Our own shell wrappers must not count as the game."""
+    from cs2kit.util import Proc
+
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(
+        0, "bash -lc cd '/x' && wine cs2.exe -novid\n/usr/sbin/cupsd", ""))
+    assert play.game_running() is False, "a shell mentioning cs2.exe is not the game"
+
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(
+        0, "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global "
+           "Offensive\\game\\bin\\win64\\cs2.exe -novid", ""))
+    assert play.game_running() is True

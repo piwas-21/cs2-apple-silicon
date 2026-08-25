@@ -36,6 +36,41 @@ def _pids(name: str) -> List[str]:
     return [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
 
 
+def game_running() -> bool:
+    """Is CS2 up?
+
+    Not `pgrep -ix cs2.exe`: when Steam launches the game the process carries its
+    full Windows path (`C:\\Program Files (x86)\\Steam\\steamapps\\...\\cs2.exe`),
+    so an exact-name match misses it entirely and CS2Kit reports "not running"
+    while the game is on screen (measured 2026-08-26)."""
+    listing = run(["ps", "-axo", "command="], timeout=15).out.splitlines()
+    for line in listing:
+        low = line.lower()
+        if "cs2.exe" in low and " -lc " not in low and not low.startswith(("bash", "/bin/bash", "sh ")):
+            return True
+    return False
+
+
+def steam_ready(prefix: Path, timeout: float = 90.0) -> bool:
+    """Wait until the client has finished logging in.
+
+    `-applaunch` sent too early is silently dropped, and sent while Steam still
+    believes a previous session is alive it logs `WaitingPrevProcess` and does
+    nothing. The client writes `Logged On` to its connection log when it is
+    actually ready."""
+    log = (Path(prefix) / "drive_c" / "Program Files (x86)" / "Steam" / "logs" /
+           "connection_log.txt")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            if "Logged On" in log.read_text(errors="ignore")[-4000:]:
+                return True
+        except OSError:
+            pass
+        time.sleep(3)
+    return False
+
+
 def steam_running() -> bool:
     """Is the Steam *client* up? `steamservice.exe` and `steamwebhelper.exe` are
     helpers that outlive it and must not be counted."""
@@ -172,6 +207,9 @@ def cmd_play(args) -> int:
     client = steam_client(prefix)
     if client and not steam_running():
         _start_steam(prefix, client, plan["env"])
+
+    if not args.steam_only and not args.direct and client:
+        steam_ready(prefix)
 
     if args.steam_only:
         # Hand over to Steam and stop. Pressing Play in Steam is the only launch
