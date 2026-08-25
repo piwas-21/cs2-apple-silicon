@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import re
 import time
@@ -52,8 +53,38 @@ def parse_acf(text: str) -> Dict[str, Any]:
     return root
 
 
+def libraries() -> List[Path]:
+    """Every Steam library that might hold CS2, best first.
+
+    The game no longer lives in the macOS Steam library: sharing that library is
+    what let macOS Steam delete the Windows binaries on 2026-08-25. Anything that
+    looks for CS2 therefore has to look in more than one place."""
+    out: List[Path] = [Path(os.environ.get("CS2KIT_LIBRARY",
+                                           Path.home() / "CS2" / "library")) / "steamapps"]
+    link = wineprefix() / "drive_c" / "Program Files (x86)" / "Steam" / "steamapps"
+    try:
+        if link.exists():
+            out.append(link.resolve())
+    except OSError:
+        pass
+    out.append(steam_root() / "steamapps")
+    seen, unique = set(), []
+    for path in out:
+        if str(path) not in seen:
+            seen.add(str(path))
+            unique.append(path)
+    return unique
+
+
 def appmanifest_path(steam: Optional[Path] = None) -> Path:
-    return (steam or steam_root()) / "steamapps" / f"appmanifest_{APPID}.acf"
+    """The manifest describing the install we actually use."""
+    if steam is not None:
+        return steam / "steamapps" / f"appmanifest_{APPID}.acf"
+    for steamapps in libraries():
+        candidate = steamapps / f"appmanifest_{APPID}.acf"
+        if candidate.is_file():
+            return candidate
+    return steam_root() / "steamapps" / f"appmanifest_{APPID}.acf"
 
 
 def read_appmanifest(steam: Optional[Path] = None) -> Dict[str, Any]:
@@ -65,11 +96,19 @@ def read_appmanifest(steam: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def cs2_install_dir(steam: Optional[Path] = None) -> Optional[Path]:
-    steam = steam or steam_root()
+    """Where CS2 is on disk, searching every library we know about."""
     manifest = read_appmanifest(steam)
     name = manifest.get("installdir") or "Counter-Strike Global Offensive"
-    path = steam / "steamapps" / "common" / name
-    return path if path.is_dir() else None
+    candidates = [steam / "steamapps"] if steam else libraries()
+    fallback = None
+    for steamapps in candidates:
+        path = steamapps / "common" / name
+        if not path.is_dir():
+            continue
+        if (path / "game" / "bin" / "win64" / "cs2.exe").is_file():
+            return path                      # a usable Windows install wins outright
+        fallback = fallback or path
+    return fallback
 
 
 def cs2_exe(steam: Optional[Path] = None) -> Optional[Path]:

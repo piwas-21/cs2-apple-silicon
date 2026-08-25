@@ -26,6 +26,8 @@ if you already have it, `cs2kit` points Steam at your existing copy instead of d
 ## Play
 
 Double-click **Counter-Strike 2 (CS2Kit)** in Applications. No terminal.
+(That app just runs `./bin/cs2kit play`, which resolves everything at launch and
+tells you in one sentence if something is missing.)
 
 ## When something breaks
 

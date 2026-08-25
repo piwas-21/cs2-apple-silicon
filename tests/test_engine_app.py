@@ -78,11 +78,13 @@ def test_app_bundle_is_double_clickable_and_guarded(sandbox, tmp_path, cs2_tree)
     assert launcher.exists() and launcher.stat().st_mode & stat.S_IXUSR, "must be executable"
     body = launcher.read_text()
     assert body.startswith("#!/bin/bash")
-    assert "verify check" in body, "T-021: the app must refuse to launch a modified game"
-    assert "-no-cef-sandbox" in body, "the Steam client needs it or it dies with 0x3008"
-    assert str(sandbox.prefix) in body and str(wine_root) in body
-    assert 'export WINEMSYNC="1"' in body
-    assert "exec wine cs2.exe -novid -nojoy -console" in body
+    # The app delegates to `cs2kit play`: it verifies the guarded binaries (T-021),
+    # starts Steam if needed and resolves every path AT LAUNCH. Baking paths in is
+    # what produced "cs2.exe not found" after the game changed library.
+    assert "cs2kit" in body and "play" in body
+    assert str(sandbox.prefix) in body
+    assert "/steamapps/common/" not in body, "no game path may be baked into the app"
+    assert "osascript" in body, "failures must surface as a dialog, not a silent exit"
 
     plist = (dest / "Contents" / "Info.plist").read_text()
     assert "<key>CFBundleExecutable</key><string>cs2kit-launch</string>" in plist

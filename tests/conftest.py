@@ -22,6 +22,8 @@ def sandbox(tmp_path, monkeypatch):
     prefix.mkdir(parents=True)
     home.mkdir(parents=True)
     monkeypatch.setenv("CS2KIT_STEAM", str(steam))
+    # The game can live in a bottle-only library; tests must never see the real one.
+    monkeypatch.setenv("CS2KIT_LIBRARY", str(tmp_path / "cs2-library"))
     monkeypatch.setenv("CS2KIT_HOME", str(home))
     monkeypatch.setenv("CS2KIT_REPO", str(ROOT))
     monkeypatch.setenv("WINEPREFIX", str(prefix))
