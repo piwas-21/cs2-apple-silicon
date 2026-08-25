@@ -25,7 +25,10 @@ if you already have it, `cs2kit` points Steam at your existing copy instead of d
 
 ## Play
 
-Double-click **CS2Kit** in Applications. No terminal.
+Double-click **CS2Kit** in Applications, then press **Play** in Steam.
+
+The app opens Steam and stops there on purpose: starting the game any other way makes VAC report invalid
+file signatures and refuse secure servers, and CS2 loses your settings ([why](docs/troubleshooting.md)).
 (That app just runs `./bin/cs2kit play`, which resolves everything at launch and
 tells you in one sentence if something is missing.)
 

@@ -173,22 +173,48 @@ def cmd_play(args) -> int:
     if client and not steam_running():
         _start_steam(prefix, client, plan["env"])
 
+    if args.steam_only:
+        # Hand over to Steam and stop. Pressing Play in Steam is the only launch
+        # path that gives the game its proper Steam context: launching cs2.exe
+        # ourselves makes VAC report invalid signatures and refuse secure servers,
+        # and the game starts with default settings (measured 2026-08-25).
+        message = "Steam is open. Press Play on Counter-Strike 2 to start the game."
+        if args.json:
+            print(json.dumps({**plan, "via": "steam-ui"}, indent=2, sort_keys=True))
+        elif getattr(args, "gui", False):
+            notify(message)
+        else:
+            print(message)
+        return EXIT_OK
+
     wine = (str(Path(plan["wine_root"]) / "bin" / "wine") if plan["wine_root"]
             else (which("wine") or "wine"))
-    # Note: the Dock will show this process as "Wine", not "CS2Kit". macOS names it
-    # after the binary it executes, and a symlink inside the bundle does not change
-    # that (measured 2026-08-25) - renaming it needs a native wrapper binary.
-    cmd = [wine, "cs2.exe", *plan["options"]]
+
+    if args.direct:
+        # Direct launch bypasses Steam's own app-launch path. VAC then reports
+        # "game files have no signatures or invalid signatures" and refuses every
+        # secure server, and the game starts with default settings because Steam
+        # never synced the user's config (measured 2026-08-25). Offline use only.
+        cmd = [wine, "cs2.exe", *plan["options"]]
+        target_dir = Path(plan["cs2_exe"]).parent
+    else:
+        if client is None:
+            return emit_error("play", "no Steam client in the bottle - run `cs2kit setup`",
+                              EXIT_NOT_READY, args.json)
+        cmd = [wine, str(client), "-applaunch", probe.APPID, *plan["options"]]
+        target_dir = client.parent
+
     if args.json or args.print_only:
-        print(json.dumps({**plan, "command": cmd}, indent=2, sort_keys=True))
+        print(json.dumps({**plan, "command": cmd, "via": "direct" if args.direct else "steam"},
+                         indent=2, sort_keys=True))
         return EXIT_OK
+
     env = dict(os.environ)
     env.update(plan["env"])
     cache = env.get("DXMT_SHADER_CACHE")
     if cache:
         Path(cache).mkdir(parents=True, exist_ok=True)
-    game_dir = Path(plan["cs2_exe"]).parent
-    os.chdir(game_dir)
+    os.chdir(target_dir)
     os.execve(cmd[0], cmd, env)
     return EXIT_OK   # pragma: no cover - execve does not return
 
@@ -206,46 +232,40 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as handle:
         handle.write(f"starting Steam with {wine}\n")
-        if os.environ.get("CS2KIT_DEBUG_ENV"):
-            keys = sorted(k for k in full if k.startswith(("WINE", "DYLD", "CX_", "PATH", "HOME", "TMPDIR", "USER")))
-            handle.write("env: " + " ".join(f"{k}={full[k]}" for k in keys) + "\n")
-    # Detach properly. Launched from a .app, this process tree dies with the app -
-    # Steam would start, log in and vanish the moment the launcher exited
-    # (measured 2026-08-25). `nohup ... &` inside its own session reparents Steam
-    # to launchd, so it outlives us.
-    quoted_wine = shlex.quote(wine)
-    quoted_client = shlex.quote(str(client))
-    quoted_log = shlex.quote(str(log))
     subprocess.Popen(
         ["bash", "-lc",
          f'cd {shlex.quote(str(client.parent))} && '
-         # No -silent: with nothing owning Wine's system tray, a silent client
-         # logs in and then exits, which looks exactly like "Steam never opened".
-         f'nohup {quoted_wine} {quoted_client} -no-cef-sandbox >>{quoted_log} 2>&1 &'],
+         f'nohup {shlex.quote(wine)} {shlex.quote(str(client))} -no-cef-sandbox '
+         f'>>{shlex.quote(str(log))} 2>&1 &'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
         env=full, start_new_session=True)
-    for _ in range(15):          # ~30 s: long enough to catch it, short enough
-        time.sleep(2)               # that nothing upstream looks hung
+    for _ in range(20):
+        time.sleep(2)
         if steam_running():
-            time.sleep(5)
+            time.sleep(10)      # let the client finish logging in before -applaunch
             return
 
 
 def register(subparsers) -> None:
     parser = subparsers.add_parser(
-        "play", help="start CS2 (what the launcher app runs)",
-        description="Resolves the bottle, the engine and the game at launch time, verifies the "
-                    "guarded binaries, starts Steam if needed, then starts the game.")
+        "play", help="start CS2 through Steam (what the launcher app runs)",
+        description="Resolves the bottle, the engine and the game at launch, verifies the guarded "
+                    "binaries, starts Steam if needed, then asks Steam to launch the game.")
     parser.add_argument("--prefix", help="WINEPREFIX to use")
     parser.add_argument("--profile", help="profile whose env and launch options to use")
     parser.add_argument("--print-only", action="store_true", help="print the plan, start nothing")
     parser.add_argument("--force", action="store_true", help="start despite an integrity failure")
-    parser.add_argument("--start-steam-anyway", action="store_true",
-                        help="skip the readiness checks")
+    parser.add_argument("--steam-only", action="store_true",
+                        help="open Steam and stop - you press Play (the launcher app's default)")
+    parser.add_argument("--direct", action="store_true",
+                        help="start cs2.exe directly instead of through Steam. VAC then refuses "
+                             "secure servers - offline testing only")
     parser.add_argument("--detach", action="store_true",
                         help="double-fork first, so an AppleScript applet cannot reap us")
     parser.add_argument("--gui", action="store_true",
                         help="report problems in a dialog (used by the launcher app)")
+    parser.add_argument("--start-steam-anyway", action="store_true",
+                        help="skip the readiness checks")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("extra", nargs="*", help="extra launch options")
     parser.set_defaults(func=cmd_play)

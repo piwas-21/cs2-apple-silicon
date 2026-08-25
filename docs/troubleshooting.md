@@ -986,3 +986,39 @@ it executes, which is Wine's loader. We tried making the Dock show CS2Kit by exe
 symlink inside the bundle: macOS resolves the link and still shows "Wine" (measured 2026-08-25). Renaming
 it properly needs a small native wrapper binary compiled per release, which is what tools like Sikarugir
 and Kegworks ship. It is on the list, it is cosmetic, and nothing else depends on it.
+
+
+---
+
+## 29. VAC: "game files have no signatures or invalid signatures"
+
+**Symptom.** The game starts, but it opens with **default video/audio settings**, and joining Wingman,
+Casual or any matchmaking mode shows:
+
+> **Valve Anti-Cheat** — Some of your game files have been detected to have no signatures or invalid
+> signatures. You will not be allowed to join VAC secure servers.
+
+Close it, start CS2 from the **Steam UI** instead, and everything is normal: your settings are back and
+matchmaking works.
+
+**Cause.** The game was started by running `cs2.exe` directly. That skips Steam's own app-launch path, so
+the process never gets the Steam context VAC expects, and Steam never syncs your config from the cloud —
+hence both symptoms at once. **Measured 2026-08-25.**
+
+**This is not a small thing.** A launcher that starts the game directly can never be used for competitive
+play, which is the entire point of T-020.
+
+**Fix — always let Steam start the game.**
+
+* The **CS2Kit app** now opens Steam and stops there. You press **Play**. That is the only launch path
+  that has been observed to keep VAC happy.
+* `cs2kit play` asks Steam to launch it (`steam.exe -applaunch 730`).
+* `cs2kit play --direct` still exists for offline testing and says so in its help text. Do not use it for
+  matchmaking.
+
+**If Steam refuses to launch the game and its log says `WaitingPrevProcess`,** Steam still believes a
+previous session is running (its state says `App Running` while no `cs2.exe` exists). Restart the client:
+
+```bash
+cs2kit stop && open -a CS2Kit
+```

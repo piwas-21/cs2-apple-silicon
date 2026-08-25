@@ -12,7 +12,8 @@ from cs2kit.util import EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, PASS
 
 def args(**kw):
     base = {"prefix": None, "profile": None, "print_only": True, "force": False,
-            "start_steam_anyway": False, "json": False, "extra": []}
+            "direct": False, "detach": False, "gui": False,
+            "start_steam_anyway": False, "steam_only": False, "json": False, "extra": []}
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -148,3 +149,36 @@ def test_tampering_within_one_build_still_refuses(sandbox, cs2_tree, monkeypatch
     (cs2_tree / "client.dll").write_bytes(b"MZ-tampered")   # same buildid
     monkeypatch.setattr(play, "steam_running", lambda: True)
     assert play.cmd_play(args(print_only=True)) == EXIT_INTEGRITY
+
+
+def test_the_default_launch_goes_through_steam(sandbox, cs2_tree, monkeypatch, capsys):
+    """Launching cs2.exe directly makes VAC refuse every secure server:
+    "game files have no signatures or invalid signatures" (measured 2026-08-25)."""
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+
+    assert play.cmd_play(args(json=True)) == EXIT_OK
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["via"] == "steam"
+    assert "-applaunch" in plan["command"] and "730" in plan["command"]
+    assert plan["command"][1].lower().endswith("steam.exe")
+
+
+def test_direct_launch_is_opt_in_only(sandbox, cs2_tree, monkeypatch, capsys):
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+    assert play.cmd_play(args(json=True, direct=True)) == EXIT_OK
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["via"] == "direct" and plan["command"][1] == "cs2.exe"
+
+
+def test_steam_only_hands_over_instead_of_launching(sandbox, cs2_tree, monkeypatch, capsys):
+    """The launcher app opens Steam and stops: pressing Play there is the only
+    path that gives CS2 its Steam context (VAC signatures, cloud settings)."""
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+    assert play.cmd_play(args(steam_only=True, json=False, print_only=False)) == EXIT_OK
+    assert "Press Play" in capsys.readouterr().out
