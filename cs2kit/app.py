@@ -93,19 +93,21 @@ PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
 '''
 
 
-def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
+def _compile_applet(dest: Path, prefix: Path, profile: str,
+                    repo: Optional[Path] = None) -> Optional[str]:
     """Build the launcher as an AppleScript applet.
 
     A bundle whose executable is a shell script is not reliably launchable:
     LaunchServices waits for it to register as an application and gives up with
-    `-1712` (measured 2026-08-25 - `open` simply refused). An applet is a real
-    application bundle, so Finder, Spotlight and `open` all behave."""
+    `-1712`, and until then the Dock icon bounces endlessly (measured again
+    2026-10-31). An applet is a real application bundle, so Finder, Spotlight
+    and `open` all behave."""
     import subprocess
 
     osacompile = shutil.which("osacompile")
     if not osacompile:
         return None
-    script = APPLESCRIPT.format(repo=_applescript_quote(repo_root()),
+    script = APPLESCRIPT.format(repo=_applescript_quote(Path(repo or repo_root())),
                                  prefix=_applescript_quote(prefix),
                                  profile=_applescript_quote(profile))
     if dest.exists():
@@ -217,9 +219,10 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
         repo = repo_root()
     if dest.exists():
         shutil.rmtree(dest)
-    # A script bundle that `exec`s the game keeps the process inside this bundle,
-    # so the Dock shows this app's name and icon instead of a bare "wine".
-    kind = _write_script_app(dest, prefix, profile_name, name, repo)
+    # The applet is a real application (no endless Dock bouncing); the script
+    # bundle is only the fallback for machines without osacompile.
+    kind = (_compile_applet(dest, prefix, profile_name, repo)
+            or _write_script_app(dest, prefix, profile_name, name, repo))
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():

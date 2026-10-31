@@ -130,7 +130,14 @@ def test_app_never_points_at_the_checkout_tcc(sandbox, tmp_path, cs2_tree):
     assert shim.is_file() and os.access(shim, os.X_OK)
     assert "__pycache__" not in str(runtime) and not list(runtime.rglob("__pycache__"))
 
-    body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
+    import shutil as _sh
+    import subprocess as _sp
+
+    if result["kind"] == "applet" and _sh.which("osadecompile"):
+        body = _sp.run(["osadecompile", str(dest)], capture_output=True, text=True,
+                       timeout=60).stdout
+    else:
+        body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
     assert str(runtime) in body, "the launcher must exec the staged runtime"
     assert str(repo_root()) not in body, "the launcher must never point at the checkout"
 

@@ -7,6 +7,7 @@ back. Everything in the bottle has to go down together, youngest first.
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,7 +20,20 @@ STAGES = ["cs2.exe", "steam.exe", "steamwebhelper.exe", "steamservice.exe"]
 
 
 def pids(name: str) -> List[str]:
-    return [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
+    """Same discipline as play._pids: exact name first, then a path-component
+    match in the command line - Wine's wow64 loader hides the Windows exe name
+    from `pgrep -ix`, which once made `stop` report "nothing was running"
+    while the client was on screen (measured 2026-10-31)."""
+    exact = [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
+    if exact:
+        return exact
+    pattern = re.compile(r"(?:^|[/\\])%s(?:\s|$)" % re.escape(name), re.IGNORECASE)
+    out: List[str] = []
+    for line in run(["ps", "-axo", "pid=,command="], timeout=15).out.splitlines():
+        pid, _, command = line.strip().partition(" ")
+        if pid.isdigit() and pattern.search(command):
+            out.append(pid)
+    return out
 
 
 def stop(prefix: Optional[Path] = None, force: bool = False,

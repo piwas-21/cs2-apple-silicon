@@ -106,6 +106,28 @@ def test_steam_running_matches_the_process_name_not_the_command_line(monkeypatch
     assert play.steam_running() is False
 
 
+def test_steam_running_sees_wow64_processes_by_their_command_line(monkeypatch):
+    """Wine's wow64 loader hides the Windows exe name from the macOS process
+    table: `pgrep -ix steam.exe` is empty while the client runs with its window
+    on screen (measured 2026-10-31). The fallback must find it by path
+    component - and must NOT match bare mentions of the name."""
+    from cs2kit.util import Proc
+
+    def fake_run(cmd, **kw):
+        if cmd[:2] == ["pgrep", "-ix"]:
+            return Proc(1, "", "")          # wow64: the exact name finds nothing
+        lines = "\n".join([
+            "500 C:\\Program Files (x86)\\Steam\\steam.exe -no-cef-sandbox",
+            "501 tail -f /logs/steam.exe.bak",
+            "502 echo steam.exe",
+        ])
+        return Proc(0, lines, "")
+
+    monkeypatch.setattr(play, "run", fake_run)
+    assert play.steam_running() is True
+    assert play._pids("steam.exe") == ["500"]
+
+
 def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
     from cs2kit.util import Proc
 
