@@ -5,6 +5,14 @@ wrong interface for starting a game. This generates a small `.app` whose
 launcher script runs the same integrity-guarded path as `cs2kit launch`: verify
 the guarded binaries, start the Steam client if it is not up, then start CS2.
 It embeds no third-party code - it is a plist and a shell script.
+
+The app never reaches into the checkout at launch time. A checkout usually
+lives in ~/Documents, and macOS (TCC) silently denies Finder-launched apps
+access there - the exec fails with `Operation not permitted` and the app looks
+dead (measured 2026-10-31). So `build_app` first stages a self-contained
+runtime - the `cs2kit` package, `bin/cs2kit` and `profiles/` - into
+`~/.cs2kit/runtime`, and the generated scripts point there. Re-run
+`cs2kit app create` after updating the checkout to refresh the copy.
 """
 from __future__ import annotations
 
@@ -16,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from cs2kit import recipe as recipe_mod
-from cs2kit.util import EXIT_OK, emit_error, repo_root, wineprefix
+from cs2kit.util import EXIT_OK, emit_error, repo_root, state_dir, wineprefix
 
 def _as_str(value: object) -> str:
     return str(value)
@@ -109,15 +117,17 @@ def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
     return "applet"
 
 
-def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
+def _write_script_app(dest: Path, prefix: Path, profile: str, name: str,
+                      repo: Optional[Path] = None) -> str:
     from cs2kit import __version__
 
+    repo = Path(repo or repo_root())
     exe_name = "cs2kit-launch"
     macos = dest / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
     (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
     target = macos / exe_name
-    target.write_text(LAUNCHER.format(repo=_shell_quote(repo_root()),
+    target.write_text(LAUNCHER.format(repo=_shell_quote(repo),
                                       prefix=_shell_quote(prefix),
                                       profile=_shell_quote(profile)))
     target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -126,6 +136,39 @@ def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
         version=__version__, exe=exe_name))
     (dest / "Contents" / "PkgInfo").write_text("APPL????")
     return "script"
+
+
+RUNTIME_SHIM = r'''#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
+export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
+exec /usr/bin/env python3 -m cs2kit "$@"
+'''
+
+
+def stage_runtime() -> Path:
+    """Copy the runtime bits of the checkout next to the state dir.
+
+    Only what launch actually needs: the `cs2kit` package, an entry-point
+    script and the profiles. Docs, tests and caches stay behind, so the copy
+    is a few hundred kilobytes. Fresh on every build - `app create` is the
+    refresh, and the printed output says so."""
+    root = repo_root()
+    runtime = state_dir() / "runtime"
+    if runtime.exists():
+        shutil.rmtree(runtime)
+    runtime.mkdir(parents=True)
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "*.egg-info")
+    shutil.copytree(root / "cs2kit", runtime / "cs2kit", ignore=ignore)
+    if (root / "profiles").is_dir():
+        shutil.copytree(root / "profiles", runtime / "profiles")
+    bin_dir = runtime / "bin"
+    bin_dir.mkdir()
+    shim = bin_dir / "cs2kit"
+    shim.write_text(RUNTIME_SHIM)
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return runtime
 
 
 def default_dest() -> Path:
@@ -166,11 +209,17 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     options = " ".join(rec.launch_options) if rec else "-novid -nojoy -console"
 
     profile_name = rec.name if rec else "balanced-1080p"
+    # Never point the generated scripts at the checkout: it usually lives in
+    # ~/Documents, which TCC hides from Finder-launched apps. See module docstring.
+    try:
+        repo = stage_runtime()
+    except OSError:
+        repo = repo_root()
     if dest.exists():
         shutil.rmtree(dest)
     # A script bundle that `exec`s the game keeps the process inside this bundle,
     # so the Dock shows this app's name and icon instead of a bare "wine".
-    kind = _write_script_app(dest, prefix, profile_name, name)
+    kind = _write_script_app(dest, prefix, profile_name, name, repo)
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():
@@ -182,7 +231,8 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
 
     return {"app": str(dest), "kind": kind, "wine_root": str(wine_root),
             "prefix": str(prefix), "game_dir": str(game_dir),
-            "profile": (rec.name if rec else None), "launch_options": options}
+            "profile": (rec.name if rec else None), "launch_options": options,
+            "runtime": str(repo)}
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -207,6 +257,8 @@ def cmd_create(args) -> int:
     print(f"  prefix   {result['prefix']}")
     print(f"  game     {result['game_dir']}")
     print(f"  profile  {result['profile'] or '(none)'} -> {result['launch_options']}")
+    if result.get("runtime"):
+        print(f"  runtime  {result['runtime']}  (re-run app create after updating cs2kit)")
     print("")
     print("Double-click it to play. It verifies game-file integrity (T-021), starts the Steam")
     print("client if needed, then launches CS2. Logs go to ~/CS2/cs2kit-app.log")
