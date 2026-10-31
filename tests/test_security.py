@@ -23,6 +23,19 @@ def _write_tar(path, members):
             tar.addfile(info, __import__("io").BytesIO(data))
 
 
+def _write_tar_with_link(path, files, link_name, link_target):
+    with tarfile.open(path, "x:xz") as tar:
+        for name, content in files:
+            data = content.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, __import__("io").BytesIO(data))
+        link = tarfile.TarInfo(link_name)
+        link.type = tarfile.SYMTYPE
+        link.linkname = link_target
+        tar.addfile(link)
+
+
 def test_extract_refuses_path_traversal(tmp_path):
     archive = tmp_path / "evil.tar.xz"
     _write_tar(archive, [("good.txt", "ok"),
@@ -44,6 +57,33 @@ def test_extract_still_unpacks_clean_archives(tmp_path):
     _write_tar(archive, [("bin/wine", "#!/bin/sh"), ("lib/x.so", "ELF")])
     out = engine.extract(archive, tmp_path / "out")
     assert (out / "bin" / "wine").read_text() == "#!/bin/sh"
+
+
+def test_extract_allows_relative_links_that_stay_inside(tmp_path):
+    # The shape that broke setup for real: GStreamer.framework inside the Wine
+    # wrapper ships conf.d/*.conf -> ../../../share/fontconfig/conf.avail/*.conf.
+    # The link climbs three levels and lands back inside the bundle - that is
+    # legitimate and must extract (measured 2026-10-31, Template-1.0.11.tar.xz).
+    archive = tmp_path / "framework.tar.xz"
+    _write_tar_with_link(
+        archive,
+        [("Pkg.framework/Versions/1.0/share/fontconfig/conf.avail/65-nonlatin.conf", "font")],
+        "Pkg.framework/Versions/1.0/etc/fonts/conf.d/65-nonlatin.conf",
+        "../../../share/fontconfig/conf.avail/65-nonlatin.conf")
+    out = engine.extract(archive, tmp_path / "out")
+    link = out / "Pkg.framework" / "Versions" / "1.0" / "etc" / "fonts" / "conf.d" / "65-nonlatin.conf"
+    assert link.is_symlink()
+    assert link.resolve().read_text() == "font"
+
+
+def test_extract_refuses_links_that_escape_dest_without_a_dotdot_prefix(tmp_path):
+    # Same refusal as before, but now decided by *resolution*, not by whether
+    # the target merely contains ".." - an absolute target is caught here too.
+    archive = tmp_path / "escape.tar.xz"
+    _write_tar_with_link(archive, [], "pkg/link", "../../../escaped.txt")
+    with pytest.raises(engine.EngineError):
+        engine.extract(archive, tmp_path / "out")
+    assert not (tmp_path.parent / "escaped.txt").exists()
 
 
 def test_dylib_bundle_is_checksum_pinned():

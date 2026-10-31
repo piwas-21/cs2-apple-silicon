@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import tarfile
 import urllib.request
@@ -126,10 +127,17 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def _safe_members(tar: "tarfile.TarFile") -> List[tarfile.TarInfo]:
+def _safe_members(tar: "tarfile.TarFile", dest: Path) -> List[tarfile.TarInfo]:
     """Members that are safe to extract: no absolute paths, no `..`, no links
-    escaping dest, no device nodes. Python 3.12+ has tarfile's own `data`
-    filter; 3.9-3.11 have nothing, so the check lives here."""
+    resolving outside dest, no device nodes. Python 3.12+ has tarfile's own
+    `data` filter; 3.9-3.11 have nothing, so the check lives here.
+
+    The link rule mirrors the data filter exactly: a *relative* link may climb
+    (`../..`) as long as it lands back inside dest - macOS framework bundles
+    (GStreamer.framework inside the Wine wrapper) are built from dozens of such
+    intra-bundle links, and refusing them broke a legitimate archive. A link
+    whose resolution leaves dest is still refused."""
+    dest = Path(os.path.abspath(dest))
     out = []
     for member in tar.getmembers():
         name = member.name
@@ -139,9 +147,10 @@ def _safe_members(tar: "tarfile.TarFile") -> List[tarfile.TarInfo]:
         if ".." in parts:
             raise EngineError(f"{name}: path traversal inside the archive")
         if member.issym() or member.islnk():
-            target = member.linkname
-            if target.startswith("/") or ".." in PurePosixPath(target).parts:
-                raise EngineError(f"{name}: link target {target} escapes the destination")
+            resolved = Path(os.path.normpath(
+                os.path.join(str(dest), name, "..", member.linkname)))
+            if not (resolved == dest or dest in resolved.parents):
+                raise EngineError(f"{name}: link target {member.linkname} escapes the destination")
         if member.isdev():
             continue
         out.append(member)
@@ -151,7 +160,7 @@ def _safe_members(tar: "tarfile.TarFile") -> List[tarfile.TarInfo]:
 def extract(archive: Path, dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive) as tar:
-        members = _safe_members(tar)          # validate FIRST, on every interpreter
+        members = _safe_members(tar, dest)    # validate FIRST, on every interpreter
         try:                                  # Python 3.12+: refuse paths outside dest
             tar.extractall(dest, filter="data", members=members)
         except TypeError:                 # 3.9-3.11 have no filter argument
