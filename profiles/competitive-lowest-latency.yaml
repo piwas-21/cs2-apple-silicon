@@ -10,6 +10,7 @@ env:
   WINEESYNC: 0
   WINEDEBUG: "-all"
   MTL_HUD_ENABLED: 0
+  DXMT_SHADER_CACHE: "$HOME/.cs2kit/shader-cache"
 
 game:
   launch_options:
