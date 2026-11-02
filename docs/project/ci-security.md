@@ -70,9 +70,10 @@ caches are disabled, and timeouts/concurrency limits bound wasted runs. CodeQL a
 security-events write permission needed for reports. No workflow uses `pull_request_target` or
 executes artifacts from an untrusted privileged follow-up run.
 Repository secret scanning and push protection, Dependabot security updates, and private vulnerability
-reporting are enabled. PR branch-policy code is checked out from the target branch. Maintainers must
-still review workflow and policy changes: a required check name cannot prove that a proposed workflow
-continues to perform the same validation.
+reporting are enabled. Feature PR branch-policy code is checked out from `develop`; release PRs
+evaluate the integration code being promoted, so bootstrapping CI onto an older `main` also works.
+Maintainers must still review workflow and policy changes: a required check name cannot prove that a
+proposed workflow continues to perform the same validation.
 
 Fork PRs receive ordinary tests and security checks without Sonar credentials. Sonar's token is
 available only to its scanner step on trusted integration events; it is not passed to test commands.
