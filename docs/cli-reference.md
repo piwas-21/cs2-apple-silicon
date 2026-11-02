@@ -90,6 +90,9 @@ wrong" is not. Scripts should treat 3 as "do the previous step", 4 as "stop and 
 
 ## File layout
 
+For removal, follow [the uninstall guide](uninstall.md). It covers custom paths and preserves game
+libraries and Steam userdata unless you explicitly choose to remove them.
+
 ### State directory - `~/.cs2kit` (override with `CS2KIT_HOME`)
 
 ```
@@ -313,6 +316,26 @@ and your own machine; using it after an unexplained change is a bad idea, and th
 is missing; otherwise Steam's own exit code.
 
 **`--json`:** `{"command": [...], "env": {...}, "integrity": {<verify check object>}}`.
+
+## `cs2kit play`
+
+```
+cs2kit play [--profile P] [--prefix P] [--print-only] [--steam-only] [--direct]
+            [--detach] [--gui] [--force] [--start-steam-anyway] [--json] [extra ...]
+```
+
+Resolves the current game, bottle and engine, checks integrity, and asks the in-bottle Steam client
+to launch CS2. `--steam-only` opens Steam and leaves the Play button to you. `--direct` bypasses
+Steam's launch path and is for offline testing only; see [the VAC failure](troubleshooting.md#29-vac-game-files-have-no-signatures-or-invalid-signatures).
+
+`--print-only` prints a JSON plan without starting Steam or the game, waiting for Steam, detaching,
+showing dialogs, or updating an integrity baseline. It still reports missing prerequisites and
+integrity failures. `--steam-only --print-only` prints a plan with `via: steam-ui`. A normal launch
+after a game update can refresh the baseline; a preview leaves the previous baseline intact.
+
+**Exit:** `0` for a plan or handoff; `3` when prerequisites are missing; `4` for an integrity failure
+without `--force`. `--json` formats output but does not itself provide the no-start guarantee;
+combine it with `--print-only` when inspecting a plan.
 
 ## `cs2kit bench`
 

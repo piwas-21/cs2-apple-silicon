@@ -163,8 +163,17 @@ def awdl_up() -> Optional[bool]:
 def wine_info() -> Dict[str, Any]:
     path = which("wine")
     if not path:
+        # `which wine` alone is not enough: the launcher app and any bare shell run
+        # without the engine on PATH, while the bottle state records where Wine
+        # lives. Consulting only PATH made doctor grade a healthy, working install
+        # as "Wine not installed" (measured 2026-09-16); play itself already
+        # resolves the engine through bottle.wine_root().
+        root = wine_root()
+        path = str(Path(root) / "bin" / "wine") if root else None
+    if not path:
         return {"path": None, "version": None, "major": None}
-    version = run([path, "--version"], timeout=60).out.splitlines()[0] if path else ""
+    out = run([path, "--version"], timeout=60).out
+    version = out.splitlines()[0] if out else ""
     m = re.search(r"wine-(\d+)", version)
     return {"path": path, "version": version or None, "major": int(m.group(1)) if m else None}
 

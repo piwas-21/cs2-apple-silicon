@@ -1,8 +1,62 @@
 #!/usr/bin/env bash
-# Zero-install entry point: runs CS2Kit straight from a checkout with the
-# system python3. No pip, no venv, no dependencies (stdlib only by design).
+# Zero-install entry point: runs CS2Kit straight from a checkout with the first
+# Python 3.9+ that actually runs. No pip, no venv, no dependencies (stdlib only).
 set -euo pipefail
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
-export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
-exec /usr/bin/env python3 -m cs2kit "$@"
+
+# Finder has a minimal PATH, and Apple's developer-tools Python can refuse to
+# run until an Xcode licence is accepted (measured 2026-09-16). Try other known
+# interpreters too, without installing anything or accepting a licence.
+python_candidates() {
+  local name
+  for name in python3 python3.14 python3.13 python3.12 python3.11 python3.10 python3.9; do
+    command -v "$name" 2>/dev/null || true
+  done
+  printf '%s\n' /opt/homebrew/bin/python3 /usr/local/bin/python3 \
+    /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
+    /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+}
+
+pick_python3() {
+  local candidate
+  while IFS= read -r candidate; do
+    [ -x "$candidate" ] || continue
+    "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' \
+      </dev/null >/dev/null 2>&1 || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done < <(python_candidates)
+  return 1
+}
+
+main() {
+  local here python_bin message arg osascript_bin
+  local gui=false print_only=false
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
+  export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
+
+  if python_bin="$(pick_python3)"; then
+    exec "$python_bin" -m cs2kit "$@"
+  fi
+
+  message="cs2kit: no working Python 3.9+ found. Install Python 3.9+ or repair your developer tools. If Python reports an Xcode license error, run: sudo xcodebuild -license"
+  echo "$message" >&2
+  for arg in "$@"; do
+    case "$arg" in
+      --gui) gui=true ;;
+      --print-only) print_only=true ;;
+    esac
+  done
+  if [ "$gui" = true ] && [ "$print_only" = false ]; then
+    osascript_bin="$(command -v osascript 2>/dev/null || true)"
+    if [ -x "$osascript_bin" ]; then
+      "$osascript_bin" -e "display dialog \"$message\" with title \"CS2Kit\" buttons {\"OK\"} default button 1" \
+        >/dev/null 2>&1 || true
+    fi
+  fi
+  return 69
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi

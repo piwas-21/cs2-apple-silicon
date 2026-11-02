@@ -164,12 +164,12 @@ def daemonize(log: Optional[Path] = None) -> None:
 
 
 def cmd_play(args) -> int:
-    if getattr(args, "detach", False):
+    if getattr(args, "detach", False) and not args.print_only:
         daemonize()
     prefix = Path(args.prefix) if args.prefix else wineprefix()
 
     verdict = integrity.verify()
-    if (verdict.status == WARN and verdict.baseline_buildid and verdict.buildid
+    if (not args.print_only and verdict.status == WARN and verdict.baseline_buildid and verdict.buildid
             and verdict.baseline_buildid != verdict.buildid):
         # A new buildid means Steam updated the game - legitimate, and the only
         # honest response is to re-arm the guard against the new build. Tampering
@@ -187,9 +187,9 @@ def cmd_play(args) -> int:
         client = steam_client(prefix)
         if client and not steam_running() and not args.print_only:
             _start_steam(prefix, client)
-        message = (f"{verdict.message}. Steam is opening: right-click CS2 > Properties > "
+        message = (f"{verdict.message}. In Steam, right-click CS2 > Properties > "
                    "Installed Files > Verify integrity of game files.")
-        if getattr(args, "gui", False):
+        if getattr(args, "gui", False) and not args.print_only:
             notify(message)
         return emit_error("play", message, EXIT_INTEGRITY, args.json)
 
@@ -197,18 +197,20 @@ def cmd_play(args) -> int:
     if problem and not args.start_steam_anyway:
         # Starting Steam is usually the fix, so do it before complaining about the game.
         client = steam_client(prefix)
-        if client and probe.cs2_exe() is None and not steam_running():
+        if not args.print_only and client and probe.cs2_exe() is None and not steam_running():
             _start_steam(prefix, client)
-        if getattr(args, "gui", False):
+        if getattr(args, "gui", False) and not args.print_only:
             notify(problem)
         return emit_error("play", problem, EXIT_NOT_READY, args.json)
 
     plan = build(prefix, args.profile, args.extra)
     client = steam_client(prefix)
-    if client and not steam_running():
+    if not args.print_only and client and not steam_running():
+        # --print-only promises "print the plan, start nothing" (docs/cli-reference.md),
+        # measured 2026-09-16: it used to start a whole Steam client before printing.
         _start_steam(prefix, client, plan["env"])
 
-    if not args.steam_only and not args.direct and client:
+    if not args.print_only and not args.steam_only and not args.direct and client:
         steam_ready(prefix)
 
     if args.steam_only:
@@ -217,7 +219,7 @@ def cmd_play(args) -> int:
         # ourselves makes VAC report invalid signatures and refuse secure servers,
         # and the game starts with default settings (measured 2026-08-25).
         message = "Steam is open. Press Play on Counter-Strike 2 to start the game."
-        if args.json:
+        if args.json or args.print_only:
             print(json.dumps({**plan, "via": "steam-ui"}, indent=2, sort_keys=True))
         elif getattr(args, "gui", False):
             notify(message)

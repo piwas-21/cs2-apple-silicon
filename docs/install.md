@@ -56,6 +56,12 @@ Details and recovery: [troubleshooting.md](troubleshooting.md#24-macos-steam-del
 
 ---
 
+## Uninstall
+
+See [the uninstall guide](uninstall.md) to identify the bottle, launcher, engines and caches, and
+choose whether to keep the game. Setup may have moved an existing CS2 installation into
+`~/CS2/library`; deleting all of `~/CS2` would delete that installation too.
+
 # Appendix: doing it by hand
 
 Everything below is what `cs2kit setup` automates. You do not need it to install — it is here so the

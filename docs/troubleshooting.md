@@ -1054,3 +1054,41 @@ cs2kit stop                     # game, Steam, helpers, wineserver - in that ord
 process carries its full Windows path
 (`C:\Program Files (x86)\Steam\steamapps\common\...\cs2.exe`), so `pgrep -x cs2.exe` finds nothing while
 the game is plainly on screen. Match the command line, not the process name.
+
+---
+
+## 31. The app opens, but the log only says "You have not agreed to the Xcode license agreements"
+
+**Symptom.** Double-clicking CS2Kit does nothing visible. `~/CS2/cs2kit-app.log` ends with one or two
+copies of:
+
+```
+You have not agreed to the Xcode license agreements. Please run 'sudo xcodebuild -license' ...
+```
+
+No "starting Steam with …" line after it, no dialog, no Steam.
+
+**Cause — MEASURED on 2026-09-16.** On the machine of record (macOS 26.6.2), Apple's
+developer-tools Python refused to run with exit 69 after an update until the Xcode licence was
+accepted. Finder's minimal PATH selected that interpreter, so the launcher stopped before Python
+could run CS2Kit. Apple's developer-tools `git` also reported the licence error on that machine.
+This is one possible cause of a broken interpreter; a missing or older Python needs a different fix.
+
+**Fix.**
+
+```bash
+sudo xcodebuild -license            # if your interpreter reports this licence error, review the terms
+```
+
+The updated `bin/cs2kit` probes available Python interpreters, requires version 3.9 or newer, and
+falls back to an existing Homebrew or python.org installation when necessary. It does not install
+Python or accept a licence. If none works, it exits 69 with a diagnostic on stderr; launches using
+`--gui` also show a dialog when `osascript` is available. `--print-only` suppresses the dialog.
+
+**Check it yourself:**
+
+```bash
+/usr/bin/python3 --version          # inspect the actual error before choosing a fix
+git --version                       # may report the same developer-tools problem
+tail -3 ~/CS2/cs2kit-app.log        # "starting Steam with ..." must follow the launch
+```

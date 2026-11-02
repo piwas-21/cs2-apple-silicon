@@ -45,7 +45,7 @@ To quit everything cleanly (Wine's menu bar only closes a window — Steam puts 
 ```
 
 Every check ends in one line telling you what to run. If that is not enough,
-[docs/troubleshooting.md](docs/troubleshooting.md) covers 23 known failures.
+[docs/troubleshooting.md](docs/troubleshooting.md) covers 31 known failures.
 
 ## What to expect
 
@@ -72,6 +72,7 @@ Apple Silicon Mac · macOS 13+ · Rosetta 2 · ~90 GB free · a Steam account th
 | | |
 |---|---|
 | Full install walkthrough | [docs/install.md](docs/install.md) |
+| Remove CS2Kit and choose what to keep | [docs/uninstall.md](docs/uninstall.md) |
 | Every command | [docs/cli-reference.md](docs/cli-reference.md) |
 | Why this Wine build and not another | [docs/architecture.md](docs/architecture.md) |
 | What was actually measured | [docs/project/measured-results.md](docs/project/measured-results.md) |

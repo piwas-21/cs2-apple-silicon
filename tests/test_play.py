@@ -137,10 +137,73 @@ def test_a_steam_update_re_baselines_itself(sandbox, cs2_tree, monkeypatch, caps
     manifest.write_text(manifest.read_text().replace("24828357", "24916958"))
     monkeypatch.setattr(play, "steam_running", lambda: True)
 
-    assert play.cmd_play(args(print_only=True)) == EXIT_OK
+    # Exercise a real launch path; previews must never write a new baseline.
+    assert play.cmd_play(args(print_only=False, steam_only=True)) == EXIT_OK
     out = capsys.readouterr().out
     assert "re-baselined" in out and "24828357 -> 24916958" in out
     assert integrity.verify().status == PASS
+
+
+def forbid_play_side_effects(monkeypatch):
+    def forbidden(*a, **kw):
+        pytest.fail("a print-only invocation performed a launch side effect")
+
+    for name in ("_start_steam", "steam_ready", "daemonize", "notify"):
+        monkeypatch.setattr(play, name, forbidden)
+    monkeypatch.setattr(play.os, "execve", forbidden)
+    monkeypatch.setattr(integrity, "create_baseline", forbidden)
+
+
+@pytest.mark.parametrize("mode,via", [({}, "steam"), ({"direct": True}, "direct"),
+                                    ({"steam_only": True}, "steam-ui")])
+def test_print_only_does_not_launch_wait_detach_or_notify(
+        sandbox, cs2_tree, monkeypatch, capsys, mode, via):
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda: False)
+    forbid_play_side_effects(monkeypatch)
+
+    assert play.cmd_play(args(detach=True, gui=True, **mode)) == EXIT_OK
+    assert json.loads(capsys.readouterr().out)["via"] == via
+
+
+def test_print_only_missing_game_does_not_start_steam(sandbox, monkeypatch, capsys):
+    make_bottle(sandbox)
+    monkeypatch.setattr(play, "steam_running", lambda: False)
+    forbid_play_side_effects(monkeypatch)
+
+    assert play.cmd_play(args(json=True, gui=True)) == EXIT_NOT_READY
+    assert "install CS2" in json.loads(capsys.readouterr().out)["detail"]
+
+
+def test_print_only_integrity_failure_does_not_start_steam(
+        sandbox, cs2_tree, monkeypatch, capsys):
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    (cs2_tree / "client.dll").write_bytes(b"modified")
+    monkeypatch.setattr(play, "steam_running", lambda: False)
+    forbid_play_side_effects(monkeypatch)
+
+    assert play.cmd_play(args(json=True, gui=True)) == EXIT_INTEGRITY
+    detail = json.loads(capsys.readouterr().out)["detail"]
+    assert "Verify integrity" in detail and "Steam is opening" not in detail
+
+
+def test_print_only_after_update_preserves_the_baseline(
+        sandbox, cs2_tree, monkeypatch, capsys):
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    before = {p.name: p.read_bytes() for p in (sandbox.home / "integrity").glob("*.json")}
+    manifest = sandbox.steam / "steamapps" / "appmanifest_730.acf"
+    manifest.write_text(manifest.read_text().replace("24828357", "24916958"))
+    (cs2_tree / "client.dll").write_bytes(b"new build")
+    forbid_play_side_effects(monkeypatch)
+
+    assert play.cmd_play(args(json=True)) == EXIT_OK
+    json.loads(capsys.readouterr().out)  # No re-baseline progress before the JSON.
+    after = {p.name: p.read_bytes() for p in (sandbox.home / "integrity").glob("*.json")}
+    assert before and before == after
+    assert integrity.verify().baseline_buildid == "24828357"
 
 
 def test_tampering_within_one_build_still_refuses(sandbox, cs2_tree, monkeypatch, capsys):
