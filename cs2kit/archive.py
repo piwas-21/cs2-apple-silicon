@@ -158,6 +158,13 @@ def _check_existing(dest: Path, members: Dict[str, tarfile.TarInfo]) -> None:
 
 
 def _publish(stage: Path, dest: Path, members: Dict[str, tarfile.TarInfo]) -> None:
+    # Resolve the archive's graph first, then check the corresponding target
+    # in the destination. A legitimate dangling wrapper link must not bind to
+    # an unrelated retained symlink that redirects it outside the chosen root.
+    for name, member in members.items():
+        if member.issym():
+            relative = _inside(stage, stage / name).relative_to(stage)
+            _inside(dest, dest / relative)
     _check_existing(dest, members)
     dest.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(dest), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)

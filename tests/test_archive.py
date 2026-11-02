@@ -104,6 +104,49 @@ def test_destination_root_symlink_is_refused(tmp_path):
     assert not list(outside.iterdir())
 
 
+@pytest.mark.parametrize("target", ["retained", "retained-dir/sentinel"])
+def test_dangling_archive_links_cannot_bind_to_retained_destination_paths(tmp_path, target):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel"
+    sentinel.write_text("original")
+    dest = tmp_path / "out"
+    dest.mkdir()
+    (dest / "retained").symlink_to(sentinel)
+    (dest / "retained-dir").symlink_to(outside, target_is_directory=True)
+    archive = make_tar(tmp_path / "attack.tar", [
+        ("good", "file", "ok"), ("new-link", "symlink", target),
+    ])
+    with pytest.raises(engine.EngineError, match="link escapes"):
+        engine.extract(archive, dest)
+    assert not (dest / "new-link").is_symlink()
+    assert not (dest / "good").exists()
+    assert sentinel.read_text() == "original"
+
+
+def test_safe_dangling_wrapper_links_survive_repeat_extraction(tmp_path):
+    archive = make_tar(tmp_path / "wrapper.tar", [
+        ("Wrapper/Contents/drive_c", "symlink", "SharedSupport/prefix/drive_c"),
+    ])
+    dest = tmp_path / "out"
+    for _ in range(2):
+        engine.extract(archive, dest)
+        link = dest / "Wrapper/Contents/drive_c"
+        assert link.is_symlink() and not link.exists()
+        assert link.resolve() == dest.resolve() / "Wrapper/Contents/SharedSupport/prefix/drive_c"
+
+
+def test_symbolic_link_may_target_a_forward_hard_link(tmp_path):
+    archive = make_tar(tmp_path / "forward.tar", [
+        ("alias", "symlink", "copy"),
+        ("copy", "hardlink", "payload"),
+        ("payload", "file", "verified bytes"),
+    ])
+    dest = tmp_path / "out"
+    engine.extract(archive, dest)
+    assert (dest / "alias").read_text() == "verified bytes"
+
+
 @pytest.mark.parametrize("limit", ["MAX_BYTES", "MAX_FILE_BYTES", "MAX_MEMBERS"])
 def test_expansion_limits_are_enforced(tmp_path, monkeypatch, limit):
     monkeypatch.setattr(archive_mod, limit, 1)
