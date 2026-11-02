@@ -53,7 +53,9 @@ a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2  wine-staging-1
 ```
 
 `SteamSetup.exe` is a moving target — Valve replaces it in place. The digest above is what that URL served on
-2026-08-24; a different digest is not a fault, it is a newer installer.
+2026-08-24 and still served on 2026-10-03; a different digest may be a newer installer rather than tampering. It is
+still executable code from the network, so `cs2kit setup` refuses to run one that no longer matches and asks for
+`--trust-steam-sha` once you have checked where it came from. The manual route below verifies by hand.
 
 ## Reproduce it
 

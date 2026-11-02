@@ -24,7 +24,14 @@ DXMT_RELEASE = {
 }
 STEAM_SETUP = {
     "url": "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe",
-    "sha256": None,   # Valve reissues this installer; the bottle verifies itself on first run
+    # SteamSetup.exe is executable code fetched over the network, so like every
+    # other artifact it is pinned. Unlike the others its digest can legitimately
+    # drift: Valve reissues the installer in place between cs2kit releases. A
+    # mismatch is therefore refused, not ignored - `--trust-steam-sha` accepts
+    # the new file for this install once the user has checked where it came
+    # from. Digest history lives in docs/reference/toolchain.md.
+    "sha256": "7d3654531c32d941b8cae81c4137fc542172bfa9635f169cb392f245a0a12bcb",
+    "recorded": "2026-08-24, re-verified against the live URL on 2026-10-03 (2 380 800 B)",
 }
 
 
@@ -52,15 +59,36 @@ def install_dxmt(log: Callable[[str], None] = print) -> Path:
     return found[0].parent.parent
 
 
+def fetch_steam_installer(log: Callable[[str], None] = print,
+                          trust_unpinned: bool = False) -> Path:
+    """Download SteamSetup.exe and hold it to the pinned sha256.
+
+    The pin lags behind Valve by design: they replace this file in place, so a
+    mismatch may be a newer installer rather than tampering. It is still
+    unverified executable code, so the default is to refuse and tell the user
+    how to make an informed choice - never to run it silently."""
+    installer = home() / "downloads" / "SteamSetup.exe"
+    try:
+        return engine.download(STEAM_SETUP["url"], installer, STEAM_SETUP["sha256"])
+    except engine.EngineError as exc:
+        if not trust_unpinned:
+            raise SetupError(
+                f"{exc}. Valve reissues this installer in place, so a newer one is possible - "
+                f"check that {STEAM_SETUP['url']} is where it came from, then re-run setup with "
+                "--trust-steam-sha to accept it for this install.")
+        log(f"    warning: accepting an unpinned Steam installer: {exc}")
+        return engine.download(STEAM_SETUP["url"], installer, None)
+
+
 def install_steam_client(prefix: Path, wine_root: Path,
-                         log: Callable[[str], None] = print, timeout: float = 900.0) -> Path:
+                         log: Callable[[str], None] = print, timeout: float = 900.0,
+                         trust_unpinned: bool = False) -> Path:
     """Run SteamSetup.exe silently inside the bottle."""
     steam_exe = prefix / "drive_c" / "Program Files (x86)" / "Steam" / "Steam.exe"
     if steam_exe.is_file():
         return steam_exe
-    installer = home() / "downloads" / "SteamSetup.exe"
     log("    fetching the Windows Steam client")
-    engine.download(STEAM_SETUP["url"], installer, STEAM_SETUP["sha256"])
+    installer = fetch_steam_installer(log=log, trust_unpinned=trust_unpinned)
     env = wine_env(prefix, wine_root)
     log("    installing it into the bottle (silent)")
     run([str(Path(wine_root) / "bin" / "wine"), str(installer), "/S"], timeout=timeout, env=env)
@@ -143,7 +171,8 @@ def cmd_setup(args) -> int:
         bottle.create(rec, prefix=prefix, dxmt_source=dxmt_dir, wine=wine_root)
 
         print("  5/7  Windows Steam client")
-        install_steam_client(prefix, wine_root)
+        install_steam_client(prefix, wine_root,
+                             trust_unpinned=getattr(args, "trust_steam_sha", False))
 
         print("  6/7  CS2 library (kept out of macOS Steam\'s reach)")
         moved = bottle.migrate_macos_install()
@@ -181,6 +210,10 @@ def register(subparsers) -> None:
     parser.add_argument("--prefix", help="WINEPREFIX to build (default: ~/CS2/prefix)")
     parser.add_argument("--profile", default="balanced-1080p")
     parser.add_argument("--app-dest", default=default_app)
+    parser.add_argument("--trust-steam-sha", action="store_true",
+                        help="run a SteamSetup.exe whose sha256 no longer matches the pinned "
+                             "digest (Valve reissues it between cs2kit releases; check its "
+                             "origin first)")
     parser.add_argument("--dry-run", action="store_true", help="print the plan and stop")
     parser.add_argument("--json", action="store_true")
     parser.set_defaults(func=cmd_setup)

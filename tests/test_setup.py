@@ -57,6 +57,57 @@ def test_dxmt_release_is_pinned_and_checksummed():
     assert setup.DXMT_RELEASE["version"] in setup.DXMT_RELEASE["url"]
 
 
+def test_steam_setup_is_pinned():
+    # The one artifact whose digest can legitimately drift (Valve reissues it),
+    # and therefore the one that must never silently run unverified.
+    assert setup.STEAM_SETUP["sha256"] and len(setup.STEAM_SETUP["sha256"]) == 64
+
+
+class _FakeDownload:
+    """Stands in for engine.download: writes a file and enforces the pin as the real one does."""
+
+    def __init__(self, digest):
+        self.digest = digest
+        self.pins_seen = []
+
+    def __call__(self, url, dest, sha256=None, progress=None):
+        self.pins_seen.append(sha256)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"MZ installer")
+        if sha256 and self.digest != sha256:
+            dest.unlink()
+            raise engine.EngineError(
+                f"{dest.name}: sha256 {self.digest} does not match the recorded {sha256}")
+        return dest
+
+
+def test_steam_installer_refuses_a_digest_outside_the_pin(monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
+    fake = _FakeDownload("0" * 64)
+    monkeypatch.setattr(setup.engine, "download", fake)
+    with pytest.raises(setup.SetupError, match="--trust-steam-sha"):
+        setup.fetch_steam_installer(log=lambda m: None)
+    assert not (tmp_path / "downloads" / "SteamSetup.exe").exists()   # nothing left to run later
+
+
+def test_steam_installer_trust_flag_accepts_the_new_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
+    fake = _FakeDownload("0" * 64)
+    monkeypatch.setattr(setup.engine, "download", fake)
+    installer = setup.fetch_steam_installer(log=lambda m: None, trust_unpinned=True)
+    assert installer.read_bytes() == b"MZ installer"
+    # the second download must be genuinely unpinned, not a re-check of the stale pin
+    assert fake.pins_seen == [setup.STEAM_SETUP["sha256"], None]
+
+
+def test_steam_installer_downloads_once_when_the_pin_matches(monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
+    fake = _FakeDownload(setup.STEAM_SETUP["sha256"])
+    monkeypatch.setattr(setup.engine, "download", fake)
+    assert setup.fetch_steam_installer(log=lambda m: None).name == "SteamSetup.exe"
+    assert fake.pins_seen == [setup.STEAM_SETUP["sha256"]]
+
+
 def test_wine_env_always_carries_msync(tmp_path):
     env = setup.wine_env(tmp_path / "prefix", tmp_path / "wine")
     # A wineserver started without this poisons the prefix for every later process.

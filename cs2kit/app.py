@@ -5,6 +5,14 @@ wrong interface for starting a game. This generates a small `.app` whose
 launcher script runs the same integrity-guarded path as `cs2kit launch`: verify
 the guarded binaries, start the Steam client if it is not up, then start CS2.
 It embeds no third-party code - it is a plist and a shell script.
+
+The app never reaches into the checkout at launch time. A checkout usually
+lives in ~/Documents, and macOS (TCC) silently denies Finder-launched apps
+access there - the exec fails with `Operation not permitted` and the app looks
+dead (measured 2026-10-31). So `build_app` first stages a self-contained
+runtime - the `cs2kit` package, `bin/cs2kit` and `profiles/` - into
+`~/.cs2kit/runtime`, and the generated scripts point there. Re-run
+`cs2kit app create` after updating the checkout to refresh the copy.
 """
 from __future__ import annotations
 
@@ -16,7 +24,28 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from cs2kit import recipe as recipe_mod
-from cs2kit.util import EXIT_OK, emit_error, repo_root, wineprefix
+from cs2kit.util import EXIT_OK, emit_error, repo_root, state_dir, wineprefix
+
+def _as_str(value: object) -> str:
+    return str(value)
+
+
+def _shell_quote(value: object) -> str:
+    import shlex
+
+    return shlex.quote(_as_str(value))
+
+
+def _applescript_quote(value: object) -> str:
+    """Escape a value for use inside an AppleScript double-quoted string."""
+    return _as_str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _xml_quote(value: object) -> str:
+    """Escape a value for use inside a plist XML text node."""
+    return (_as_str(value).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;"))
+
 
 APPLESCRIPT = '''set repoPath to "{repo}"
 set winePrefix to "{prefix}"
@@ -31,13 +60,16 @@ do shell script "cd " & quoted form of repoPath & " && CS2KIT_REPO=" & quoted fo
 
 #: Fallback for a machine without osacompile: a plain script bundle. It works,
 #: but LaunchServices is fussier about it (see docs/troubleshooting.md #25d).
+#: Values are inserted pre-quoted with shlex.quote - the profile name and paths
+#: come from a YAML file (or the command line) and must not be able to break
+#: out of the generated script.
 LAUNCHER = r'''#!/bin/bash
 set -uo pipefail
-export CS2KIT_REPO="{repo}"
-export WINEPREFIX="{prefix}"
+export CS2KIT_REPO={repo}
+export WINEPREFIX={prefix}
 LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
-"$CS2KIT_REPO/bin/cs2kit" play --profile "{profile}" --gui --detach >>"$LOG" 2>&1
+"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --gui --detach >>"$LOG" 2>&1
 exit 0
 '''
 
@@ -61,19 +93,23 @@ PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
 '''
 
 
-def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
+def _compile_applet(dest: Path, prefix: Path, profile: str,
+                    repo: Optional[Path] = None) -> Optional[str]:
     """Build the launcher as an AppleScript applet.
 
     A bundle whose executable is a shell script is not reliably launchable:
     LaunchServices waits for it to register as an application and gives up with
-    `-1712` (measured 2026-08-25 - `open` simply refused). An applet is a real
-    application bundle, so Finder, Spotlight and `open` all behave."""
+    `-1712`, and until then the Dock icon bounces endlessly (measured again
+    2026-10-31). An applet is a real application bundle, so Finder, Spotlight
+    and `open` all behave."""
     import subprocess
 
     osacompile = shutil.which("osacompile")
     if not osacompile:
         return None
-    script = APPLESCRIPT.format(repo=str(repo_root()), prefix=str(prefix), profile=profile)
+    script = APPLESCRIPT.format(repo=_applescript_quote(Path(repo or repo_root())),
+                                 prefix=_applescript_quote(prefix),
+                                 profile=_applescript_quote(profile))
     if dest.exists():
         shutil.rmtree(dest)
     proc = subprocess.run([osacompile, "-o", str(dest), "-e", script],
@@ -83,20 +119,58 @@ def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
     return "applet"
 
 
-def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
+def _write_script_app(dest: Path, prefix: Path, profile: str, name: str,
+                      repo: Optional[Path] = None) -> str:
     from cs2kit import __version__
 
+    repo = Path(repo or repo_root())
     exe_name = "cs2kit-launch"
     macos = dest / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
     (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
     target = macos / exe_name
-    target.write_text(LAUNCHER.format(repo=str(repo_root()), prefix=str(prefix), profile=profile))
+    target.write_text(LAUNCHER.format(repo=_shell_quote(repo),
+                                      prefix=_shell_quote(prefix),
+                                      profile=_shell_quote(profile)))
     target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     (dest / "Contents" / "Info.plist").write_text(PLIST.format(
-        name=name, ident=dest.stem.lower().replace(" ", "-"), version=__version__, exe=exe_name))
+        name=_xml_quote(name), ident=_xml_quote(dest.stem.lower().replace(" ", "-")),
+        version=__version__, exe=exe_name))
     (dest / "Contents" / "PkgInfo").write_text("APPL????")
     return "script"
+
+
+RUNTIME_SHIM = r'''#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
+export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
+exec /usr/bin/env python3 -m cs2kit "$@"
+'''
+
+
+def stage_runtime() -> Path:
+    """Copy the runtime bits of the checkout next to the state dir.
+
+    Only what launch actually needs: the `cs2kit` package, an entry-point
+    script and the profiles. Docs, tests and caches stay behind, so the copy
+    is a few hundred kilobytes. Fresh on every build - `app create` is the
+    refresh, and the printed output says so."""
+    root = repo_root()
+    runtime = state_dir() / "runtime"
+    if runtime.exists():
+        shutil.rmtree(runtime)
+    runtime.mkdir(parents=True)
+    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "*.egg-info")
+    shutil.copytree(root / "cs2kit", runtime / "cs2kit", ignore=ignore)
+    if (root / "profiles").is_dir():
+        shutil.copytree(root / "profiles", runtime / "profiles")
+    bin_dir = runtime / "bin"
+    bin_dir.mkdir()
+    shim = bin_dir / "cs2kit"
+    shim.write_text(RUNTIME_SHIM)
+    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+    return runtime
 
 
 def default_dest() -> Path:
@@ -137,11 +211,18 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     options = " ".join(rec.launch_options) if rec else "-novid -nojoy -console"
 
     profile_name = rec.name if rec else "balanced-1080p"
+    # Never point the generated scripts at the checkout: it usually lives in
+    # ~/Documents, which TCC hides from Finder-launched apps. See module docstring.
+    try:
+        repo = stage_runtime()
+    except OSError:
+        repo = repo_root()
     if dest.exists():
         shutil.rmtree(dest)
-    # A script bundle that `exec`s the game keeps the process inside this bundle,
-    # so the Dock shows this app's name and icon instead of a bare "wine".
-    kind = _write_script_app(dest, prefix, profile_name, name)
+    # The applet is a real application (no endless Dock bouncing); the script
+    # bundle is only the fallback for machines without osacompile.
+    kind = (_compile_applet(dest, prefix, profile_name, repo)
+            or _write_script_app(dest, prefix, profile_name, name, repo))
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():
@@ -153,7 +234,8 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
 
     return {"app": str(dest), "kind": kind, "wine_root": str(wine_root),
             "prefix": str(prefix), "game_dir": str(game_dir),
-            "profile": (rec.name if rec else None), "launch_options": options}
+            "profile": (rec.name if rec else None), "launch_options": options,
+            "runtime": str(repo)}
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -178,6 +260,8 @@ def cmd_create(args) -> int:
     print(f"  prefix   {result['prefix']}")
     print(f"  game     {result['game_dir']}")
     print(f"  profile  {result['profile'] or '(none)'} -> {result['launch_options']}")
+    if result.get("runtime"):
+        print(f"  runtime  {result['runtime']}  (re-run app create after updating cs2kit)")
     print("")
     print("Double-click it to play. It verifies game-file integrity (T-021), starts the Steam")
     print("client if needed, then launches CS2. Logs go to ~/CS2/cs2kit-app.log")

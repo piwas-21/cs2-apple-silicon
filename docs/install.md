@@ -323,9 +323,12 @@ serve it. CONFIRMED from Valve's own app metadata
 ```bash
 cd ~/CS2/downloads
 curl -fLO https://cdn.akamai.steamstatic.com/client/installer/SteamSetup.exe
-shasum -a 256 SteamSetup.exe          # record it in docs/reference/toolchain.md
+shasum -a 256 SteamSetup.exe          # must equal the digest in reference/toolchain.md
 wine SteamSetup.exe /S                # /S = silent; the interactive installer works too
 ```
+
+`cs2kit setup` enforces that same digest for you: on a mismatch it refuses and waits for `--trust-steam-sha`, because
+Valve reissues the installer in place and a newer one must be checked, not silently executed.
 
 **Always start the client with `-no-cef-sandbox`.** This is not a tuning flag: with the Chromium sandbox on, the
 helper process cannot establish its transport under Wine and the client dies on *"Unexpected transport error

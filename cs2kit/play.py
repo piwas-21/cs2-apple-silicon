@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import time
@@ -27,13 +28,30 @@ def steam_client(prefix: Path) -> Optional[Path]:
 
 
 def _pids(name: str) -> List[str]:
-    """PIDs by exact process NAME.
+    """PIDs by exact process NAME first.
 
-    Deliberately not `pgrep -f`: that matches the whole command line, so any shell
-    running a command that merely mentions `steam.exe` counts as Steam. That is
-    not hypothetical - it made the launcher believe Steam was already running and
-    silently skip starting it (measured 2026-08-25)."""
-    return [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
+    Deliberately not bare `pgrep -f`: that matches any command line that merely
+    mentions the name, which once made the launcher believe Steam was already
+    running and silently skip starting it (measured 2026-08-25).
+
+    Exact name alone is not enough either: Wine's wow64 loader does not put the
+    Windows exe name into the macOS process table, so a running client shows up
+    in `pgrep -ix steam.exe` as nothing at all while its window is on screen
+    (measured 2026-10-31). Every launch then looked dead, `clean_stale_steam`
+    killed the helpers of the live client, and Steam shut itself down cleanly
+    seconds after appearing. The fallback reads ps and matches the name as a
+    *path component*, which a mere mention is not: `C:\\...\\steam.exe -flag`
+    matches, `echo steam.exe` does not."""
+    exact = [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
+    if exact:
+        return exact
+    pattern = re.compile(r"(?:^|[/\\])%s(?:\s|$)" % re.escape(name), re.IGNORECASE)
+    out: List[str] = []
+    for line in run(["ps", "-axo", "pid=,command="], timeout=15).out.splitlines():
+        pid, _, command = line.strip().partition(" ")
+        if pid.isdigit() and pattern.search(command):
+            out.append(pid)
+    return out
 
 
 def game_running() -> bool:

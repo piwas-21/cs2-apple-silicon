@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 from cs2kit import config, recipe as recipe_mod
 from cs2kit.util import EXIT_NOT_READY, EXIT_OK, PASS, WARN
@@ -13,9 +14,24 @@ def test_apply_writes_a_sourceable_env_script(sandbox):
     result = config.apply(recipe_mod.resolve("balanced-1080p"))
     script = open(result["record"]["env_script"]).read()
     assert script.startswith("#!/usr/bin/env bash")
-    assert 'export WINEMSYNC="1"' in script
+    assert 'export WINEMSYNC=1' in script
     assert str(sandbox.prefix) in script
     assert config.active()["name"] == "balanced-1080p"
+
+
+def test_env_script_expands_dollar_home_before_quoting(sandbox):
+    # Inside shlex's single quotes a literal $HOME would survive sourcing, and
+    # `mkdir -p "$DXMT_SHADER_CACHE"` would create a directory named '$HOME'.
+    # The value must be expanded at render time, the way `play` expands it.
+    rec = recipe_mod.loads(
+        'schema: 1\nname: homey\nkind: profile\nprovenance: measured\n'
+        'env:\n  DXMT_SHADER_CACHE: "$HOME/.cs2kit/shader-cache"\n'
+        'display:\n  width: 1920\n  height: 1080\n')
+    rec.require_valid()
+    result = config.apply(rec)
+    script = open(result["record"]["env_script"]).read()
+    assert f"export DXMT_SHADER_CACHE={Path.home()}/.cs2kit/shader-cache" in script
+    assert "$HOME" not in script
 
 
 def test_apply_writes_the_game_cfg_only_when_cs2_is_installed(sandbox, cs2_tree):

@@ -27,7 +27,9 @@ WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
 #: 8.0.1 anyway - and Homebrew's own wine casks are disabled on 2026-09-01 for
 #: failing Gatekeeper. A tarball has neither problem and needs no admin rights.
 INSTALL_HINT = ("curl -fL -O https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/"
-                "wine-staging-11.15-osx64.tar.xz && mkdir -p ~/CS2/wine && "
+                "wine-staging-11.15-osx64.tar.xz && shasum -a 256 wine-staging-11.15-osx64.tar.xz "
+                "# must equal a8c50d0e14fb7982a21506287e1e41e1990fe77c74fa2a32da7dbcf7b21de1e2, "
+                "then: mkdir -p ~/CS2/wine && "
                 "tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine  (docs/reference/toolchain.md)")
 
 

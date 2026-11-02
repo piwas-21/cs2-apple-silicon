@@ -2,6 +2,7 @@
 """Tests for the two commands that remove manual steps: engine and app."""
 import argparse
 import json
+import os
 import stat
 import tarfile
 from pathlib import Path
@@ -107,6 +108,38 @@ def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
     (wine_root / "bin").mkdir(parents=True)
     result = app_mod.build_app(tmp_path / "X.app", wine_root, prefix=sandbox.prefix)
     assert result["game_dir"] == str(cs2_tree)
+
+
+def test_app_never_points_at_the_checkout_tcc(sandbox, tmp_path, cs2_tree):
+    """The checkout usually lives in ~/Documents, which TCC hides from
+    Finder-launched apps: the exec died with `Operation not permitted`
+    (measured 2026-10-31). The generated script must run the self-contained
+    runtime copy staged under the state dir instead."""
+    from cs2kit.util import repo_root, state_dir
+
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    dest = tmp_path / "Tcc.app"
+    result = app_mod.build_app(dest, wine_root, prefix=sandbox.prefix, profile="balanced-1080p")
+
+    runtime = Path(result["runtime"])
+    assert runtime == state_dir() / "runtime"
+    assert (runtime / "cs2kit" / "cli.py").is_file()
+    assert (runtime / "profiles" / "balanced-1080p.yaml").is_file()
+    shim = runtime / "bin" / "cs2kit"
+    assert shim.is_file() and os.access(shim, os.X_OK)
+    assert "__pycache__" not in str(runtime) and not list(runtime.rglob("__pycache__"))
+
+    import shutil as _sh
+    import subprocess as _sp
+
+    if result["kind"] == "applet" and _sh.which("osadecompile"):
+        body = _sp.run(["osadecompile", str(dest)], capture_output=True, text=True,
+                       timeout=60).stdout
+    else:
+        body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
+    assert str(runtime) in body, "the launcher must exec the staged runtime"
+    assert str(repo_root()) not in body, "the launcher must never point at the checkout"
 
 
 def test_app_create_without_wine_is_not_ready(sandbox, monkeypatch, tmp_path, capsys):

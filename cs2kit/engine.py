@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import tarfile
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Dict, List, Optional
 
 from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, state_dir
@@ -23,6 +24,7 @@ from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, sta
 #: `wineserver` aborts with `Library not loaded: @rpath/libinotify.0.dylib`.
 DYLIB_BUNDLE = {
     "url": "https://github.com/Sikarugir-App/Wrapper/releases/download/v1.0/Template-1.0.11.tar.xz",
+    "sha256": "9fa15479e7ff6abd99c1d07be285fb95f41fc6991586502427152b1f7d6ccb8a",
     "member_dir": "Contents/Frameworks",
 }
 
@@ -125,13 +127,45 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
+def _safe_members(tar: "tarfile.TarFile", dest: Path) -> List[tarfile.TarInfo]:
+    """Members that are safe to extract: no absolute paths, no `..`, no links
+    resolving outside dest, no device nodes. Python 3.12+ has tarfile's own
+    `data` filter; 3.9-3.11 have nothing, so the check lives here.
+
+    The link rule mirrors the data filter exactly: a *relative* link may climb
+    (`../..`) as long as it lands back inside dest - macOS framework bundles
+    (GStreamer.framework inside the Wine wrapper) are built from dozens of such
+    intra-bundle links, and refusing them broke a legitimate archive. A link
+    whose resolution leaves dest is still refused."""
+    dest = Path(os.path.abspath(dest))
+    out = []
+    for member in tar.getmembers():
+        name = member.name
+        if name.startswith(("/", "\\")) or ":" in name[:2]:
+            raise EngineError(f"{name}: absolute path inside the archive")
+        parts = PurePosixPath(name).parts
+        if ".." in parts:
+            raise EngineError(f"{name}: path traversal inside the archive")
+        if member.issym() or member.islnk():
+            resolved = Path(os.path.normpath(
+                os.path.join(str(dest), name, "..", member.linkname)))
+            if not (resolved == dest or dest in resolved.parents):
+                raise EngineError(f"{name}: link target {member.linkname} escapes the destination")
+        if member.isdev():
+            continue
+        out.append(member)
+    return out
+
+
 def extract(archive: Path, dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive) as tar:
-        try:                              # Python 3.12+: refuse paths outside dest
-            tar.extractall(dest, filter="data")
+        members = _safe_members(tar, dest)    # validate FIRST, on every interpreter
+        try:                                  # Python 3.12+: refuse paths outside dest
+            tar.extractall(dest, filter="data", members=members)
         except TypeError:                 # 3.9-3.11 have no filter argument
-            tar.extractall(dest)
+            for member in members:        # extract one by one; no unfiltered extractall
+                tar.extract(member, dest)
     return dest
 
 
@@ -183,7 +217,7 @@ def install(name: str = RECOMMENDED, dest: Optional[Path] = None,
     if engine.needs_dylibs:
         wrapper = engines_dir() / Path(DYLIB_BUNDLE["url"]).name
         log(f"fetching wrapper dylibs {DYLIB_BUNDLE['url']}")
-        download(DYLIB_BUNDLE["url"], wrapper)
+        download(DYLIB_BUNDLE["url"], wrapper, DYLIB_BUNDLE.get("sha256"))
         wdir = engines_dir() / "wrapper"
         extract(wrapper, wdir)
         staged = stage_dylibs(bundle, wdir)
