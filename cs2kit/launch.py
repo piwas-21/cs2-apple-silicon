@@ -10,12 +10,11 @@ user would.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from cs2kit import bottle, config, integrity, probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, emit_error, run,
+from cs2kit.util import (EXIT_INTEGRITY, EXIT_OK, FAIL, emit_error, run,
                          which, wineprefix)
 
 STEAM_DIR = Path("drive_c") / "Program Files (x86)" / "Steam"

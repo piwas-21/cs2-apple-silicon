@@ -9,6 +9,10 @@ numbers and procedures can be reproduced.
 Work is tracked as tasks `T-001` .. `T-034` in [docs/project/development-plan.md](docs/project/development-plan.md). A change
 that does not serve a task probably belongs in an issue first.
 
+Feature, fix and dependency PRs target `develop`. Promote `develop` to `main` through a release PR;
+do not target `main` directly from a feature branch or fork. The required checks, sole-maintainer
+review policy, Sonar setup and security exceptions are in [the CI policy](docs/project/ci-security.md).
+
 ---
 
 ## Running the tests
@@ -153,8 +157,11 @@ PYTHONPATH="$PWD" /usr/bin/python3 -c "import cs2kit.cli"
 bash -n scripts/*.sh
 ```
 
-Then fill in [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) - it asks for the task number, the
-evidence and the risk. CI runs the same four checks on Linux and macOS with Python 3.9 and 3.13.
+Then fill in [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md). CI runs the full suite
+on Linux and macOS with Python 3.9, 3.13 and 3.14, enforces 80% branch-inclusive runtime coverage,
+and checks code, shell, workflows, secrets, dependency advisories and synthetic CLI performance.
+Use the committed `uv.lock`; update it deliberately with a dependency change. Runtime users still
+need no third-party packages. See [the CI policy](docs/project/ci-security.md) for local commands.
 
 ## Licence
 

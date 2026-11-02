@@ -1,52 +1,63 @@
-# CI for CS2Kit.
-#
-# Four invariants, in order of how expensive a violation is to discover late:
-#   1. stdlib-only  - `cs2kit` must import on a stock Mac's /usr/bin/python3 with
-#      nothing installed (that is the entire premise of bin/cs2kit).
-#   2. tests        - pytest on the oldest and newest supported interpreter, on
-#      Linux (fast, free) and macOS (the only platform users actually run).
-#   3. shell syntax - scripts/preflight.sh is the first thing a new user runs.
-#   4. docs links   - the guides are the product for a non-Wine user (T-029).
-#
-# Budget: the whole workflow must stay under 5 minutes. No game, no Wine, no
-# network beyond the runner image and uv's Python downloads.
-name: ci
+name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  UV_VERSION: '0.10.8'
+  PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
   tests:
-    name: pytest (${{ matrix.os }}, py${{ matrix.python }})
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python: ["3.9", "3.13"]
+        python: ['3.9', '3.13', '3.14']
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
-      - name: pytest
-        run: uv run --python ${{ matrix.python }} pytest
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+          enable-cache: false
+      - name: Install locked test dependencies without building the project
+        run: uv sync --locked --no-build --no-install-project
+      - name: Offline tests and branch coverage
+        run: uv run --locked --no-sync pytest --cov --cov-fail-under=80 --cov-report=xml --cov-report=term:skip-covered --junitxml=test-results.xml
+      - name: Publish coverage and test results
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results
+          path: |
+            coverage.xml
+            test-results.xml
+          if-no-files-found: error
+          retention-days: 14
 
-  stdlib-only:
-    # No uv, no venv, no pip: import CS2Kit with the interpreter that ships with
-    # the operating system. macOS 26 still ships 3.9, which is why the floor is 3.9.
-    name: stdlib-only import (${{ matrix.os }} system python3)
+  stdlib:
+    name: System Python (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
@@ -54,37 +65,118 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-      - name: /usr/bin/python3 -c "import cs2kit.cli"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Import and CLI without pip, venv or third-party packages
         run: |
           /usr/bin/python3 --version
-          PYTHONPATH="$PWD" /usr/bin/python3 -c "import cs2kit.cli"
-      - name: cs2kit --help via the zero-install entry point
-        run: PYTHONPATH="$PWD" /usr/bin/python3 -m cs2kit --help
+          /usr/bin/python3 -S scripts/check_stdlib.py
+          PYTHONPATH="$PWD" /usr/bin/python3 -S -c 'import cs2kit.cli; cs2kit.cli.build_parser()'
+          PYTHONPATH="$PWD" /usr/bin/python3 -S -m cs2kit --help
+          ./bin/cs2kit --help
 
-  shell-lint:
-    name: shell syntax
+  quality:
+    name: Code and workflow quality
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: bash -n scripts/*.sh
-        run: |
-          shopt -s nullglob
-          files=(scripts/*.sh bin/cs2kit)
-          if [ ${#files[@]} -eq 0 ]; then echo "no shell scripts found"; exit 1; fi
-          for f in "${files[@]}"; do echo "-- $f"; bash -n "$f"; done
-
-  docs-links:
-    # Every relative markdown link in docs/ and README.md must resolve. The same
-    # invariant is asserted in tests/test_docs.py so it fails locally too.
-    name: docs link check
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          enable-cache: true
-      - name: relative links resolve
-        run: uv run --python 3.13 pytest tests/test_docs.py -q
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: '3.13'
+          enable-cache: false
+      - run: uv sync --locked --all-groups --no-build --no-install-project
+      - name: Ruff correctness checks
+        run: uv run --locked --no-sync ruff check cs2kit scripts tests
+      - name: ShellCheck and shell syntax
+        run: |
+          shellcheck bin/cs2kit scripts/preflight.sh
+          bash -n bin/cs2kit scripts/preflight.sh
+      - name: Verify pinned workflow actions and shell commands
+        run: |
+          python scripts/install_ci_tools.py actionlint "$RUNNER_TEMP/ci-tools"
+          "$RUNNER_TEMP/ci-tools/actionlint" -color
+      - name: Documentation links and CLI contracts
+        run: uv run --locked --no-sync pytest tests/test_docs.py tests/test_docs_cli.py
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: '3.13'
+          enable-cache: false
+      - run: uv sync --locked --all-groups --no-build --no-install-project
+      - name: Python security analysis
+        run: uv run --locked --no-sync bandit -c pyproject.toml -r cs2kit -q
+      - name: Audit locked dependencies for supported Python versions
+        run: uv run --locked --no-sync python scripts/audit_dependencies.py
+      - name: Redacted secret scan across repository history
+        run: |
+          python scripts/install_ci_tools.py gitleaks "$RUNNER_TEMP/ci-tools"
+          "$RUNNER_TEMP/ci-tools/gitleaks" git --redact --no-banner --exit-code 1
+
+  performance:
+    name: Offline CLI performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Synthetic CLI, profile parser and hashing budgets
+        run: /usr/bin/python3 scripts/perf_smoke.py
+      - name: Publish samples and budgets
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cli-performance
+          path: performance.json
+          if-no-files-found: error
+          retention-days: 30
+
+  policy:
+    name: PR branch policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enforce feature and release PR routes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/pr_policy.py
+
+  required:
+    name: CI required checks
+    if: always()
+    needs: [tests, stdlib, quality, security, performance, policy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fail closed on skipped, cancelled or failed checks
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          results = json.loads(os.environ['RESULTS'])
+          failed = {name: value['result'] for name, value in results.items() if value['result'] != 'success'}
+          print(failed or 'All required CI jobs passed')
+          sys.exit(bool(failed))
+          PY

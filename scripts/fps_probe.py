@@ -18,7 +18,9 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import time
+from pathlib import Path
 
 import numpy as np
 import Quartz
@@ -38,7 +40,7 @@ def window_id():
     return None
 
 
-def capture(wid, path="/tmp/cs2kit_fps.png"):
+def capture(wid, path):
     subprocess.run(["screencapture", "-l", str(wid), "-o", "-x", path],
                    capture_output=True, timeout=60)
     return path
@@ -66,8 +68,9 @@ def read_fps(png):
            min(arr.shape[1], xs.max() + 6), min(arr.shape[0], ys.max() + 6))
     sub = np.where(mask, 0, 255).astype("uint8")[box[1]:box[3], box[0]:box[2]]
     img = Image.fromarray(sub).resize(((box[2] - box[0]) * 6, (box[3] - box[1]) * 6), Image.LANCZOS)
-    img.save("/tmp/cs2kit_fps_crop.png")
-    for text in ocr("/tmp/cs2kit_fps_crop.png"):
+    crop = str(Path(png).with_name("fps-crop.png"))
+    img.save(crop)
+    for text in ocr(crop):
         m = re.search(r"(\d{1,3})\s*[fl]ps", text, re.I) or re.match(r"\s*(\d{1,3})\b", text)
         if m and 1 <= int(m.group(1)) <= 999:
             return int(m.group(1))
@@ -82,12 +85,13 @@ def main():
         print(json.dumps({"error": "no Counter-Strike 2 window"}))
         return 3
     readings = []
-    for i in range(samples):
-        if i:
-            time.sleep(interval)
-        value = read_fps(capture(wid))
-        if value:
-            readings.append(value)
+    with tempfile.TemporaryDirectory(prefix="cs2kit-fps-") as temporary:
+        for i in range(samples):
+            if i:
+                time.sleep(interval)
+            value = read_fps(capture(wid, str(Path(temporary) / "fps.png")))
+            if value:
+                readings.append(value)
     readings.sort()
     print(json.dumps({
         "method": "screenshot-sampled cl_showfps, median of instantaneous readings",

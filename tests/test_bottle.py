@@ -3,7 +3,7 @@ import argparse
 import pytest
 
 from cs2kit import bottle, recipe as recipe_mod
-from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, Proc
+from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, FAIL, PASS, WARN, Proc
 
 
 class FakeRunner(bottle.WineRunner):
@@ -44,7 +44,7 @@ def test_desired_registry_sets_windows_versions_and_no_dxmt_overrides(sandbox):
 
 def test_create_writes_state_and_registry(sandbox):
     runner = FakeRunner(sandbox.prefix)
-    result = bottle.create(rec(sandbox), prefix=sandbox.prefix, runner=runner)
+    bottle.create(rec(sandbox), prefix=sandbox.prefix, runner=runner)
     assert ["wine", "wineboot", "--init"] == runner.log[0]
     state = bottle.read_state(sandbox.prefix)
     assert state["recipe_name"] == "cs2-default"

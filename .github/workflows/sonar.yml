@@ -1,0 +1,47 @@
+name: SonarQube
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  analysis:
+    name: SonarQube analysis
+    # Never give fork or Dependabot PR code access to an analysis token.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      ((github.event_name == 'push' && github.ref_name == 'develop') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'develop') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.10.8'
+          python-version: '3.13'
+          enable-cache: false
+      - name: Generate coverage without exposing analysis credentials to tests
+        run: |
+          uv sync --locked --no-build --no-install-project
+          uv run --locked --no-sync pytest --cov --cov-report=xml --junitxml=test-results.xml
+      - name: Analyze source and wait for the quality gate
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          args: >-
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300

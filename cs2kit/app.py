@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import stat
 from pathlib import Path
 from typing import Any, Dict, Optional
+from html import escape
 
 from cs2kit import recipe as recipe_mod
 from cs2kit.util import EXIT_OK, emit_error, repo_root, wineprefix
@@ -33,11 +35,11 @@ do shell script "cd " & quoted form of repoPath & " && CS2KIT_REPO=" & quoted fo
 #: but LaunchServices is fussier about it (see docs/troubleshooting.md #25d).
 LAUNCHER = r'''#!/bin/bash
 set -uo pipefail
-export CS2KIT_REPO="{repo}"
-export WINEPREFIX="{prefix}"
+export CS2KIT_REPO={repo}
+export WINEPREFIX={prefix}
 LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
-"$CS2KIT_REPO/bin/cs2kit" play --profile "{profile}" --gui --detach >>"$LOG" 2>&1
+"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --gui --detach >>"$LOG" 2>&1
 exit 0
 '''
 
@@ -73,7 +75,10 @@ def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
     osacompile = shutil.which("osacompile")
     if not osacompile:
         return None
-    script = APPLESCRIPT.format(repo=str(repo_root()), prefix=str(prefix), profile=profile)
+    def literal(value) -> str:
+        return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\r", "\\r").replace("\n", "\\n")
+
+    script = APPLESCRIPT.format(repo=literal(repo_root()), prefix=literal(prefix), profile=literal(profile))
     if dest.exists():
         shutil.rmtree(dest)
     proc = subprocess.run([osacompile, "-o", str(dest), "-e", script],
@@ -91,10 +96,11 @@ def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
     macos.mkdir(parents=True, exist_ok=True)
     (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
     target = macos / exe_name
-    target.write_text(LAUNCHER.format(repo=str(repo_root()), prefix=str(prefix), profile=profile))
+    target.write_text(LAUNCHER.format(repo=shlex.quote(str(repo_root())),
+                                      prefix=shlex.quote(str(prefix)), profile=shlex.quote(profile)))
     target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     (dest / "Contents" / "Info.plist").write_text(PLIST.format(
-        name=name, ident=dest.stem.lower().replace(" ", "-"), version=__version__, exe=exe_name))
+        name=escape(name), ident=escape(dest.stem.lower().replace(" ", "-")), version=__version__, exe=exe_name))
     (dest / "Contents" / "PkgInfo").write_text("APPL????")
     return "script"
 
@@ -122,7 +128,6 @@ def default_game_dir() -> Optional[Path]:
 def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
               game_dir: Optional[Path] = None, profile: Optional[str] = None,
               name: str = "CS2Kit") -> Dict[str, Any]:
-    from cs2kit import __version__
 
     dest = Path(dest).expanduser()
     if dest.suffix != ".app":
@@ -130,7 +135,7 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     prefix = Path(prefix or wineprefix())
     game_dir = Path(game_dir or (default_game_dir() or (prefix / "cs2-not-installed")))
 
-    rec = recipe_mod.resolve(profile) if profile else None
+    rec = recipe_mod.resolve(profile).require_valid() if profile else None
     env = dict(rec.env) if rec else {}
     env.setdefault("WINEMSYNC", "1")
     env.setdefault("WINEDEBUG", "-all")

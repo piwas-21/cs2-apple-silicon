@@ -973,8 +973,9 @@ down in one step:
 cs2kit stop
 ```
 
-That stops the game, then Steam, then its helpers, then `wineserver` — in that order, because killing them
-in any other order lets the survivors restart each other.
+The updated command stops only the selected bottle using its recorded Wine engine's `wineserver`
+and waits for termination. Exit Steam first to save settings. It no longer kills global process-name
+matches, which could belong to a different bottle.
 
 **"There are two Steam icons in the Dock, both called wine."** `Steam.exe` and `steamwebhelper.exe` are
 separate Windows processes, and Wine's Mac driver registers each one that owns a window as its own

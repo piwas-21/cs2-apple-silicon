@@ -337,6 +337,33 @@ after a game update can refresh the baseline; a preview leaves the previous base
 without `--force`. `--json` formats output but does not itself provide the no-start guarantee;
 combine it with `--print-only` when inspecting a plan.
 
+## `cs2kit stop`
+
+```
+cs2kit stop [--prefix P] [--force] [--json]
+```
+
+Uses the selected prefix's recorded Wine engine to request `wineserver -k`, then waits for that
+server to terminate. Exit Steam first to save settings. `--force` requests `wineserver -k9` for
+that prefix. It does not kill global process-name matches or clean other bottles' helpers.
+
+**Exit:** `0` after confirmed shutdown or when the selected prefix does not exist; `1` if the engine
+cannot be found or termination is not confirmed. JSON contains `ok`, `prefix`, `wineserver_killed`,
+`detail`, and the retained legacy `stopped` field (an empty object; global PID counts are no longer used).
+
+## Download and profile safety
+
+Setup pins the Steam installer digest. If Valve publishes a new installer, setup refuses the old
+pin. After independently checking the new artifact, an explicit `setup --steam-installer-sha256 HEX`
+supplies the expected digest for that same file; it never disables verification or re-downloads
+unverified bytes. Wine, wrapper and DXMT archives are also checksum-pinned. HTTPS downgrades are refused.
+
+Profile `name` fields must begin with an ASCII letter or digit and contain only ASCII letters,
+digits, `_`, `.` or `-`; the YAML file itself may still live at a path containing spaces. Environment
+keys are limited to `WINEMSYNC`, `WINEESYNC`, `WINEDEBUG`, `WINEDLLOVERRIDES`, `MTL_HUD_ENABLED` and
+`DXMT_*`. Additions require a deliberate validation/test update. Loader, shell and Python environment
+injection through a profile is rejected. Shell values are quoted after expanding environment references.
+
 ## `cs2kit bench`
 
 ```

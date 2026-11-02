@@ -11,18 +11,20 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
-import tarfile
+import tempfile
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, state_dir
+from cs2kit.archive import UnsafeArchive, unpack
+from cs2kit.util import EXIT_OK, emit_error, run, state_dir
 
 #: Wrapper dylibs the Sikarugir/CrossOver engines link against. Without them
 #: `wineserver` aborts with `Library not loaded: @rpath/libinotify.0.dylib`.
 DYLIB_BUNDLE = {
     "url": "https://github.com/Sikarugir-App/Wrapper/releases/download/v1.0/Template-1.0.11.tar.xz",
+    "sha256": "9fa15479e7ff6abd99c1d07be285fb95f41fc6991586502427152b1f7d6ccb8a",
     "member_dir": "Contents/Frameworks",
 }
 
@@ -74,6 +76,13 @@ class EngineError(RuntimeError):
     pass
 
 
+class _HTTPSRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not newurl.startswith("https://"):
+            raise EngineError("download redirected away from HTTPS")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def engines_dir() -> Path:
     return Path(state_dir()) / "engines"
 
@@ -87,13 +96,17 @@ def _fetch(url: str, tmp: Path, progress=None) -> None:
     clean path. `curl` is on every Mac and uses the system trust store."""
     from cs2kit.util import which as _which
 
+    if not str(url).startswith("https://"):
+        raise EngineError("downloads require HTTPS")
     curl = _which("curl")
     if curl:
-        proc = run([curl, "-fL", "--retry", "3", "--connect-timeout", "30",
+        proc = run([curl, "-fL", "--proto", "=https", "--proto-redir", "=https",
+                    "--retry", "3", "--connect-timeout", "30",
                     "-o", str(tmp), url], timeout=3600)
         if proc.ok and tmp.exists() and tmp.stat().st_size:
             return
-    with urllib.request.urlopen(url, timeout=120) as src, open(tmp, "wb") as out:
+    opener = urllib.request.build_opener(_HTTPSRedirect())
+    with opener.open(url, timeout=120) as src, open(tmp, "wb") as out:
         while True:
             chunk = src.read(1 << 20)
             if not chunk:
@@ -106,10 +119,18 @@ def _fetch(url: str, tmp: Path, progress=None) -> None:
 def download(url: str, dest: Path, sha256: Optional[str] = None,
              progress=None) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.is_symlink():
+        raise EngineError("refusing a symbolic-link download destination")
     if not dest.exists():
-        tmp = dest.with_suffix(dest.suffix + ".part")
-        _fetch(url, tmp, progress)
-        tmp.replace(dest)
+        with tempfile.NamedTemporaryFile(prefix=".download-", dir=str(dest.parent), delete=False) as file:
+            tmp = Path(file.name)
+        try:
+            _fetch(url, tmp, progress)
+            if sha256 and sha256_of(tmp) != sha256:
+                raise EngineError(f"{dest.name}: downloaded sha256 does not match the recorded {sha256}")
+            tmp.replace(dest)
+        finally:
+            tmp.unlink(missing_ok=True)
     digest = sha256_of(dest)
     if sha256 and digest != sha256:
         dest.unlink(missing_ok=True)
@@ -126,13 +147,10 @@ def sha256_of(path: Path) -> str:
 
 
 def extract(archive: Path, dest: Path) -> Path:
-    dest.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive) as tar:
-        try:                              # Python 3.12+: refuse paths outside dest
-            tar.extractall(dest, filter="data")
-        except TypeError:                 # 3.9-3.11 have no filter argument
-            tar.extractall(dest)
-    return dest
+    try:
+        return unpack(archive, dest)
+    except UnsafeArchive as exc:
+        raise EngineError(str(exc)) from exc
 
 
 def stage_dylibs(engine_root: Path, source: Path) -> List[str]:
@@ -173,7 +191,7 @@ def install(name: str = RECOMMENDED, dest: Optional[Path] = None,
     root = Path(dest or (engines_dir() / name))
     archive = engines_dir() / Path(engine.url).name
     log(f"fetching {engine.url}")
-    download(archive, archive, engine.sha256) if archive.exists() else download(engine.url, archive, engine.sha256)
+    download(engine.url, archive, engine.sha256)
     log(f"sha256 {sha256_of(archive)}")
     extract(archive, root)
     bundle = find_bundle(root, engine)
@@ -183,7 +201,7 @@ def install(name: str = RECOMMENDED, dest: Optional[Path] = None,
     if engine.needs_dylibs:
         wrapper = engines_dir() / Path(DYLIB_BUNDLE["url"]).name
         log(f"fetching wrapper dylibs {DYLIB_BUNDLE['url']}")
-        download(DYLIB_BUNDLE["url"], wrapper)
+        download(DYLIB_BUNDLE["url"], wrapper, DYLIB_BUNDLE["sha256"])
         wdir = engines_dir() / "wrapper"
         extract(wrapper, wdir)
         staged = stage_dylibs(bundle, wdir)

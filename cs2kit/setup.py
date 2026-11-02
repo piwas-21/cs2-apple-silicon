@@ -7,15 +7,14 @@ so re-running after a failure continues rather than starting over.
 """
 from __future__ import annotations
 
-import json
 import os
-import shutil
+import re
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from cs2kit import app as app_mod, bottle, engine, probe, recipe as recipe_mod
-from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, state_dir
+from cs2kit.util import EXIT_NOT_READY, EXIT_OK, emit_error, run
 
 DXMT_RELEASE = {
     "version": "v0.80",
@@ -24,7 +23,7 @@ DXMT_RELEASE = {
 }
 STEAM_SETUP = {
     "url": "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe",
-    "sha256": None,   # Valve reissues this installer; the bottle verifies itself on first run
+    "sha256": "7d3654531c32d941b8cae81c4137fc542172bfa9635f169cb392f245a0a12bcb",
 }
 
 
@@ -53,14 +52,18 @@ def install_dxmt(log: Callable[[str], None] = print) -> Path:
 
 
 def install_steam_client(prefix: Path, wine_root: Path,
-                         log: Callable[[str], None] = print, timeout: float = 900.0) -> Path:
+                         log: Callable[[str], None] = print, timeout: float = 900.0,
+                         installer_sha256: Optional[str] = None) -> Path:
     """Run SteamSetup.exe silently inside the bottle."""
     steam_exe = prefix / "drive_c" / "Program Files (x86)" / "Steam" / "Steam.exe"
     if steam_exe.is_file():
         return steam_exe
     installer = home() / "downloads" / "SteamSetup.exe"
     log("    fetching the Windows Steam client")
-    engine.download(STEAM_SETUP["url"], installer, STEAM_SETUP["sha256"])
+    digest = installer_sha256 or STEAM_SETUP["sha256"]
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+        raise SetupError("Steam installer SHA-256 must be exactly 64 hexadecimal characters")
+    engine.download(STEAM_SETUP["url"], installer, digest.lower())
     env = wine_env(prefix, wine_root)
     log("    installing it into the bottle (silent)")
     run([str(Path(wine_root) / "bin" / "wine"), str(installer), "/S"], timeout=timeout, env=env)
@@ -143,7 +146,8 @@ def cmd_setup(args) -> int:
         bottle.create(rec, prefix=prefix, dxmt_source=dxmt_dir, wine=wine_root)
 
         print("  5/7  Windows Steam client")
-        install_steam_client(prefix, wine_root)
+        install_steam_client(prefix, wine_root,
+                             installer_sha256=getattr(args, "steam_installer_sha256", None))
 
         print("  6/7  CS2 library (kept out of macOS Steam\'s reach)")
         moved = bottle.migrate_macos_install()
@@ -181,6 +185,8 @@ def register(subparsers) -> None:
     parser.add_argument("--prefix", help="WINEPREFIX to build (default: ~/CS2/prefix)")
     parser.add_argument("--profile", default="balanced-1080p")
     parser.add_argument("--app-dest", default=default_app)
+    parser.add_argument("--steam-installer-sha256", dest="steam_installer_sha256",
+                        help="explicit expected SHA-256 for a verified newer Steam installer; never bypasses verification")
     parser.add_argument("--dry-run", action="store_true", help="print the plan and stop")
     parser.add_argument("--json", action="store_true")
     parser.set_defaults(func=cmd_setup)

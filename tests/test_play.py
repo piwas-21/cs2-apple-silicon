@@ -2,7 +2,6 @@
 """`cs2kit play` is what the launcher app runs, so its refusals are the app's UX."""
 import argparse
 import json
-from pathlib import Path
 
 import pytest
 
@@ -106,7 +105,7 @@ def test_steam_running_matches_the_process_name_not_the_command_line(monkeypatch
     assert play.steam_running() is False
 
 
-def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
+def test_starting_steam_does_not_kill_unowned_helpers(monkeypatch):
     from cs2kit.util import Proc
 
     killed = []
@@ -122,8 +121,8 @@ def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
         return Proc(1, "", "")
 
     monkeypatch.setattr(play, "run", fake_run)
-    assert play.clean_stale_steam() == ["123", "123"]
-    assert killed, "orphaned helpers block a new client from starting"
+    assert play.clean_stale_steam() == []
+    assert not killed, "a global name match cannot establish prefix ownership"
 
 
 def test_a_steam_update_re_baselines_itself(sandbox, cs2_tree, monkeypatch, capsys):

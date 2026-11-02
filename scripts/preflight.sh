@@ -30,9 +30,11 @@ say "  $CHIP | ${PCORE}P+${ECORE}E | GPU ${GPU:-?} cores | ${MEMGB} GB | macOS $
 say "  Display: ${RES:-?} | ${METAL:-?} | Free: ${FREEGB} GiB"; say ""
 say "-- hardware --"
 case "$ARCHM" in arm64) chk PASS "Apple Silicon" "$CHIP";; *) chk FAIL "Apple Silicon" "$ARCHM - this plan targets arm64";; esac
-[ "$MEMGB" -ge 16 ] && chk PASS "RAM" "${MEMGB} GB" || chk WARN "RAM" "${MEMGB} GB - 8 GB is playable but tight"
+if [ "$MEMGB" -ge 16 ]; then chk PASS "RAM" "${MEMGB} GB"
+else chk WARN "RAM" "${MEMGB} GB - 8 GB is playable but tight"; fi
 case "$CHIP" in *Air*) chk WARN "Chassis" "fanless - expect 30-40 FPS sustained";; esac
-[ "$ROSETTA" = yes ] && chk PASS "Rosetta 2" "active" || chk FAIL "Rosetta 2" "not installed - softwareupdate --install-rosetta"
+if [ "$ROSETTA" = yes ]; then chk PASS "Rosetta 2" "active"
+else chk FAIL "Rosetta 2" "not installed - softwareupdate --install-rosetta"; fi
 say ""; say "-- macOS --"
 if [ "$OSMAJ" -ge 27 ] 2>/dev/null; then chk FAIL "Rosetta horizon" "macOS $OSMAJ >= 27 - general-purpose Rosetta is retired (risk R-1)"
 else chk PASS "Rosetta horizon" "macOS $OSMAJ - supported through macOS 27"; fi
@@ -44,8 +46,9 @@ if [ -d "$STEAM/steamapps/downloading/730" ]; then
   D=$(du -sg "$STEAM/steamapps/downloading/730" 2>/dev/null | awk '{print $1}')
   chk FAIL "Dead CS2 download (T-001)" "${D:-?} GiB in steamapps/downloading/730 - macOS Steam omits the win64 exe depot; DELETE IT"
 else chk PASS "Dead CS2 download (T-001)" "absent"; fi
-[ -f "$STEAM/steamapps/appmanifest_730.acf" ] && chk WARN "macOS appmanifest_730" "present - macOS Steam install has no cs2.exe (depot 2347771 absent); see T-001/T-008" \
-                                              || chk PASS "macOS appmanifest_730" "absent"
+if [ -f "$STEAM/steamapps/appmanifest_730.acf" ]; then
+  chk WARN "macOS appmanifest_730" "present - check the Windows game with ./bin/cs2kit doctor"
+else chk PASS "macOS appmanifest_730" "absent"; fi
 say ""; say "-- free stack: Wine + DXMT + MSync (T-004/T-006) --"
 HOST=none
 if command -v wine >/dev/null 2>&1; then
@@ -63,7 +66,9 @@ fi
 [ -d /Applications/Whisky.app ] && chk WARN "Whisky" "archived 2025-05-11 - not part of this plan"
 say ""; say "-- environment hygiene --"
 if system_profiler SPAirPortDataType 2>/dev/null | grep -qi 'awdl'; then chk WARN "AWDL" "AirDrop/Handoff can add Wi-Fi jitter (R-12)"; fi
-pmset -g 2>/dev/null | grep -q 'lowpowermode.*1' && chk WARN "Low Power Mode" "ON - disable before benchmarking" || chk PASS "Low Power Mode" "off"
+if pmset -g 2>/dev/null | grep -q 'lowpowermode.*1'; then
+  chk WARN "Low Power Mode" "ON - disable before benchmarking"
+else chk PASS "Low Power Mode" "off"; fi
 
 if [ $JSON -eq 1 ]; then
   printf '{"macos":"%s","build":"%s","chip":"%s","p_cores":"%s","e_cores":"%s","gpu_cores":"%s","metal":"%s","ram_gb":%s,"resolution":"%s","arch":"%s","rosetta":"%s","free_gib":%s,"runtime_host":"%s","fail":%s,"warn":%s}\n' \

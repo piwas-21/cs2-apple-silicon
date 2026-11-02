@@ -8,6 +8,7 @@ alone, with no manual step.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,12 @@ FORBIDDEN_LAUNCH_OPTIONS = {
 
 class RecipeError(ValueError):
     pass
+
+
+def validate_name(name: str) -> None:
+    """Profile names become filenames and script comments; keep them inert."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name):
+        raise RecipeError("profile name must start with a letter or digit and contain only ASCII letters, digits, _, . or -")
 
 
 @dataclass
@@ -151,6 +158,15 @@ class Recipe:
     def _validate_common(self) -> List[str]:
         """Rules that hold for a bottle recipe and a tuning profile alike."""
         problems: List[str] = []
+        try:
+            validate_name(self.name)
+        except RecipeError as exc:
+            problems.append(str(exc))
+        for key in self.env:
+            if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+                problems.append(f"env key {key!r} is not an ASCII shell identifier")
+            elif key not in {"WINEMSYNC", "WINEESYNC", "WINEDEBUG", "WINEDLLOVERRIDES", "MTL_HUD_ENABLED"} and not key.startswith("DXMT_"):
+                problems.append(f"env key {key!r} is outside the supported Wine/DXMT configuration surface")
         for opt in self.launch_options:
             if opt in FORBIDDEN_LAUNCH_OPTIONS:
                 problems.append(f"launch option {opt} is forbidden by docs/02-architecture.md")

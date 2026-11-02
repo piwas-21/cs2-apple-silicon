@@ -6,7 +6,11 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
-uv.lock
 cs2kit.egg-info/
 /graphify-out/
 /.local/
+/.coverage*
+/coverage.xml
+/test-results.xml
+/dist/
+/performance.json

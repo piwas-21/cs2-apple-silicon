@@ -3,8 +3,8 @@ import argparse
 
 import pytest
 
-from cs2kit import integrity, probe
-from cs2kit.util import EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN
+from cs2kit import integrity
+from cs2kit.util import EXIT_INTEGRITY, EXIT_NOT_READY, FAIL, PASS, WARN
 
 
 def args(**kw):

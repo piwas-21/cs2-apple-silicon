@@ -2,9 +2,7 @@
 """`cs2kit setup` is the command a new user runs first, so its plan and its
 blocking checks are contract, not convenience."""
 import argparse
-import json
 
-import pytest
 
 from cs2kit import engine, setup
 from cs2kit.util import EXIT_NOT_READY, EXIT_OK
