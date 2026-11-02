@@ -232,6 +232,17 @@ def load_default() -> Recipe:
     return load(default_path())
 
 
+def resolve_named(name: str) -> Recipe:
+    """Resolve persisted names from the profile inventory, never as host paths."""
+    if not isinstance(name, str):
+        raise RecipeError("active profile name must be a string")
+    validate_name(name)
+    for path in list_profiles():
+        if path.stem == name:
+            return load(path)
+    raise RecipeError(f"unknown profile name {name!r}")
+
+
 def resolve(name_or_path: Optional[str]) -> Recipe:
     """Accept a profile name (`balanced-1080p`), a bare filename or a path."""
     if not name_or_path:

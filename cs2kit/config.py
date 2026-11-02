@@ -33,7 +33,8 @@ def active_path() -> Path:
 
 def active() -> Dict[str, Any]:
     try:
-        return json.loads(active_path().read_text())
+        record = json.loads(active_path().read_text())
+        return record if isinstance(record, dict) else {}
     except (OSError, ValueError):
         return {}
 
@@ -161,7 +162,7 @@ def active_check() -> Check:
                      detail="no profile applied", fix="cs2kit config apply balanced-1080p",
                      task="T-027")
     try:
-        rec = recipe_mod.resolve(record.get("name"))
+        rec = recipe_mod.resolve_named(record.get("name"))
     except recipe_mod.RecipeError:
         return Check(id="profile", label="Active profile", status=WARN,
                      detail=f"{record.get('name')} is applied but no longer exists",

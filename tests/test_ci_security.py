@@ -2,13 +2,72 @@
 import datetime
 import importlib.util
 import json
+import io
 import os
 import stat
+import hashlib
+import tarfile
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def installer_module():
+    spec = importlib.util.spec_from_file_location('install_ci_tools', ROOT / 'scripts/install_ci_tools.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize('url', ['http://github.com/a', 'https://github.com.evil.invalid/a',
+                                'https://127.0.0.1/a', 'file:///etc/passwd',
+                                'https://user@github.com/a', 'https://github.com:8443/a'])
+def test_ci_tool_redirects_refuse_unapproved_destinations_before_following(url):
+    module = installer_module()
+    with pytest.raises(ValueError, match='URL'):
+        module.ReleaseRedirect().redirect_request(None, None, 302, '', {}, url)
+
+
+@pytest.mark.parametrize('corrupt,link', [(False, False), (True, False), (False, True)])
+def test_ci_tool_install_checks_bytes_and_member_and_publishes_only_in_private_temp(tmp_path, monkeypatch, corrupt, link):
+    module = installer_module()
+    archive = io.BytesIO()
+    payload = b'harmless test binary'
+    with tarfile.open(fileobj=archive, mode='w:gz') as tar:
+        member = tarfile.TarInfo('actionlint')
+        if link:
+            member.type = tarfile.SYMTYPE
+            member.linkname = '/outside'
+        else:
+            member.size = len(payload)
+        tar.addfile(member, None if link else io.BytesIO(payload))
+    data = archive.getvalue()
+    pin = {'url': 'https://github.com/rhysd/actionlint/releases/download/v1/tool.tar.gz',
+           'sha256': '0' * 64 if corrupt else hashlib.sha256(data).hexdigest()}
+    monkeypatch.setattr(module.json, 'loads', lambda text: {'actionlint': pin})
+    monkeypatch.setenv('RUNNER_TEMP', str(tmp_path))
+
+    class Response(io.BytesIO):
+        def geturl(self):
+            return pin['url']
+
+    class Opener:
+        def open(self, url, timeout):
+            return Response(data)
+
+    monkeypatch.setattr(module.urllib.request, 'build_opener', lambda *a: Opener())
+    if corrupt or link:
+        with pytest.raises(ValueError):
+            module.install('actionlint')
+        assert not list(tmp_path.rglob('actionlint'))
+    else:
+        target = module.install('actionlint')
+        assert target.read_bytes() == payload
+        assert target.parent.parent == tmp_path
+        assert stat.S_IMODE(target.parent.stat().st_mode) == 0o700
+        assert stat.S_IMODE(target.stat().st_mode) == 0o755
 
 
 def audit_module():

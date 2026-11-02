@@ -35,7 +35,7 @@ jobs:
       - name: Generate coverage without exposing analysis credentials to tests
         run: |
           uv sync --locked --no-build --no-install-project
-          uv run --locked --no-sync pytest --cov --cov-report=xml --junitxml=test-results.xml
+          uv run --locked --no-build --no-sync pytest --cov --cov-report=xml --junitxml=test-results.xml
       - name: Analyze source and wait for the quality gate
         uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         env:

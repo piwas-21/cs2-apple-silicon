@@ -44,7 +44,7 @@ jobs:
       - name: Install locked test dependencies without building the project
         run: uv sync --locked --no-build --no-install-project
       - name: Offline tests and branch coverage
-        run: uv run --locked --no-sync pytest --cov --cov-fail-under=80 --cov-report=xml --cov-report=term:skip-covered --junitxml=test-results.xml
+        run: uv run --locked --no-build --no-sync pytest --cov --cov-fail-under=80 --cov-report=xml --cov-report=term:skip-covered --junitxml=test-results.xml
       - name: Publish coverage and test results
         if: always() && matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -91,17 +91,17 @@ jobs:
           enable-cache: false
       - run: uv sync --locked --all-groups --no-build --no-install-project
       - name: Ruff correctness checks
-        run: uv run --locked --no-sync ruff check cs2kit scripts tests
+        run: uv run --locked --no-build --no-sync ruff check cs2kit scripts tests
       - name: ShellCheck and shell syntax
         run: |
           shellcheck bin/cs2kit scripts/preflight.sh
           bash -n bin/cs2kit scripts/preflight.sh
       - name: Verify pinned workflow actions and shell commands
         run: |
-          python scripts/install_ci_tools.py actionlint "$RUNNER_TEMP/ci-tools"
-          "$RUNNER_TEMP/ci-tools/actionlint" -color
+          tool_path=$(python scripts/install_ci_tools.py actionlint)
+          "$tool_path" -color
       - name: Documentation links and CLI contracts
-        run: uv run --locked --no-sync pytest tests/test_docs.py tests/test_docs_cli.py
+        run: uv run --locked --no-build --no-sync pytest tests/test_docs.py tests/test_docs_cli.py
 
   security:
     name: Security checks
@@ -119,13 +119,13 @@ jobs:
           enable-cache: false
       - run: uv sync --locked --all-groups --no-build --no-install-project
       - name: Python security analysis
-        run: uv run --locked --no-sync bandit -c pyproject.toml -r cs2kit -q
+        run: uv run --locked --no-build --no-sync bandit -c pyproject.toml -r cs2kit -q
       - name: Audit locked dependencies for supported Python versions
-        run: uv run --locked --no-sync python scripts/audit_dependencies.py
+        run: uv run --locked --no-build --no-sync python scripts/audit_dependencies.py
       - name: Redacted secret scan across repository history
         run: |
-          python scripts/install_ci_tools.py gitleaks "$RUNNER_TEMP/ci-tools"
-          "$RUNNER_TEMP/ci-tools/gitleaks" git --redact --no-banner --exit-code 1
+          tool_path=$(python scripts/install_ci_tools.py gitleaks)
+          "$tool_path" git --redact --no-banner --exit-code 1
 
   performance:
     name: Offline CLI performance

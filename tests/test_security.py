@@ -91,6 +91,49 @@ def test_profiles_cannot_inject_process_loader_or_shell_environment(sandbox, key
         rec.require_valid()
 
 
+@pytest.mark.parametrize("saved_env", [{"LD_PRELOAD": "/tmp/payload"}, {"WINEPREFIX": "/other"},
+                                        {"WINEMSYNC": "1", "WINEESYNC": "1"}, ["PATH"]])
+def test_guarded_launch_revalidates_saved_environment_before_any_process(sandbox, monkeypatch, saved_env):
+    from cs2kit import config, launch
+    from cs2kit.util import EXIT_NOT_READY, write_json
+    from test_cli_launch import largs
+
+    write_json(config.active_path(), {"env": saved_env})
+    monkeypatch.setattr(launch.integrity, "verify", lambda: pytest.fail("unsafe state reached launch preparation"))
+    monkeypatch.setattr(launch, "run", lambda *a, **kw: pytest.fail("unsafe state spawned a process"))
+    assert launch.cmd_launch(largs()) == EXIT_NOT_READY
+
+
+def test_guarded_launch_validates_explicit_profile_even_without_config_apply(sandbox, monkeypatch):
+    from cs2kit import launch
+    from cs2kit.util import EXIT_NOT_READY
+    from test_cli_launch import largs
+
+    rec = recipe.Recipe("unsafe", {"schema": 1, "name": "unsafe", "env": {"BASH_ENV": "payload"}})
+    monkeypatch.setattr(recipe, "resolve", lambda name: rec)
+    monkeypatch.setattr(launch.integrity, "verify", lambda: pytest.fail("unsafe profile reached launch preparation"))
+    assert launch.cmd_launch(largs(profile="unsafe")) == EXIT_NOT_READY
+
+
+@pytest.mark.parametrize("name", ["../outside", "/etc/passwd", "missing", None])
+def test_saved_profile_name_never_becomes_an_explicit_host_path(sandbox, monkeypatch, name):
+    from cs2kit.util import WARN, write_json
+
+    write_json(config.active_path(), {"name": name})
+    monkeypatch.setattr(recipe, "load", lambda path: pytest.fail("untrusted saved name caused a file read"))
+    assert config.active_check().status == WARN
+
+
+def test_recorded_wine_root_cannot_add_search_path_entries(sandbox):
+    from cs2kit import bottle
+    from cs2kit.util import write_json
+
+    root = sandbox.root / "wine:injected-bin"
+    (root / "lib/wine").mkdir(parents=True)
+    write_json(bottle.state_file(sandbox.prefix), {"wine_root": str(root)})
+    assert bottle.wine_root() is None
+
+
 def test_download_refuses_bad_bytes_before_publishing(sandbox, monkeypatch):
     dest = sandbox.root / "installer.exe"
     monkeypatch.setattr(engine, "_fetch", lambda url, path, progress: path.write_bytes(b"wrong"))

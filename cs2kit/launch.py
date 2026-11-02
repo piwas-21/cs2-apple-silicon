@@ -48,12 +48,19 @@ def steam_exe(prefix: Optional[Path] = None) -> Optional[Path]:
 
 
 def launch_env(rec: Optional[recipe_mod.Recipe], prefix: Path) -> Dict[str, str]:
-    env = {"WINEPREFIX": str(prefix)}
     record = config.active()
-    env.update({k: str(v) for k, v in (record.get("env") or {}).items()})
+    saved_env = record.get("env") or {}
+    if not isinstance(saved_env, dict):
+        raise recipe_mod.RecipeError("active profile env must be a mapping; reapply a valid profile")
+    env = {k: str(v) for k, v in saved_env.items()}
     if rec:
+        rec.require_valid()
         env.update({k: str(v) for k, v in rec.env.items()})
-    return env
+    # State files can outlive validation performed by `config apply`. Recheck
+    # the effective environment at the process boundary, including saved keys.
+    recipe_mod.Recipe("launch", {"schema": 1, "name": "launch", "kind": "profile",
+                                "provenance": "effective launch environment", "env": env}).require_valid()
+    return {"WINEPREFIX": str(prefix), **env}
 
 
 def build_command(rec: Optional[recipe_mod.Recipe], prefix: Path,
@@ -74,7 +81,8 @@ def build_command(rec: Optional[recipe_mod.Recipe], prefix: Path,
 def cmd_launch(args) -> int:
     prefix = Path(args.prefix or wineprefix())
     try:
-        rec = recipe_mod.resolve(args.profile) if args.profile else None
+        rec = recipe_mod.resolve(args.profile).require_valid() if args.profile else None
+        env = launch_env(rec, prefix)
     except recipe_mod.RecipeError as exc:
         return emit_error("launch", str(exc), json_mode=args.json)
 
@@ -102,8 +110,6 @@ def cmd_launch(args) -> int:
         cmd = build_command(rec, prefix, args.extra)
     except recipe_mod.RecipeError as exc:
         return emit_error("launch", str(exc), json_mode=args.json)
-    env = launch_env(rec, prefix)
-
     if args.json:
         print(json.dumps({"command": cmd, "env": env, "integrity": verdict.as_dict()},
                          indent=2, sort_keys=True))

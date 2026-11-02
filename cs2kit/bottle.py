@@ -153,7 +153,14 @@ def wine_root(explicit: Optional[str] = None, prefix: Optional[Path] = None) -> 
     `<app>/Contents/Resources/wine`; a Homebrew cask or a source build puts it
     somewhere else entirely, which is why this is derived, never assumed."""
     def ok(path: Optional[Path]) -> Optional[Path]:
-        return path if path and (Path(path) / "lib" / "wine").is_dir() else None
+        if not path:
+            return None
+        path = Path(path).resolve()
+        # A colon in a recorded path would add extra executable-search entries
+        # when the selected installation's bin directory is added to PATH.
+        if os.pathsep in str(path) or any(c in str(path) for c in "\r\n\0"):
+            return None
+        return path if (path / "lib" / "wine").is_dir() else None
 
     if explicit:
         return ok(Path(explicit).expanduser())

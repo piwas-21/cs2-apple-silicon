@@ -23,9 +23,9 @@ jobs:
           python-version: '3.13'
           enable-cache: false
       - run: uv sync --locked --all-groups --no-build --no-install-project
-      - run: uv run --locked --no-sync python scripts/audit_dependencies.py
-      - run: uv run --locked --no-sync bandit -c pyproject.toml -r cs2kit -q
+      - run: uv run --locked --no-build --no-sync python scripts/audit_dependencies.py
+      - run: uv run --locked --no-build --no-sync bandit -c pyproject.toml -r cs2kit -q
       - name: Redacted full-history secret scan
         run: |
-          python scripts/install_ci_tools.py gitleaks "$RUNNER_TEMP/ci-tools"
-          "$RUNNER_TEMP/ci-tools/gitleaks" git --redact --no-banner --exit-code 1
+          tool_path=$(python scripts/install_ci_tools.py gitleaks)
+          "$tool_path" git --redact --no-banner --exit-code 1
