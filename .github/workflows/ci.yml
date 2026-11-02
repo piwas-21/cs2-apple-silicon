@@ -156,8 +156,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Evaluate PR metadata with the target branch's policy implementation.
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          # Feature PRs use the trusted integration policy. Release PRs use the
+          # integration code being promoted, including the first CI bootstrap.
+          ref: ${{ github.event.pull_request.base.ref == 'develop' && github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
       - name: Enforce feature and release PR routes
         env:
