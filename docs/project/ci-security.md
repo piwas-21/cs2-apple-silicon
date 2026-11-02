@@ -19,6 +19,8 @@ and [Sonar](../../.github/workflows/sonar.yml).
 - `main` is the release branch. Only this repository's `develop` may open a passing promotion PR.
 - Both branches require PRs, resolved conversations, current CI and both CodeQL checks. Force pushes
   and deletion are blocked. There is no routine administrator bypass.
+- A separate code-scanning rule blocks CodeQL security findings rated high or critical and other
+  error-level findings. Successful scanner execution alone does not mean its findings are clean.
 - There is currently one writer. Required approval count is zero so the maintainer can merge their
   own PRs; outside contributions still require a maintainer to review and merge. CODEOWNERS requests
   visibility. Add a second required reviewer when the project has another trusted writer.
@@ -67,6 +69,10 @@ Workflow permissions default to read-only. Checkout does not persist credentials
 caches are disabled, and timeouts/concurrency limits bound wasted runs. CodeQL alone receives the
 security-events write permission needed for reports. No workflow uses `pull_request_target` or
 executes artifacts from an untrusted privileged follow-up run.
+Repository secret scanning and push protection, Dependabot security updates, and private vulnerability
+reporting are enabled. PR branch-policy code is checked out from the target branch. Maintainers must
+still review workflow and policy changes: a required check name cannot prove that a proposed workflow
+continues to perform the same validation.
 
 Fork PRs receive ordinary tests and security checks without Sonar credentials. Sonar's token is
 available only to its scanner step on trusted integration events; it is not passed to test commands.
@@ -87,6 +93,22 @@ Shutdown uses the selected prefix's wineserver and waits for termination; it no 
 PID/name matches. Native Wine behavior and physical game acceptance still require manual validation.
 The unmerged external security PR is not imported wholesale; its runtime-copy feature remains a
 separate proposal and must address its review before adoption.
+
+The Wine installation selected in local bottle configuration is a trusted executable dependency.
+Canonicalization and rejection of PATH separators/control characters prevent extra search entries;
+they do not authenticate a user-supplied engine or sandbox hostile local configuration. Do not import
+an untrusted bottle's engine configuration or run CS2Kit as a privileged service.
+
+Two Sonar findings were individually reviewed as false positives, with rationale recorded on each
+issue, without disabling their rules:
+
+- `AaGZ1PFSLh6Xm1Y7HCBA` (`S6549`): checking the selected Wine directory is local engine discovery.
+  There is no HTTP requester or less-privileged recipient to receive a filesystem-existence oracle.
+- `AaGZ1PHLLh6Xm1Y7HCBC` (`S7044`): CI tool URLs come from the checked-in manifest, under the same
+  review authority as the executing script. Official repository/HTTPS/redirect checks and SHA-256
+  verification apply before installation in a new private directory. No external URL input is accepted.
+
+Reassess these decisions if configuration is served remotely or tool manifests become external inputs.
 
 ## Python 3.9 test-tool exception
 
@@ -124,10 +146,10 @@ their capture/input routines.
 
 ```bash
 uv sync --locked --all-groups --no-build --no-install-project --python 3.13
-uv run --locked --no-sync pytest --cov --cov-fail-under=80
-uv run --locked --no-sync ruff check cs2kit scripts tests
-uv run --locked --no-sync bandit -c pyproject.toml -r cs2kit -q
-uv run --locked --no-sync python scripts/audit_dependencies.py
+uv run --locked --no-build --no-sync pytest --cov --cov-fail-under=80
+uv run --locked --no-build --no-sync ruff check cs2kit scripts tests
+uv run --locked --no-build --no-sync bandit -c pyproject.toml -r cs2kit -q
+uv run --locked --no-build --no-sync python scripts/audit_dependencies.py
 shellcheck bin/cs2kit scripts/preflight.sh
 actionlint
 python3 scripts/perf_smoke.py
