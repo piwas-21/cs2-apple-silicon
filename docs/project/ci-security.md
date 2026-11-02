@@ -90,6 +90,9 @@ A scanner does not prove archive containment, shell argument preservation or pro
 The executable regressions in [test_archive.py](../../tests/test_archive.py) and
 [test_security.py](../../tests/test_security.py) cover these boundaries with temporary sentinels,
 including symlink chains, hard links, destination swaps, shell payloads and checksum refusal.
+Archive symbolic links are checked against the staged graph and the corresponding destination
+targets. Legitimate dangling wrapper links remain supported; links that would bind to retained
+destination symlinks outside the extraction root are rejected before publication.
 Shutdown uses the selected prefix's wineserver and waits for termination; it no longer kills global
 PID/name matches. Native Wine behavior and physical game acceptance still require manual validation.
 The unmerged external security PR is not imported wholesale; its runtime-copy feature remains a
