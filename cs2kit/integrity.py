@@ -13,13 +13,14 @@ Wine's own DLL overrides, environment variables, launch options and
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from cs2kit import probe
-from cs2kit.util import (EXIT_FAIL, EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL,
+from cs2kit.util import (EXIT_FAIL, EXIT_INTEGRITY, EXIT_OK, FAIL,
                          PASS, WARN, Check, emit_error, read_json, state_dir, write_json)
 
 #: Only files that VAC would consider "core" are guarded; a shader cache or a
@@ -59,6 +60,8 @@ def scan(root: Path) -> Dict[str, str]:
 
 
 def baseline_path(buildid: Optional[str]) -> Path:
+    if buildid and not re.fullmatch(r"[0-9]{1,32}", str(buildid)):
+        raise IntegrityError("invalid Steam build id for an integrity baseline")
     return state_dir() / "integrity" / f"{buildid or 'unknown'}.json"
 
 

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -78,20 +77,12 @@ def steam_running() -> bool:
 
 
 def clean_stale_steam() -> List[str]:
-    """Kill helpers left behind by a previous client.
+    """Compatibility hook: process names do not establish prefix ownership.
 
-    Measured 2026-08-25: four orphaned `steamservice.exe` processes stopped a new
-    client from starting at all - it logged in, then exited silently, and the app
-    looked broken."""
-    killed = []
-    if steam_running():
-        return killed
-    for pattern in ("steamservice.exe", "steamwebhelper.exe"):
-        pids = _pids(pattern)
-        if pids:
-            run(["kill", "-9", *pids], timeout=10)
-            killed.extend(pids)
-    return killed
+    Starting a game must never kill another bottle's helpers. Stop a stuck
+    bottle explicitly with the prefix-scoped `cs2kit stop` command.
+    """
+    return []
 
 
 def diagnose(prefix: Path) -> Optional[str]:
@@ -115,11 +106,7 @@ def build(prefix: Optional[Path] = None, profile: Optional[str] = None,
     """Resolve everything needed to start the game, now, from disk."""
     prefix = Path(prefix or wineprefix())
     wine_root = bottle.wine_root()
-    rec = None
-    try:
-        rec = recipe_mod.resolve(profile) if profile else recipe_mod.load_default()
-    except recipe_mod.RecipeError:
-        rec = None
+    rec = (recipe_mod.resolve(profile) if profile else recipe_mod.load_default()).require_valid()
     env = {"WINEPREFIX": str(prefix), "WINEDEBUG": "-all", "WINEMSYNC": "1"}
     if rec:
         env.update({k: os.path.expandvars(str(v)) for k, v in rec.env.items()})
@@ -203,7 +190,10 @@ def cmd_play(args) -> int:
             notify(problem)
         return emit_error("play", problem, EXIT_NOT_READY, args.json)
 
-    plan = build(prefix, args.profile, args.extra)
+    try:
+        plan = build(prefix, args.profile, args.extra)
+    except recipe_mod.RecipeError as exc:
+        return emit_error("play", str(exc), EXIT_NOT_READY, args.json)
     client = steam_client(prefix)
     if not args.print_only and client and not steam_running():
         # --print-only promises "print the plan, start nothing" (docs/cli-reference.md),
@@ -255,7 +245,8 @@ def cmd_play(args) -> int:
     if cache:
         Path(cache).mkdir(parents=True, exist_ok=True)
     os.chdir(target_dir)
-    os.execve(cmd[0], cmd, env)
+    # Intentional process replacement with an argument array, not a shell.
+    os.execve(cmd[0], cmd, env)  # nosec B606
     return EXIT_OK   # pragma: no cover - execve does not return
 
 
@@ -272,13 +263,10 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "a") as handle:
         handle.write(f"starting Steam with {wine}\n")
-    subprocess.Popen(
-        ["bash", "-lc",
-         f'cd {shlex.quote(str(client.parent))} && '
-         f'nohup {shlex.quote(wine)} {shlex.quote(str(client))} -no-cef-sandbox '
-         f'>>{shlex.quote(str(log))} 2>&1 &'],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
-        env=full, start_new_session=True)
+        handle.flush()
+        subprocess.Popen([wine, str(client), "-no-cef-sandbox"], cwd=str(client.parent),
+                         stdout=handle, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                         env=full, start_new_session=True)
     for _ in range(20):
         time.sleep(2)
         if steam_running():

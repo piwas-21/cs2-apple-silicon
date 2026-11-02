@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from cs2kit import bottle, config, integrity, probe, recipe as recipe_mod
 from cs2kit.util import (EXIT_FAIL, EXIT_OK, FAIL, PASS, SKIP, WARN, Check, CheckSet, run,
-                         steam_root, which, wineprefix)
+                         wineprefix)
 
 MIN_FREE_GIB = 80          # T-024: CS2 + bottle + headroom
 MIN_WINE_MAJOR = 11

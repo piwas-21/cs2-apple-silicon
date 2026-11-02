@@ -1,37 +1,61 @@
-
-"""`cs2kit stop`: quitting Wine from the menu bar does not stop anything."""
+"""Shutdown authority is a prefix-scoped wineserver, never a global PID match."""
 import argparse
 import json
 
-from cs2kit import stop as stop_mod
-from cs2kit.util import EXIT_OK, Proc
+import pytest
+
+from cs2kit import bottle, stop as stop_mod
+from cs2kit.util import EXIT_FAIL, EXIT_OK, Proc, write_json
 
 
-def test_it_stops_the_youngest_process_first(monkeypatch, sandbox):
-    order = []
-    alive = {"cs2.exe": ["11"], "steam.exe": ["22"], "steamwebhelper.exe": ["33"],
-             "steamservice.exe": ["44"]}
+def engine_for(prefix, root):
+    (root / "lib/wine").mkdir(parents=True)
+    (root / "bin").mkdir()
+    (root / "bin/wineserver").write_text("fake")
+    (prefix / "system.reg").write_text("registry")
+    write_json(bottle.state_file(prefix), {"wine_root": str(root)})
+    return root / "bin/wineserver"
+
+
+@pytest.mark.parametrize("force,flag", [(False, "-k"), (True, "-k9")])
+def test_shutdown_uses_only_the_selected_prefix(monkeypatch, sandbox, force, flag):
+    selected = sandbox.root / "other prefix"
+    selected.mkdir()
+    server = engine_for(selected, sandbox.root / "selected-engine")
+    engine_for(sandbox.prefix, sandbox.root / "default-engine")
+    calls = []
 
     def fake_run(cmd, **kw):
-        if cmd[0] == "pgrep":
-            name = cmd[-1]
-            return Proc(0, " ".join(alive.get(name, [])), "") if alive.get(name) else Proc(1, "", "")
-        if cmd[0] == "kill":
-            for name, pids in alive.items():
-                if set(pids) & set(cmd[2:]):
-                    order.append(name)
-                    alive[name] = []
-            return Proc(0, "", "")
+        calls.append((cmd, kw["env"]))
         return Proc(0, "", "")
 
     monkeypatch.setattr(stop_mod, "run", fake_run)
-    result = stop_mod.stop(sandbox.prefix, log=lambda m: None)
-    assert order == stop_mod.STAGES, "the game must go before Steam, helpers after"
-    assert result["stopped"] == {name: 1 for name in stop_mod.STAGES}
+    result = stop_mod.stop(selected, force=force, log=lambda m: None)
+    assert result["ok"] and result["wineserver_killed"]
+    assert calls == [([str(server), flag], {"WINEPREFIX": str(selected.resolve())}),
+                     ([str(server), "-w"], {"WINEPREFIX": str(selected.resolve())})]
+    assert not any(cmd[0] in ("pgrep", "ps", "kill") for cmd, _ in calls)
 
 
-def test_stopping_an_idle_bottle_is_not_an_error(monkeypatch, sandbox, capsys):
-    monkeypatch.setattr(stop_mod, "run", lambda cmd, **kw: Proc(1, "", ""))
-    args = argparse.Namespace(prefix=str(sandbox.prefix), force=False, json=False)
+def test_missing_prefix_is_a_noop(monkeypatch, sandbox, capsys):
+    monkeypatch.setattr(stop_mod, "run", lambda *a, **kw: pytest.fail("missing prefix must not run anything"))
+    args = argparse.Namespace(prefix=str(sandbox.prefix), force=False, json=True)
     assert stop_mod.cmd_stop(args) == EXIT_OK
-    assert "nothing was running" in capsys.readouterr().out
+    assert json.loads(capsys.readouterr().out)["ok"]
+
+
+def test_shutdown_without_an_engine_fails_without_signalling(monkeypatch, sandbox, capsys):
+    (sandbox.prefix / "system.reg").write_text("registry")
+    monkeypatch.setattr(bottle, "wine_root", lambda **kw: None)
+    monkeypatch.setattr(stop_mod, "run", lambda *a, **kw: pytest.fail("no engine must not run anything"))
+    args = argparse.Namespace(prefix=str(sandbox.prefix), force=False, json=True)
+    assert stop_mod.cmd_stop(args) == EXIT_FAIL
+    payload = json.loads(capsys.readouterr().out)
+    assert not payload["ok"] and "no processes were signalled" in payload["detail"]
+
+
+@pytest.mark.parametrize("code", [124, 127, 2])
+def test_shutdown_errors_are_not_reported_as_success(monkeypatch, sandbox, code):
+    engine_for(sandbox.prefix, sandbox.root / "engine")
+    monkeypatch.setattr(stop_mod, "run", lambda *a, **kw: Proc(code, "", "failed"))
+    assert not stop_mod.stop(sandbox.prefix, log=lambda m: None)["ok"]

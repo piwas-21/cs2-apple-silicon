@@ -2,14 +2,13 @@
 """Tests for the two commands that remove manual steps: engine and app."""
 import argparse
 import json
-import stat
 import tarfile
 from pathlib import Path
 
 import pytest
 
 from cs2kit import app as app_mod, engine
-from cs2kit.util import EXIT_NOT_READY, EXIT_OK
+from cs2kit.util import EXIT_NOT_READY
 
 
 def make_engine_archive(tmp_path, name="WS12WineFake.tar.xz"):

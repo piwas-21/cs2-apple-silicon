@@ -54,7 +54,8 @@ PLACEHOLDERS = {
 #: 127.0.0.1 identifies nobody. Every other address - public *and* RFC1918 - goes:
 #: a LAN address plus a timestamp is a fingerprint, and we are not in the business
 #: of deciding which private ranges are safe.
-KEEP_ADDRESSES = {"127.0.0.1", "::1", "0.0.0.0"}
+# This is a redaction allowlist; no socket is opened here.
+KEEP_ADDRESSES = {"127.0.0.1", "::1", "0.0.0.0"}  # nosec B104
 
 # --- detectors ---------------------------------------------------------------
 _RE_STEAMID64 = re.compile(r"(?<!\d)7656119\d{10}(?!\d)")

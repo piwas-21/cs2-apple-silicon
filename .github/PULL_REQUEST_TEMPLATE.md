@@ -20,6 +20,8 @@ $ cs2kit doctor
 
 ## Checklist
 
+- [ ] Feature/fix PR targets `develop`; a release PR targets `main` from this repository's `develop`.
+- [ ] CI required checks and both CodeQL analyses pass; available Sonar findings have been reviewed.
 - [ ] `uv run pytest` passes locally.
 - [ ] `cs2kit/` still imports on the system interpreter:
       `PYTHONPATH="$PWD" /usr/bin/python3 -c "import cs2kit.cli"`
@@ -27,7 +29,7 @@ $ cs2kit doctor
       (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 - [ ] No game file is written, patched, hooked or hashed-around; no Steam
       authentication is wrapped; nothing touches VAC
-      (see [docs/06-legal-and-policy.md](../docs/06-legal-and-policy.md)).
+      (see [docs/legal-and-vac.md](../docs/legal-and-vac.md)).
 - [ ] Every new factual claim in `docs/` cites a `docs/` or `research/` file,
       and is tagged CONFIRMED / LIKELY / UNKNOWN.
 - [ ] Unmeasured values say **not measured** or **UNRECORDED**. No invented FPS

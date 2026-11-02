@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from cs2kit import probe, recipe as recipe_mod
-from cs2kit.util import (EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, FAIL, PASS, WARN, Check,
+from cs2kit.util import (EXIT_FAIL, EXIT_OK, FAIL, PASS, WARN, Check,
                          Proc, emit_error, run, steam_root, which, wineprefix, write_json)
 
 WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
@@ -26,9 +26,7 @@ WINE_KEY = r"HKEY_CURRENT_USER\Software\Wine"
 #: DEAD - the cask was deleted from the tap on 2026-04-16 and had shipped Wine
 #: 8.0.1 anyway - and Homebrew's own wine casks are disabled on 2026-09-01 for
 #: failing Gatekeeper. A tarball has neither problem and needs no admin rights.
-INSTALL_HINT = ("curl -fL -O https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.15/"
-                "wine-staging-11.15-osx64.tar.xz && mkdir -p ~/CS2/wine && "
-                "tar -xJf wine-staging-11.15-osx64.tar.xz -C ~/CS2/wine  (docs/reference/toolchain.md)")
+INSTALL_HINT = "cs2kit engine install sikarugir-10"
 
 
 class BottleError(RuntimeError):
@@ -146,7 +144,7 @@ def desired_registry(rec: recipe_mod.Recipe) -> List[Tuple[str, str, str]]:
     return out
 
 
-def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
+def wine_root(explicit: Optional[str] = None, prefix: Optional[Path] = None) -> Optional[Path]:
     """The Wine *installation* (the directory holding `bin/` and `lib/wine/`).
 
     DXMT's published build installs into this tree, not into the prefix, so
@@ -155,14 +153,21 @@ def wine_root(explicit: Optional[str] = None) -> Optional[Path]:
     `<app>/Contents/Resources/wine`; a Homebrew cask or a source build puts it
     somewhere else entirely, which is why this is derived, never assumed."""
     def ok(path: Optional[Path]) -> Optional[Path]:
-        return path if path and (Path(path) / "lib" / "wine").is_dir() else None
+        if not path:
+            return None
+        path = Path(path).resolve()
+        # A colon in a recorded path would add extra executable-search entries
+        # when the selected installation's bin directory is added to PATH.
+        if os.pathsep in str(path) or any(c in str(path) for c in "\r\n\0"):
+            return None
+        return path if (path / "lib" / "wine").is_dir() else None
 
     if explicit:
         return ok(Path(explicit).expanduser())
     # 1. what this bottle was built with. The launcher app runs without the engine
     #    on PATH, so `which wine` alone is not enough - that is what made the app
     #    fail to start Steam on 2026-08-25.
-    recorded = read_state().get("wine_root")
+    recorded = read_state(prefix).get("wine_root")
     found = ok(Path(recorded)) if recorded else None
     if found:
         return found

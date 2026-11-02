@@ -74,6 +74,7 @@ Apple Silicon Mac · macOS 13+ · Rosetta 2 · ~90 GB free · a Steam account th
 | Full install walkthrough | [docs/install.md](docs/install.md) |
 | Remove CS2Kit and choose what to keep | [docs/uninstall.md](docs/uninstall.md) |
 | Every command | [docs/cli-reference.md](docs/cli-reference.md) |
+| CI, security and contribution flow | [docs/project/ci-security.md](docs/project/ci-security.md) |
 | Why this Wine build and not another | [docs/architecture.md](docs/architecture.md) |
 | What was actually measured | [docs/project/measured-results.md](docs/project/measured-results.md) |
 

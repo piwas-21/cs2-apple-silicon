@@ -13,7 +13,7 @@ def test_apply_writes_a_sourceable_env_script(sandbox):
     result = config.apply(recipe_mod.resolve("balanced-1080p"))
     script = open(result["record"]["env_script"]).read()
     assert script.startswith("#!/usr/bin/env bash")
-    assert 'export WINEMSYNC="1"' in script
+    assert 'export WINEMSYNC=1' in script
     assert str(sandbox.prefix) in script
     assert config.active()["name"] == "balanced-1080p"
 

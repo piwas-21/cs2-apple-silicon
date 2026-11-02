@@ -97,7 +97,7 @@ def test_json_errors_have_one_machine_readable_shape(sandbox, capsys):
     """Documented caveat turned into a contract: --json failures are JSON."""
     import json as _json
 
-    from cs2kit import bottle, config
+    from cs2kit import config
 
     cases = [
         (bottle.cmd_diff, argparse.Namespace(recipe=None, prefix=str(sandbox.prefix / "nope"),

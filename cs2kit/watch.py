@@ -68,9 +68,12 @@ class WatchError(RuntimeError):
 
 # --- remote ------------------------------------------------------------------
 def _http_get_json(url: str, timeout: float) -> Any:
+    if not url.startswith("https://"):
+        raise WatchError("remote build queries require HTTPS")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - https literal
+    # The query URL is HTTPS-only; this is a read-only build metadata lookup.
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
         raw = response.read(MAX_BYTES)
     return json.loads(raw.decode("utf-8", "replace"))
 

@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cs2kit.util import Proc, read_json, run, steam_root, sysctl, which, wineprefix
+from cs2kit.util import read_json, run, steam_root, sysctl, which, wineprefix
 
 APPID = "730"
 DEPOT_WIN64 = "2347771"   # the .exe/.dll depot macOS Steam omits (T-001)

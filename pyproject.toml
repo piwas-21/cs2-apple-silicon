@@ -16,7 +16,32 @@ cs2kit = "cs2kit.cli:main"
 Homepage = "https://github.com/piwas-21/cs2-apple-silicon"
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-cov>=6.0"]
+quality = ["ruff>=0.14", "bandit>=1.8", "pip-audit>=2.9", "packaging>=25"]
+
+[tool.uv.dependency-groups]
+quality = { requires-python = ">=3.13" }
+
+[tool.ruff]
+target-version = "py39"
+extend-exclude = ["graphify-out", ".local"]
+
+[tool.ruff.lint]
+select = ["E9", "F"]
+
+[tool.coverage.run]
+source = ["cs2kit"]
+branch = true
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.bandit]
+exclude_dirs = ["tests", "graphify-out", ".local"]
+# Subprocesses use argument arrays and selected Wine executables. The risk is
+# authority/path validation, covered by behavioral tests, not importing these APIs.
+skips = ["B404", "B603", "B607"]
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """T-010 gate: two passes per map, bots joined, FPS sampled by on-screen OCR."""
 import json, os, re, subprocess, sys, time
+import tempfile
+from pathlib import Path
 import Quartz, Vision
 from Foundation import NSURL
 from PIL import Image
@@ -16,6 +18,8 @@ LOG = open(f"{HOME}/CS2/t010-gate.jsonl", "a", buffering=1)
 MAPS = ["de_dust2", "de_mirage", "de_ancient"]
 PASSES = 2
 MINUTES = float(sys.argv[1]) if len(sys.argv) > 1 else 10.0
+TEMPORARY = tempfile.TemporaryDirectory(prefix="cs2kit-gate-")
+TEMP_ROOT = Path(TEMPORARY.name)
 
 
 def rec(**kw):
@@ -37,7 +41,8 @@ def window():
     return None
 
 
-def shot(win, path="/tmp/gate_s.png"):
+def shot(win, path=None):
+    path = path or str(TEMP_ROOT / "gate.png")
     subprocess.run(["screencapture", "-l", str(win["id"]), "-o", "-x", path], capture_output=True, timeout=60)
     return path if os.path.exists(path) else None
 
@@ -54,8 +59,9 @@ def ocr(path):
 def fps_of(path):
     im = Image.open(path).crop((0, 320, 760, 420))
     im = im.resize((im.width * 4, im.height * 4))
-    im.save("/tmp/gate_fps.png")
-    for s in ocr("/tmp/gate_fps.png"):
+    crop = str(TEMP_ROOT / "gate-fps.png")
+    im.save(crop)
+    for s in ocr(crop):
         m = re.search(r"(\d{2,3})\s*fps", s, re.I)
         if m:
             v = int(m.group(1))
@@ -96,7 +102,8 @@ def focus():
 
 for mp in MAPS:
     for pas in range(1, PASSES + 1):
-        sh("pkill -f cs2.exe; sleep 4")
+        subprocess.run([f"{SK}/bin/wineserver", "-k"], env=ENV, timeout=30, check=True)
+        time.sleep(4)
         args = ("-novid -nojoy -console +exec cs2kit +exec cs2kit_gate "
                 f"+game_type 0 +game_mode 0 +sv_lan 1 +map {mp}")
         subprocess.Popen(["bash", "-lc", f'cd "{GAME}" && exec wine cs2.exe {args}'],

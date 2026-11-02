@@ -1,0 +1,12 @@
+[
+  {
+    "package": "pytest",
+    "version": "8.4.2",
+    "python": "3.9",
+    "ids": ["PYSEC-2026-1845", "GHSA-6w46-j5rx-g56g", "CVE-2025-71176"],
+    "expires": "2026-12-31",
+    "reason": "The last Python 3.9-compatible pytest has no fixed release. Required to test macOS's system interpreter; never a runtime dependency.",
+    "mitigation": "tests/conftest.py sets basetemp beneath a fresh mode-0700 TemporaryDirectory before TempPathFactory initializes. tests/test_ci_security.py verifies this property. Never use pytest's predictable shared default root.",
+    "reference": "https://github.com/pytest-dev/pytest/pull/14343"
+  }
+]

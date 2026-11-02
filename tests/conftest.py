@@ -1,11 +1,29 @@
-import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    """Avoid pytest's predictable shared temporary root (CVE-2025-71176).
+
+    Python 3.9's last compatible pytest is unfixed. Configure a fresh private
+    parent before pytest's TempPathFactory is initialized, on every version.
+    """
+    temporary = tempfile.TemporaryDirectory(prefix="cs2kit-tests-")
+    config._cs2kit_private_temp = temporary
+    config.option.basetemp = str(Path(temporary.name) / "data")
+
+
+def pytest_unconfigure(config):
+    temporary = getattr(config, "_cs2kit_private_temp", None)
+    if temporary:
+        temporary.cleanup()
 
 
 @pytest.fixture()

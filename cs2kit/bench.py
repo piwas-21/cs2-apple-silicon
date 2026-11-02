@@ -405,6 +405,8 @@ def bench_dir() -> Path:
 
 
 def session_dir(env_id: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", env_id or "unknown"):
+        raise BenchError("invalid benchmark environment id")
     return bench_dir() / (env_id or "unknown")
 
 
@@ -458,7 +460,9 @@ def save_session(session: Dict[str, Any]) -> Path:
     second would otherwise silently overwrite the first - and a benchmark history
     that quietly loses entries is worse than no history."""
     directory = session_dir(session.get("env_id") or "unknown")
-    base = session["id"]
+    base = str(session["id"])
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", base):
+        raise BenchError("invalid benchmark session id")
     ident, suffix = base, 1
     while (directory / ("%s.json" % ident)).exists():
         suffix += 1
