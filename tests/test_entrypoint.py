@@ -86,7 +86,8 @@ def test_entrypoint_prefers_xz_support_for_installs(launcher, args, alternate, u
     used = tools / "used-first"
     missing_xz = tools / "missing xz"
     missing_xz.mkdir()
-    (missing_xz / "_lzma.py").write_text("raise ModuleNotFoundError('No module named _lzma')\n")
+    # Some Python builds bundle _lzma as a built-in module.
+    (missing_xz / "sitecustomize.py").write_text("import sys\nsys.modules['_lzma'] = None\n")
     executable(tools / "python3",
                'export PYTHONPATH=' + shlex.quote(str(missing_xz)) + ':"${PYTHONPATH:-}"\n'
                'if [[ "$1" == -m ]]; then : > ' + shlex.quote(str(used)) + '; fi\n'
