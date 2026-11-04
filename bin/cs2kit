@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Zero-install entry point: runs CS2Kit straight from a checkout with the first
-# Python 3.9+ that actually runs. No pip, no venv, no dependencies (stdlib only).
+# Runs CS2Kit straight from a checkout with Python 3.9+. No pip or venv.
 set -euo pipefail
 
 # Finder has a minimal PATH, and Apple's developer-tools Python can refuse to
@@ -13,19 +12,30 @@ python_candidates() {
   done
   printf '%s\n' /opt/homebrew/bin/python3 /usr/local/bin/python3 \
     /Library/Frameworks/Python.framework/Versions/Current/bin/python3 \
-    /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+    /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 \
+    /Library/Developer/CommandLineTools/usr/bin/python3 /usr/bin/python3
 }
 
 pick_python3() {
-  local candidate
+  local candidate fallback="" prefer_xz=false
+  if [ "${1:-}" = setup ] || { [ "${1:-}" = engine ] && [ "${2:-}" = install ]; }; then
+    prefer_xz=true
+  fi
   while IFS= read -r candidate; do
     [ -x "$candidate" ] || continue
     "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' \
       </dev/null >/dev/null 2>&1 || continue
+    if [ "$prefer_xz" = true ] && ! "$candidate" -c 'import lzma' \
+        </dev/null >/dev/null 2>&1; then
+      fallback="${fallback:-$candidate}"
+      continue
+    fi
     printf '%s\n' "$candidate"
     return 0
   done < <(python_candidates)
-  return 1
+  # Keep help and dry runs available. The installer explains missing XZ support.
+  [ -n "$fallback" ] || return 1
+  printf '%s\n' "$fallback"
 }
 
 main() {
@@ -35,7 +45,7 @@ main() {
   export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
   export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
 
-  if python_bin="$(pick_python3)"; then
+  if python_bin="$(pick_python3 "$@")"; then
     exec "$python_bin" -m cs2kit "$@"
   fi
 

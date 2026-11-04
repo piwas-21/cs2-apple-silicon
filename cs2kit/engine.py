@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import urllib.request
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -186,6 +187,13 @@ def install(name: str = RECOMMENDED, dest: Optional[Path] = None,
     engine = ENGINES.get(name)
     if engine is None:
         raise EngineError(f"unknown engine {name!r} (known: {', '.join(sorted(ENGINES))})")
+    try:
+        import_module("lzma")
+    except ImportError as exc:
+        raise EngineError(
+            "Wine archives need Python's lzma module for XZ decompression. "
+            "Install Python 3.9+ with lzma support from https://www.python.org/downloads/macos/ "
+            "and rerun with ./bin/cs2kit.") from exc
     if engine.verdict == "broken":
         log(f"warning: {name} is recorded as BROKEN - {engine.why}")
     root = Path(dest or (engines_dir() / name))
