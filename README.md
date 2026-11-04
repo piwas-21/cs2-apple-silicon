@@ -20,6 +20,9 @@ cd cs2-apple-silicon
 That fetches the Wine build that works, fetches DXMT, builds the bottle, installs the Windows Steam
 client and writes a **Counter-Strike 2 app in your Applications folder**. Takes about 10 minutes.
 
+If setup reports missing `lzma` support, use the [python.org macOS installer](https://www.python.org/downloads/macos/)
+and rerun `./bin/cs2kit setup`. Setup checks and reuses cached Wine downloads.
+
 Then: **open the app, log in to Steam** (scan the QR code with the Steam mobile app), and install CS2 —
 if you already have it, `cs2kit` points Steam at your existing copy instead of downloading 70 GB again.
 

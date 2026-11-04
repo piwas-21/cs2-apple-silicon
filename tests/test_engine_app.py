@@ -2,6 +2,7 @@
 """Tests for the two commands that remove manual steps: engine and app."""
 import argparse
 import json
+import sys
 import tarfile
 from pathlib import Path
 
@@ -40,6 +41,15 @@ def test_checksum_mismatch_deletes_the_download(tmp_path):
         engine.download("file:///unused", blob, sha256="0" * 64)
     assert "sha256" in str(exc.value)
     assert not blob.exists(), "a mismatched archive must not be left on disk"
+
+
+def test_engine_install_reports_missing_lzma_before_downloading(sandbox, monkeypatch):
+    monkeypatch.delitem(sys.modules, "lzma", raising=False)
+    monkeypatch.setitem(sys.modules, "_lzma", None)
+    monkeypatch.setattr(engine, "download", lambda *args: pytest.fail("attempted download"))
+
+    with pytest.raises(engine.EngineError, match=r"lzma.*python\.org"):
+        engine.install()
 
 
 def test_extract_and_find_bundle(tmp_path):
