@@ -2,6 +2,7 @@
 """Tests for the two commands that remove manual steps: engine and app."""
 import argparse
 import json
+import sys
 import tarfile
 from pathlib import Path
 
@@ -43,7 +44,8 @@ def test_checksum_mismatch_deletes_the_download(tmp_path):
 
 
 def test_engine_install_reports_missing_lzma_before_downloading(sandbox, monkeypatch):
-    monkeypatch.setattr(engine, "lzma", None)
+    monkeypatch.delitem(sys.modules, "lzma", raising=False)
+    monkeypatch.setitem(sys.modules, "_lzma", None)
     monkeypatch.setattr(engine, "download", lambda *args: pytest.fail("attempted download"))
 
     with pytest.raises(engine.EngineError, match=r"lzma.*python\.org"):

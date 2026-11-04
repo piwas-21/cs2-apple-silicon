@@ -14,16 +14,12 @@ import shutil
 import tempfile
 import urllib.request
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from cs2kit.archive import UnsafeArchive, unpack
 from cs2kit.util import EXIT_OK, emit_error, run, state_dir
-
-try:
-    import lzma
-except ImportError:
-    lzma = None
 
 #: Wrapper dylibs the Sikarugir/CrossOver engines link against. Without them
 #: `wineserver` aborts with `Library not loaded: @rpath/libinotify.0.dylib`.
@@ -191,11 +187,13 @@ def install(name: str = RECOMMENDED, dest: Optional[Path] = None,
     engine = ENGINES.get(name)
     if engine is None:
         raise EngineError(f"unknown engine {name!r} (known: {', '.join(sorted(ENGINES))})")
-    if lzma is None:
+    try:
+        import_module("lzma")
+    except ImportError as exc:
         raise EngineError(
             "Wine archives need Python's lzma module for XZ decompression. "
             "Install Python 3.9+ with lzma support from https://www.python.org/downloads/macos/ "
-            "and rerun with ./bin/cs2kit.")
+            "and rerun with ./bin/cs2kit.") from exc
     if engine.verdict == "broken":
         log(f"warning: {name} is recorded as BROKEN - {engine.why}")
     root = Path(dest or (engines_dir() / name))
