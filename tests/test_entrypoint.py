@@ -75,6 +75,40 @@ def test_interpreter_probe_requires_39_and_suppresses_its_output(launcher):
     assert json.loads(proc.stdout)["args"] == ["--help"]
 
 
+@pytest.mark.parametrize("args, alternate, uses_first", [
+    (["setup"], True, False),
+    (["engine", "install"], True, False),
+    (["play"], True, True),
+    (["setup", "--dry-run"], False, True),
+])
+def test_entrypoint_prefers_xz_support_for_installs(launcher, args, alternate, uses_first):
+    entry, tools, env = launcher
+    used = tools / "used-first"
+    missing_xz = tools / "missing xz"
+    missing_xz.mkdir()
+    (missing_xz / "_lzma.py").write_text("raise ModuleNotFoundError('No module named _lzma')\n")
+    executable(tools / "python3",
+               'export PYTHONPATH=' + shlex.quote(str(missing_xz)) + ':"${PYTHONPATH:-}"\n'
+               'if [[ "$1" == -m ]]; then : > ' + shlex.quote(str(used)) + '; fi\n'
+               'exec ' + shlex.quote(sys.executable) + ' "$@"\n')
+    command = ["/bin/bash", str(entry), *args]
+    if alternate:
+        (tools / "python3.13").symlink_to(sys.executable)
+    else:
+        # Prevent discovery of host interpreters when testing the fallback.
+        script = ('source "$1"\nshift\n'
+                  'python_candidates() { command -v python3; }\n'
+                  'main "$@"')
+        command = ["/bin/bash", "-c", script, "test", str(entry), *args]
+
+    proc = subprocess.run(command, env=env, cwd=entry.parent.parent,
+                          capture_output=True, text=True, timeout=10)
+
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout)["args"] == args
+    assert used.exists() is uses_first
+
+
 @pytest.mark.parametrize("options,dialog", [("", False), ("--gui", True),
                                            ("--gui --print-only", False)])
 def test_missing_python_reports_failure_and_only_dialogs_for_gui(launcher, options, dialog):

@@ -42,6 +42,14 @@ def test_checksum_mismatch_deletes_the_download(tmp_path):
     assert not blob.exists(), "a mismatched archive must not be left on disk"
 
 
+def test_engine_install_reports_missing_lzma_before_downloading(sandbox, monkeypatch):
+    monkeypatch.setattr(engine, "lzma", None)
+    monkeypatch.setattr(engine, "download", lambda *args: pytest.fail("attempted download"))
+
+    with pytest.raises(engine.EngineError, match=r"lzma.*python\.org"):
+        engine.install()
+
+
 def test_extract_and_find_bundle(tmp_path):
     archive = make_engine_archive(tmp_path)
     dest = tmp_path / "out"
