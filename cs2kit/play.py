@@ -11,8 +11,10 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -69,30 +71,105 @@ def game_running() -> bool:
     return False
 
 
+_LOGON_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \[Logged On", re.M)
+
+
+def _steam_started_at() -> Optional[float]:
+    """Epoch time when the current steam.exe processes started (earliest one).
+
+    Steam re-execs itself during bootstrap, so the client that ends up logged in
+    is younger than the process a launch started; taking the earliest start is
+    the honest lower bound. Locale-free on purpose: `ps -o lstart` renders month
+    names per LC_TIME, so elapsed time is read and subtracted from now instead."""
+    best: Optional[float] = None
+    for pid in _pids("steam.exe"):
+        out = run(["ps", "-o", "etime=", "-p", pid], timeout=10).out.strip()
+        if not out:
+            continue
+        days, _, rest = out.rpartition("-")
+        parts = rest.split(":")
+        try:
+            seconds = int(days or 0) * 86400
+            if len(parts) == 3:
+                seconds += int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            elif len(parts) == 2:
+                seconds += int(parts[0]) * 60 + int(parts[1])
+            else:
+                continue
+        except ValueError:
+            continue
+        started = time.time() - seconds
+        best = started if best is None else min(best, started)
+    return best
+
+
 def steam_ready(prefix: Path, timeout: float = 90.0) -> bool:
     """Wait until the client has finished logging in.
 
     `-applaunch` sent too early is silently dropped, and sent while Steam still
     believes a previous session is alive it logs `WaitingPrevProcess` and does
     nothing. The client writes `Logged On` to its connection log when it is
-    actually ready."""
+    actually ready.
+
+    The connection log accumulates across sessions, so a bare tail scan finds
+    yesterday's `Logged On` line instantly and fires while the fresh client is
+    still handshaking - Steam then drops the `-applaunch` without a trace and
+    the launcher looks like it started nothing (measured 2026-11-10, the day
+    after a wedged client was cleaned up). A `Logged On` line only counts when
+    its timestamp is at or after the current steam.exe processes' start.
+
+    With no client process at all, no `Logged On` line can belong to this
+    session - the log's tail is history, and `-applaunch` into a client that is
+    not there is dropped without a trace. The client start time is re-read on
+    every pass, because the client may still be booting when the wait begins."""
     log = (Path(prefix) / "drive_c" / "Program Files (x86)" / "Steam" / "logs" /
            "connection_log.txt")
     deadline = time.time() + timeout
     while time.time() < deadline:
+        started = _steam_started_at()
         try:
-            if "Logged On" in log.read_text(errors="ignore")[-4000:]:
-                return True
+            text = log.read_text(errors="ignore")[-4000:]
         except OSError:
-            pass
+            text = ""
+        stamps = _LOGON_RE.findall(text)
+        if stamps and started is not None:
+            logon = datetime.strptime(stamps[-1], "%Y-%m-%d %H:%M:%S").timestamp()
+            if logon >= started - 2:
+                return True
         time.sleep(3)
     return False
 
 
+def wineserver_running() -> bool:
+    """Is a wineserver alive? Steam's whole Windows side hangs off it."""
+    return bool(_pids("wineserver"))
+
+
 def steam_running() -> bool:
     """Is the Steam *client* up? `steamservice.exe` and `steamwebhelper.exe` are
-    helpers that outlive it and must not be counted."""
-    return bool(_pids("steam.exe"))
+    helpers that outlive it and must not be counted.
+
+    A steam.exe whose wineserver has exited is debris, not a client: it can do
+    nothing, but counting it as running made every launch skip starting Steam
+    and send `-applaunch` into a dead process - the app looked like it started
+    nothing, for as long as the husk lived (measured 2026-11-11). A client only
+    counts when its wineserver is up too."""
+    if not _pids("steam.exe"):
+        return False
+    return wineserver_running()
+
+
+def native_steam_running() -> bool:
+    """Is the native macOS Steam client up?
+
+    Steam ships a Mac client living in ~/Library/Application Support/Steam -
+    visually identical to the one inside the bottle. It cannot start CS2 (the
+    game has no macOS build) and signing into it takes over the account session
+    the Wine client holds: the next `-applaunch` is then silently dropped and
+    CS2Kit looks broken (measured 2026-11-10/11 - nothing opened until the
+    native client was quit, and its session had quietly displaced the Wine
+    client's the evening before)."""
+    return bool(run(["pgrep", "-f", r"Steam\.AppBundle"], timeout=10).out.strip())
 
 
 def clean_stale_steam() -> List[str]:
@@ -100,11 +177,16 @@ def clean_stale_steam() -> List[str]:
 
     Measured 2026-08-25: four orphaned `steamservice.exe` processes stopped a new
     client from starting at all - it logged in, then exited silently, and the app
-    looked broken."""
+    looked broken.
+
+    With steam_running() now requiring a live wineserver, a wineserver-less
+    steam.exe falls through here: such a husk cannot be signalled by Steam's own
+    instance check and a fresh client must not inherit it, so it is killed like
+    any other debris (measured 2026-11-11)."""
     killed = []
     if steam_running():
         return killed
-    for pattern in ("steamservice.exe", "steamwebhelper.exe"):
+    for pattern in ("steamservice.exe", "steamwebhelper.exe", "steam.exe"):
         pids = _pids(pattern)
         if pids:
             run(["kill", "-9", *pids], timeout=10)
@@ -159,9 +241,66 @@ def build(prefix: Optional[Path] = None, profile: Optional[str] = None,
 def notify(message: str) -> None:
     """Surface a problem to someone who launched from Finder, not a terminal."""
     text = message.replace('"', "'").replace("\\", "/")
+    try:
+        subprocess.run(["osascript", "-e",
+                        f'display dialog "{text}" with title "CS2Kit" buttons {{"OK"}} '
+                        f'default button 1'],
+                       capture_output=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        # Nobody clicked OK within five minutes. The dialog was still shown, and
+        # the launcher must not die of it (measured 2026-11-12: an unhandled
+        # TimeoutExpired ended the worker with a traceback in the log).
+        pass
+
+
+def notification(message: str) -> None:
+    """Progress, not a question: a notification the player does not have to dismiss."""
+    text = message.replace('"', "'").replace("\\", "/")
     subprocess.run(["osascript", "-e",
-                    f'display dialog "{text}" with title "CS2Kit" buttons {{"OK"}} default button 1'],
-                   capture_output=True, timeout=300)
+                    f'display notification "{text}" with title "CS2Kit"'],
+                   capture_output=True, timeout=30)
+
+
+_APP_STATE_RE = re.compile(
+    r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] AppID 730 state changed : (.*)$", re.M)
+
+
+def steam_update_state(prefix: Path, max_age: float = 900.0) -> Optional[str]:
+    """What Steam last said about CS2's install state, e.g. `Update Required`.
+
+    Steam downloads an update *instead of* starting the game when the installed
+    build is stale: `-applaunch` becomes a download, and the game appears only
+    when the download finishes - minutes later, with nothing on screen to show
+    for it (measured 2026-11-12, a 1.1 GB CS2 update: the app looked dead for
+    two minutes and then the game simply appeared).
+
+    The content log is appended across sessions, so only the last line counts,
+    and only if it is recent enough to belong to the launch in progress."""
+    log = (Path(prefix) / "drive_c" / "Program Files (x86)" / "Steam" / "logs" /
+           "content_log.txt")
+    try:
+        text = log.read_text(errors="ignore")[-20000:]
+    except OSError:
+        return None
+    matches = _APP_STATE_RE.findall(text)
+    if not matches:
+        return None
+    stamp, states = matches[-1]
+    try:
+        when = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S").timestamp()
+    except ValueError:
+        return None
+    if time.time() - when > max_age:
+        return None
+    return states
+
+
+def updating_cs2(prefix: Path) -> bool:
+    """Is Steam updating CS2 right now?"""
+    states = steam_update_state(prefix)
+    if not states:
+        return False
+    return "Update Running" in states or "Update Required" in states
 
 
 def daemonize(log: Optional[Path] = None) -> None:
@@ -170,21 +309,66 @@ def daemonize(log: Optional[Path] = None) -> None:
     AppleScript's `do shell script` reaps whatever it started, even with
     `nohup ... &` - Steam launched that way logged in and vanished the moment the
     applet returned (measured 2026-08-25). A double fork with `setsid` reparents
-    us to launchd, out of its reach."""
+    us to launchd, out of its reach.
+
+    Being out of the caller's process group is not enough: the launcher app is
+    a real application bundle, and when it quits macOS tears down its whole job
+    - SIGTERM to every process that is still part of it, however well it hid
+    (measured 2026-11-12: the detached worker was killed a second into the
+    launch, before it had even started Steam, so the app did nothing at all).
+    A daemon has to outlive its parent, so the signals that mean "your parent
+    is gone" are ignored here - the children get the default disposition back
+    (see `_default_signals`)."""
     if os.fork() > 0:
         os._exit(0)
     os.setsid()
     if os.fork() > 0:
         os._exit(0)
+    for name in ("SIGTERM", "SIGHUP"):
+        number = getattr(signal, name, None)
+        if number is not None:
+            try:
+                signal.signal(number, signal.SIG_IGN)
+            except (ValueError, OSError):     # pragma: no cover - platform specific
+                pass
     handle = open(log or (Path.home() / "CS2" / "cs2kit-app.log"), "a")
     os.dup2(handle.fileno(), 1)
     os.dup2(handle.fileno(), 2)
 
 
+def _default_signals() -> None:
+    """Give a child back the default disposition of the daemon's signals.
+
+    SIG_IGN survives exec, so without this the Steam client would inherit it
+    and `cs2kit stop` - which shuts the bottle down with SIGTERM - would have
+    to kill it the hard way."""
+    for name in ("SIGTERM", "SIGHUP"):
+        number = getattr(signal, name, None)
+        if number is not None:
+            try:
+                signal.signal(number, signal.SIG_DFL)
+            except (ValueError, OSError):     # pragma: no cover - platform specific
+                pass
+
+
 def cmd_play(args) -> int:
     if getattr(args, "detach", False):
         daemonize()
+        # A marker in the log: without it, a launcher that dies before it
+        # reaches Steam is indistinguishable from one that never ran (measured
+        # 2026-11-12: the app was double-clicked and the log stayed completely
+        # silent - nothing to look at).
+        print(f"cs2kit: launch requested at {datetime.now().isoformat(timespec='seconds')}",
+              flush=True)
     prefix = Path(args.prefix) if args.prefix else wineprefix()
+
+    if not args.print_only and native_steam_running():
+        message = ("Native Steam for macOS is running. It cannot start CS2 (the game has no "
+                   "macOS build) and it takes over the Steam session the Windows client "
+                   "needs - quit native Steam, then launch CS2Kit again.")
+        if getattr(args, "gui", False):
+            notify(message)
+        return emit_error("play", message, EXIT_NOT_READY, args.json)
 
     verdict = integrity.verify()
     if (verdict.status == WARN and verdict.baseline_buildid and verdict.buildid
@@ -224,10 +408,42 @@ def cmd_play(args) -> int:
     plan = build(prefix, args.profile, args.extra)
     client = steam_client(prefix)
     if client and not steam_running():
+        if getattr(args, "gui", False):
+            # Say something before the long wait: a cold start takes a minute
+            # (Steam, then the login, then the game) and until the window shows
+            # up, double-clicking the app looks like it did nothing.
+            _report("Starting Steam. CS2 takes a minute to come up.")
         _start_steam(prefix, client, plan["env"])
 
-    if not args.steam_only and not args.direct and client:
-        steam_ready(prefix)
+    logged_on = True
+    if not args.print_only and not args.steam_only and not args.direct and client:
+        # A client that never finished signing in silently drops -applaunch, so
+        # before sending one, give a slow login a second window. Quitting native
+        # Steam mid-wait displaces the session back and forth - hence the extra
+        # time instead of a hard fail at the first timeout (measured 2026-11-11:
+        # a healthy cold login took ~85s to displace the native session and
+        # return, seconds shy of the first window).
+        logged_on = steam_ready(prefix)
+        if not logged_on:
+            logged_on = steam_ready(prefix, timeout=90.0)
+        if not logged_on:
+            # A client that is up but never signs in is a stale session: the
+            # bottle still carries the half-dead client of the last run, and
+            # the new one cannot take the session over - the client sits in
+            # its main loop without ever logging on (measured 2026-11-12). A
+            # clean bottle is the fix, so take one - once - before giving up.
+            if getattr(args, "gui", False):
+                _report("Steam did not sign in. Restarting the bottle.")
+            restart_steam(prefix, client, plan["env"])
+            logged_on = steam_ready(prefix, timeout=120.0)
+        if not logged_on:
+            message = ("The Steam client did not finish signing in, and it drops game "
+                       "launches until it does. Quit Steam completely (cs2kit stop) and "
+                       "launch again; if the Steam window asks you to log in, log in - "
+                       "the game cannot start before that.")
+            if getattr(args, "gui", False):
+                notify(message)
+            return emit_error("play", message, EXIT_NOT_READY, args.json)
 
     if args.steam_only:
         # Hand over to Steam and stop. Pressing Play in Steam is the only launch
@@ -271,8 +487,85 @@ def cmd_play(args) -> int:
     if cache:
         Path(cache).mkdir(parents=True, exist_ok=True)
     os.chdir(target_dir)
+    if getattr(args, "gui", False):
+        # The app has to keep talking after the launch: CS2 needs a minute to
+        # come up, and if Steam decides to update the game first it needs
+        # minutes - and until the window appears, nothing at all happens on
+        # screen, which is exactly what "it does not launch" looks like.
+        # execve would replace this process with the game launcher and leave
+        # nobody to say anything.
+        _spawn_launch(cmd, env, target_dir)
+        _follow_launch(prefix)
+        return EXIT_OK
     os.execve(cmd[0], cmd, env)
     return EXIT_OK   # pragma: no cover - execve does not return
+
+
+def _spawn_launch(cmd: List[str], env: Dict[str, str], target_dir: Path) -> None:
+    """Start the game without becoming it.
+
+    The launch has to outlive the launcher process - an applet that exits
+    takes its children with it - so it gets its own session and the same log
+    file the rest of the app writes to."""
+    log = Path.home() / "CS2" / "cs2kit-app.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "a") as handle:
+        subprocess.Popen(cmd, env=env, cwd=str(target_dir), stdin=subprocess.DEVNULL,
+                         stdout=handle, stderr=handle, start_new_session=True,
+                         preexec_fn=_default_signals)
+
+
+def _follow_launch(prefix: Path, timeout: float = 1800.0) -> None:
+    """Tell the player what is happening while CS2 comes up.
+
+    Three ways a launch can look like nothing happened, and each needs its own
+    sentence: the game is coming up (a minute), Steam is downloading an update
+    first (minutes, and the game appears when it is done), or the client died
+    on the way (nothing will ever appear)."""
+    deadline = time.time() + timeout
+    told_update = False
+    while time.time() < deadline:
+        if game_running():
+            _report("CS2 is starting.")
+            return
+        if updating_cs2(prefix):
+            if not told_update:
+                told_update = True
+                _report("Steam is updating CS2. The game starts as soon as the update "
+                        "is done - it can take a few minutes.")
+            time.sleep(5)
+            continue
+        if not steam_running():
+            _report("The Steam client closed before it could start CS2. "
+                    "Run `cs2kit doctor` to see why.")
+            return
+        time.sleep(4)
+    _report("CS2 did not start. Press Play in the Steam window.")
+
+
+def _report(message: str) -> None:
+    """Say it to the player, and leave a trace in the log.
+
+    The log is the only way to tell afterwards what the launcher did - the
+    notification is gone as soon as it is dismissed."""
+    print(f"cs2kit: {message}", flush=True)
+    notification(message)
+
+
+def restart_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = None) -> None:
+    """Throw the bottle away and start the client on a clean one.
+
+    A client that is up but never signs in is not a slow login - it is the
+    leftover of an earlier session holding the account session hostage. Only a
+    fresh bottle (a new wineserver, no debris) lets the new client log on."""
+    from cs2kit import stop as stop_mod
+
+    try:
+        stop_mod.stop(prefix, force=True)
+    except Exception:          # pragma: no cover - stopping is best effort
+        pass
+    time.sleep(2)
+    _start_steam(prefix, client, env)
 
 
 def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = None) -> None:
@@ -294,7 +587,7 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
          f'nohup {shlex.quote(wine)} {shlex.quote(str(client))} -no-cef-sandbox '
          f'>>{shlex.quote(str(log))} 2>&1 &'],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
-        env=full, start_new_session=True)
+        env=full, start_new_session=True, preexec_fn=_default_signals)
     for _ in range(20):
         time.sleep(2)
         if steam_running():

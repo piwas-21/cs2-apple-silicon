@@ -120,12 +120,33 @@ def test_steam_running_sees_wow64_processes_by_their_command_line(monkeypatch):
             "500 C:\\Program Files (x86)\\Steam\\steam.exe -no-cef-sandbox",
             "501 tail -f /logs/steam.exe.bak",
             "502 echo steam.exe",
+            "600 /Users/x/engines/e/wswine.bundle/bin/wineserver",
         ])
         return Proc(0, lines, "")
 
     monkeypatch.setattr(play, "run", fake_run)
     assert play.steam_running() is True
     assert play._pids("steam.exe") == ["500"]
+
+
+def test_steam_running_ignores_a_husk_whose_wineserver_is_gone(monkeypatch):
+    """A steam.exe whose wineserver has exited is debris: it can do nothing, but
+    counting it as running made the launcher skip starting Steam and send
+    -applaunch into a dead process - nothing opened for as long as the husk
+    lived (measured 2026-11-11, the day after a long session). A client only
+    counts while its wineserver is up."""
+    from cs2kit.util import Proc
+
+    def fake_run(cmd, **kw):
+        if cmd[:2] == ["pgrep", "-ix"]:
+            return Proc(1, "", "")
+        if cmd[0] == "ps":
+            return Proc(0, "500 C:\\Program Files (x86)\\Steam\\steam.exe -no-cef-sandbox", "")
+        return Proc(1, "", "")
+
+    monkeypatch.setattr(play, "run", fake_run)
+    assert play._pids("steam.exe") == ["500"]
+    assert play.steam_running() is False, "a husk without wineserver is not a client"
 
 
 def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
@@ -146,6 +167,31 @@ def test_stale_helpers_are_cleaned_before_starting_steam(monkeypatch):
     monkeypatch.setattr(play, "run", fake_run)
     assert play.clean_stale_steam() == ["123", "123"]
     assert killed, "orphaned helpers block a new client from starting"
+
+
+def test_a_wineserver_less_husk_is_killed_before_starting_steam(monkeypatch):
+    """steam.exe left without its wineserver cannot be signalled by Steam's
+    instance check and a fresh client must not inherit it - the debris from a
+    crashed bottle sat there 'running' for a day while every launch silently
+    no-opped (measured 2026-11-11). clean_stale_steam must kill it too."""
+    from cs2kit.util import Proc
+
+    killed = []
+
+    def fake_run(cmd, **kw):
+        if cmd[0] == "pgrep" and cmd[-1] in ("steamservice.exe", "steamwebhelper.exe"):
+            return Proc(1, "", "")
+        if cmd[0] == "pgrep" and cmd[-1] == "steam.exe":
+            return Proc(0, "500", "")                       # the husk itself
+        if cmd[0] == "kill":
+            killed.extend(cmd[2:])
+            return Proc(0, "", "")
+        return Proc(1, "", "")
+
+    monkeypatch.setattr(play, "run", fake_run)
+    monkeypatch.setattr(play, "steam_running", lambda: False)   # no wineserver -> husk
+    assert play.clean_stale_steam() == ["500"]
+    assert killed == ["500"], "the husk steam.exe must be killed, not inherited"
 
 
 def test_a_steam_update_re_baselines_itself(sandbox, cs2_tree, monkeypatch, capsys):
@@ -219,3 +265,173 @@ def test_game_running_sees_the_windows_path_steam_uses(monkeypatch):
         0, "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global "
            "Offensive\\game\\bin\\win64\\cs2.exe -novid", ""))
     assert play.game_running() is True
+
+
+def _write_connection_log(sandbox, stamp: str) -> None:
+    logs = sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam" / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    (logs / "connection_log.txt").write_text(
+        "[2020-01-01 00:00:00] older session noise\n"
+        f"[{stamp}] [Logged On, 4, 7] [U:1:1] RecvMsgClientLogOnResponse() : 'OK'\n")
+
+
+def test_steam_ready_ignores_a_logged_on_line_from_an_older_session(sandbox, monkeypatch):
+    """connection_log.txt accumulates across sessions: yesterday's `Logged On` sat
+    in the scanned tail, so the wait fired instantly and `-applaunch` hit the fresh
+    client mid-handshake - Steam silently drops that, and the launcher app looks
+    like it started nothing (measured 2026-11-10, right after the wedged client
+    from 2026-11-08 was cleaned up). A line only counts when it is newer than the
+    current steam.exe processes."""
+    from datetime import datetime, timedelta
+
+    from cs2kit.util import Proc
+
+    monkeypatch.setattr(play, "_pids", lambda name: ["123"])
+    monkeypatch.setattr(play, "run",
+                        lambda cmd, **kw: Proc(0, "00:10:00\n", ""))   # steam up 10 min
+    stale = (datetime.now() - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+    fresh = (datetime.now() - timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+    _write_connection_log(sandbox, stale)
+    assert play.steam_ready(sandbox.prefix, timeout=1) is False, \
+        "a Logged On older than steam.exe is a previous session"
+
+    _write_connection_log(sandbox, fresh)
+    assert play.steam_ready(sandbox.prefix, timeout=1) is True, \
+        "a Logged On from this session must be accepted at once"
+
+
+def test_steam_ready_needs_a_client_to_be_running_at_all(sandbox, monkeypatch):
+    """With no steam.exe process there is no session the `Logged On` line could
+    belong to - it is history. Accepting it made the launcher send `-applaunch`
+    into a client that was not there, and Steam drops that without a trace, so
+    the app looked like it had started nothing (measured 2026-11-12)."""
+    from datetime import datetime, timedelta
+
+    from cs2kit.util import Proc
+
+    monkeypatch.setattr(play, "_pids", lambda name: [])      # no client at all
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", ""))
+    fresh = (datetime.now() - timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
+    _write_connection_log(sandbox, fresh)
+    assert play.steam_ready(sandbox.prefix, timeout=1) is False, \
+        "a Logged On without a running client is a previous session"
+
+
+def _write_content_log(sandbox, line: str) -> None:
+    logs = sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam" / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    (logs / "content_log.txt").write_text(line + "\n")
+
+
+def test_an_update_in_progress_is_recognised(sandbox):
+    """Steam turns `-applaunch` into a download when the installed build is
+    stale, and the game appears only when the download is done - minutes later,
+    with nothing on screen until then (measured 2026-11-12, a 1.1 GB update).
+    The launcher has to be able to say that."""
+    from datetime import datetime, timedelta
+
+    now = datetime.now()
+    stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    old = (now - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+
+    _write_content_log(sandbox, f"[{stamp}] AppID 730 state changed : Update Required,"
+                                 "Fully Installed,Update Queued,Update Running,")
+    assert play.updating_cs2(sandbox.prefix) is True
+
+    _write_content_log(sandbox, f"[{stamp}] AppID 730 state changed : Fully Installed,"
+                                 "App Running,")
+    assert play.updating_cs2(sandbox.prefix) is False
+
+    _write_content_log(sandbox, f"[{old}] AppID 730 state changed : Update Required,"
+                                 "Fully Installed,")
+    assert play.updating_cs2(sandbox.prefix) is False, \
+        "a state line from a previous session says nothing about this launch"
+
+
+def test_the_app_launches_without_becoming_the_game_and_says_so(sandbox, cs2_tree,
+                                                               monkeypatch, capsys):
+    """`execve` replaced the launcher with the game launcher, so nobody was left
+    to tell the player that the game takes a minute - or that Steam is updating
+    it first. In GUI mode the launcher has to survive the launch and report."""
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda: True)
+
+    spawned = []
+    told = []
+    monkeypatch.setattr(play, "_spawn_launch",
+                        lambda cmd, env, target_dir: spawned.append(cmd))
+    monkeypatch.setattr(play, "notification", told.append)
+    monkeypatch.setattr(play, "game_running", lambda: True)
+    monkeypatch.setattr(play, "steam_ready", lambda prefix, timeout=90.0: True)
+
+    assert play.cmd_play(args(gui=True, print_only=False)) == EXIT_OK
+    assert spawned, "the GUI path must spawn the launch instead of execve'ing it"
+    assert "-applaunch" in spawned[0]
+    assert told and "CS2" in told[0], "the player must be told that the game is coming up"
+
+
+def test_the_spawned_launch_outlives_the_launcher(monkeypatch, tmp_path):
+    """An applet that exits takes its children with it, so the game launcher has
+    to get its own session - and the app's log file - or it dies with the
+    launcher that started it."""
+    calls = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kw):
+            calls["cmd"] = cmd
+            calls["kw"] = kw
+
+    monkeypatch.setattr(play.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(play.Path, "home", classmethod(lambda cls: tmp_path))
+    play._spawn_launch(["wine", "steam.exe", "-applaunch", "730"], {"A": "B"}, tmp_path)
+    assert calls["cmd"][1] == "steam.exe"
+    assert calls["kw"]["start_new_session"] is True
+    assert calls["kw"]["stdout"] is not None
+
+
+def test_the_detached_worker_outlives_the_app_that_started_it(tmp_path):
+    """The launcher app is a real application bundle. When it quits, macOS tears
+    down its whole job - SIGTERM to every process still in it, however well it
+    hid. The detached worker was killed a second into the launch, before it had
+    even started Steam, so the app did nothing at all and looked broken
+    (measured 2026-11-12, repeatedly). A daemon has to outlive its parent."""
+    import subprocess
+    import sys
+    import textwrap
+    import time
+
+    from cs2kit.util import repo_root
+
+    marker = tmp_path / "signals.txt"
+    script = textwrap.dedent(f"""
+        import signal, sys
+        sys.path.insert(0, {str(repo_root())!r})
+        from cs2kit.play import daemonize
+        daemonize({str(tmp_path / "worker.log")!r})
+        ignored = (signal.getsignal(signal.SIGTERM) == signal.SIG_IGN
+                   and signal.getsignal(signal.SIGHUP) == signal.SIG_IGN)
+        open({str(marker)!r}, "w").write("ignored" if ignored else "not ignored")
+    """)
+    subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                   timeout=60)
+    deadline = time.time() + 15
+    while time.time() < deadline and not marker.exists():
+        time.sleep(0.2)
+    assert marker.exists(), "the detached worker did not survive its parent"
+    assert marker.read_text() == "ignored", \
+        "the worker must ignore the signals that say 'your parent is gone'"
+
+
+def test_native_macos_steam_blocks_the_launch(sandbox, monkeypatch, capsys):
+    """The native macOS client cannot run CS2 and takes over the account session
+    the Wine client needs, so every -applaunch into the bottle is silently
+    dropped - the launcher 'opened' nothing while it ran (measured 2026-11-10/11).
+    play must refuse loudly instead of no-opping."""
+    notified = []
+    monkeypatch.setattr(play, "native_steam_running", lambda: True)
+    monkeypatch.setattr(play, "notify", notified.append)
+    assert play.cmd_play(args(gui=True, json=True, print_only=False)) == EXIT_NOT_READY
+    assert "Native Steam" in json.loads(capsys.readouterr().out)["detail"]
+    assert notified and "quit native Steam" in notified[0]
