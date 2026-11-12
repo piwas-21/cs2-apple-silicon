@@ -195,3 +195,46 @@ def test_the_app_carries_an_icon(sandbox, tmp_path):
     app_mod.build_app(dest, wine_root, prefix=sandbox.prefix)
     icons = list((dest / "Contents" / "Resources").glob("*.icns"))
     assert icons, "the app must carry an icon or it shows as a blank page in Finder"
+
+
+def test_applet_seal_survives_the_icon_copy(sandbox, tmp_path):
+    """osacompile seals the applet with an ad-hoc signature; copying the icon in
+    afterwards invalidated that seal, and macOS kills a modified-after-sign
+    bundle before its script runs - `open` succeeded, no process ever appeared,
+    double-click did nothing at all (measured 2026-11-10). The build must
+    re-seal, and the finished bundle must verify."""
+    import shutil as _sh
+    import subprocess as _sp
+
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    dest = tmp_path / "Seal.app"
+    result = app_mod.build_app(dest, wine_root, prefix=sandbox.prefix, profile="balanced-1080p")
+    if result["kind"] != "applet" or not _sh.which("codesign"):
+        pytest.skip("applet build or codesign unavailable")
+    verify = _sp.run(["codesign", "--verify", str(dest)], capture_output=True, text=True,
+                     timeout=60)
+    assert verify.returncode == 0, \
+        f"bundle modified after signing and never re-sealed: {verify.stderr.strip()}"
+
+
+def test_the_launcher_carries_an_identifier_of_its_own(sandbox, tmp_path):
+    """osacompile names every applet `com.apple.ScriptEditor.id.<name>`, and
+    macOS keeps state per identifier and per app name. The stale state of that
+    Script Editor identity made macOS kill the processes the launcher started:
+    the app ran, wrote its log line, and the Steam client it had just spawned
+    died a second later - every single time - while an otherwise identical
+    bundle with its own identifier worked (measured 2026-11-12)."""
+    import plistlib
+
+    from cs2kit import app as app_mod
+
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    dest = tmp_path / "Ident.app"
+    app_mod.build_app(dest, wine_root, prefix=sandbox.prefix)
+    plist = plistlib.loads((dest / "Contents" / "Info.plist").read_bytes())
+    ident = plist["CFBundleIdentifier"]
+    assert ident.startswith("org.cs2kit."), f"unexpected identifier: {ident}"
+    assert "ScriptEditor" not in ident, \
+        "an applet must not keep the Script Editor identity"

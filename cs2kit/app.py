@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import stat
 from pathlib import Path
@@ -91,6 +92,31 @@ PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
 </dict>
 </plist>
 '''
+
+
+def _set_identity(dest: Path, name: str) -> None:
+    """Give the bundle an identity of its own.
+
+    `osacompile` names every applet `com.apple.ScriptEditor.id.<name>`, and
+    macOS keeps state per identifier and per app name. The state of that
+    Script Editor identity was stale, and macOS killed the processes the app
+    started: the launcher ran, wrote its log line, and the Steam client it
+    spawned died a second later - every single time, while an otherwise
+    identical bundle with its own identifier worked (measured 2026-11-12).
+
+    An installed app should carry its own identifier anyway. The bundle is
+    re-sealed after this (see `build_app`), because editing the Info.plist
+    invalidates the signature."""
+    import subprocess
+
+    ident = "org.cs2kit." + re.sub(r"[^A-Za-z0-9.-]", "-", name).strip("-").lower()
+    plist = dest / "Contents" / "Info.plist"
+    for key, value in (("CFBundleIdentifier", ident), ("CFBundleName", name)):
+        proc = subprocess.run(["plutil", "-replace", key, "-string", value, str(plist)],
+                              capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            raise OSError(f"could not set {key} on the launcher bundle: "
+                          f"{proc.stderr.strip()}")
 
 
 def _compile_applet(dest: Path, prefix: Path, profile: str,
@@ -223,12 +249,27 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     # bundle is only the fallback for machines without osacompile.
     kind = (_compile_applet(dest, prefix, profile_name, repo)
             or _write_script_app(dest, prefix, profile_name, name, repo))
+    if kind == "applet":
+        _set_identity(dest, name)
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():
         (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon, dest / "Contents" / "Resources" / "applet.icns")
         shutil.copy2(icon, dest / "Contents" / "Resources" / "cs2kit.icns")
+    if kind == "applet":
+        # osacompile seals the bundle with an ad-hoc signature, and the icon copy
+        # above invalidates it. LaunchServices kills a modified-after-sign bundle
+        # before its script runs, so double-click does nothing at all (measured
+        # 2026-11-10: `open` succeeds, no applet process, `codesign -v` reports
+        # "file added: Resources/cs2kit.icns"). Re-seal after touching Resources.
+        import subprocess
+
+        resign = subprocess.run(["codesign", "--force", "--sign", "-", str(dest)],
+                                capture_output=True, text=True, timeout=120)
+        if resign.returncode != 0:
+            raise OSError(f"could not re-seal the applet after adding its icon: "
+                          f"{resign.stderr.strip()}")
     # Finder caches bundles by path; touching it makes the new icon appear at once.
     os.utime(dest, None)
 
