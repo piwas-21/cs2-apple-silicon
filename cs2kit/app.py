@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 import shlex
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 from html import escape
@@ -27,7 +29,7 @@ set logFile to (POSIX path of (path to home folder)) & "CS2/cs2kit-app.log"
 do shell script "mkdir -p \\"$(dirname " & quoted form of logFile & ")\\""
 do shell script "cd " & quoted form of repoPath & " && CS2KIT_REPO=" & quoted form of repoPath & ¬
     " WINEPREFIX=" & quoted form of winePrefix & ¬
-    " ./bin/cs2kit play --profile " & quoted form of profileName & " --gui --detach >> " & ¬
+    " ./bin/cs2kit play --profile " & quoted form of profileName & " --steam-only --gui --detach >> " & ¬
     quoted form of logFile & " 2>&1"
 '''
 
@@ -39,7 +41,7 @@ export CS2KIT_REPO={repo}
 export WINEPREFIX={prefix}
 LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
-"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --gui --detach >>"$LOG" 2>&1
+"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --steam-only --gui --detach >>"$LOG" 2>&1
 exit 0
 '''
 
@@ -144,15 +146,34 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     profile_name = rec.name if rec else "balanced-1080p"
     if dest.exists():
         shutil.rmtree(dest)
-    # A script bundle that `exec`s the game keeps the process inside this bundle,
-    # so the Dock shows this app's name and icon instead of a bare "wine".
-    kind = _write_script_app(dest, prefix, profile_name, name)
+    # LaunchServices requires a native executable that registers as an app.
+    # A shell bundle can hang in the Dock before its script ever runs (#26).
+    kind = _compile_applet(dest, prefix, profile_name)
+    if kind is None:
+        kind = _write_script_app(dest, prefix, profile_name, name)
+    else:
+        from cs2kit import __version__
+
+        info = dest / "Contents" / "Info.plist"
+        metadata = plistlib.loads(info.read_bytes())
+        metadata.update(CFBundleName=name, CFBundleDisplayName=name,
+                        CFBundleIdentifier="org.cs2kit." + dest.stem.lower().replace(" ", "-"),
+                        CFBundleVersion=__version__, CFBundleShortVersionString=__version__)
+        info.write_bytes(plistlib.dumps(metadata))
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():
         (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon, dest / "Contents" / "Resources" / "applet.icns")
         shutil.copy2(icon, dest / "Contents" / "Resources" / "cs2kit.icns")
+    if kind == "applet":
+        # osacompile signs the applet; changing its plist or icon invalidates it.
+        signer = shutil.which("codesign")
+        if signer:
+            signed = subprocess.run([signer, "--force", "--sign", "-", str(dest)],
+                                    capture_output=True, text=True, timeout=120)
+            if signed.returncode:
+                raise OSError(f"could not sign launcher: {signed.stderr.strip()}")
     # Finder caches bundles by path; touching it makes the new icon appear at once.
     os.utime(dest, None)
 
@@ -185,7 +206,7 @@ def cmd_create(args) -> int:
     print(f"  profile  {result['profile'] or '(none)'} -> {result['launch_options']}")
     print("")
     print("Double-click it to play. It verifies game-file integrity (T-021), starts the Steam")
-    print("client if needed, then launches CS2. Logs go to ~/CS2/cs2kit-app.log")
+    print("client if needed, then leaves Play to you. Logs go to ~/CS2/cs2kit-app.log")
     return EXIT_OK
 
 

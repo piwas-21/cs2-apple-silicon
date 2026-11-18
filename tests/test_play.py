@@ -85,23 +85,30 @@ def test_the_game_is_found_in_a_bottle_only_library(sandbox, tmp_path, monkeypat
     assert probe.cs2_exe() == win64 / "cs2.exe"
 
 
-def test_steam_running_matches_the_process_name_not_the_command_line(monkeypatch):
-    """`pgrep -f steam.exe` matches any shell whose command line mentions it -
-    including our own. That made the launcher skip starting Steam entirely."""
+@pytest.mark.parametrize("executable", [
+    "steam.exe", r"C:\Program Files (x86)\Steam\steam.exe",
+    "/bottle/drive_c/Program Files (x86)/Steam/Steam.exe",
+])
+def test_steam_running_matches_executable_basename(monkeypatch, executable):
     from cs2kit.util import Proc
 
-    seen = {}
-
     def fake_run(cmd, **kw):
-        seen["cmd"] = cmd
-        return Proc(0, "4242", "") if "-ix" in cmd else Proc(0, "9999", "")
+        assert cmd == ["ps", "-axww", "-o", "pid=,comm="]
+        return Proc(0, "4242 " + executable + "\n", "")
 
     monkeypatch.setattr(play, "run", fake_run)
     assert play.steam_running() is True
-    assert "-ix" in seen["cmd"], "must match the exact process name"
-    assert "-f" not in seen["cmd"], "must not match command lines"
 
-    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", ""))
+
+def test_steam_detection_ignores_helpers_and_shell_arguments(monkeypatch):
+    from cs2kit.util import Proc
+
+    listing = ("21 /bin/zsh\n22 /bin/bash\n"
+               "23 C:\\Steam\\steamservice.exe\n24 C:\\Steam\\steamwebhelper.exe\n"
+               "25 /bin/zsh -c wine steam.exe\n26 /tmp/notsteam.exe\ninvalid\n")
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(0, listing, ""))
+    assert play.steam_running() is False
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", "ps failed"))
     assert play.steam_running() is False
 
 

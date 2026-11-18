@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -26,13 +27,22 @@ def steam_client(prefix: Path) -> Optional[Path]:
 
 
 def _pids(name: str) -> List[str]:
-    """PIDs by exact process NAME.
+    """Match executable basenames, including Wine's full Windows process names.
 
-    Deliberately not `pgrep -f`: that matches the whole command line, so any shell
-    running a command that merely mentions `steam.exe` counts as Steam. That is
-    not hypothetical - it made the launcher believe Steam was already running and
-    silently skip starting it (measured 2026-08-25)."""
-    return [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
+    `pgrep -ix steam.exe` misses a self-restarted Steam whose name is its Windows
+    path. `pgrep -f` also matches shells merely mentioning Steam. Read `comm`
+    instead: it contains the executable name without command-line arguments.
+    """
+    listing = run(["ps", "-axww", "-o", "pid=,comm="], timeout=10).out.splitlines()
+    found = []
+    for line in listing:
+        fields = line.strip().split(None, 1)
+        if len(fields) != 2 or not fields[0].isdigit():
+            continue
+        executable = re.split(r"[\\/]", fields[1].strip())[-1]
+        if executable.lower() == name.lower():
+            found.append(fields[0])
+    return found
 
 
 def game_running() -> bool:

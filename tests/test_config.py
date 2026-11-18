@@ -1,5 +1,7 @@
 import argparse
 
+import pytest
+
 from cs2kit import config, recipe as recipe_mod
 from cs2kit.util import EXIT_NOT_READY, EXIT_OK, PASS, WARN
 
@@ -77,3 +79,52 @@ def test_video_path_override(sandbox, tmp_path):
     result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, video_path=target)
     assert result["record"]["video_txt"] == str(target)
     assert "setting.fullscreen" in target.read_text()
+
+
+def account_video(sandbox, account="123"):
+    steam = sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam"
+    steam.mkdir(parents=True, exist_ok=True)
+    (steam / "steam.exe").write_bytes(b"MZ")
+    target = steam / "userdata" / account / "730" / "local" / "cfg" / "cs2_video.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('"video.cfg"\n{\n"setting.defaultres" "-1"\n'
+                      '"setting.defaultresheight" "-1"\n"setting.fullscreen" "1"\n'
+                      '"setting.msaa_samples" "2"\n}\n')
+    return target
+
+
+def test_video_repair_finds_account_and_preserves_quality_and_backup(sandbox):
+    target = account_video(sandbox)
+    before = target.read_bytes()
+    rec = recipe_mod.resolve("balanced-1080p")
+    result = config.apply(rec, write_video=True)
+    assert result["record"]["video_txt"] == str(target)
+    assert '"setting.defaultres" "1920"' in target.read_text()
+    assert '"setting.defaultresheight" "1080"' in target.read_text()
+    assert '"setting.fullscreen" "0"' in target.read_text()
+    assert '"setting.msaa_samples" "2"' in target.read_text()
+    backup = target.with_name(target.name + ".cs2kit-backup")
+    assert backup.read_bytes() == before
+    config.apply(rec, write_video=True)
+    assert backup.read_bytes() == before
+
+
+def test_account_video_dry_run_preserves_original(sandbox):
+    target = account_video(sandbox)
+    before = target.read_bytes()
+    result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, dry_run=True)
+    assert result["record"]["video_txt"] == str(target)
+    assert target.read_bytes() == before
+    assert not target.with_name(target.name + ".cs2kit-backup").exists()
+
+
+def test_multiple_accounts_require_explicit_video_path_before_writing(sandbox):
+    target = account_video(sandbox)
+    other = account_video(sandbox, "456")
+    before = other.read_bytes()
+    rec = recipe_mod.resolve("balanced-1080p")
+    with pytest.raises(recipe_mod.RecipeError, match="multiple Steam accounts"):
+        config.apply(rec, write_video=True)
+    assert not config.active_path().exists()
+    config.apply(rec, write_video=True, video_path=target)
+    assert other.read_bytes() == before

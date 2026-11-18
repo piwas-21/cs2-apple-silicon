@@ -257,16 +257,19 @@ backend x chassis x resolution x macOS build (T-027).
 |---|---|
 | environment script | `~/.cs2kit/env/<profile>.sh` (source it, or use `cs2kit launch`) |
 | game cfg | `<install>/game/csgo/cfg/cs2kit.cfg` - suppress with `--no-cfg`; load it with `exec cs2kit` |
-| `CS2Video.txt` | only with `--video` - the T-009 black-screen workaround; `--video-path FILE` writes it elsewhere |
+| video config | with `--video`: the existing account `userdata/<account>/730/local/cfg/cs2_video.txt`; `--video-path FILE` selects an explicit file |
 | applied record | `~/.cs2kit/active-profile.json` |
 
 Launch options are **printed for you to paste** into Steam's Launch Options box. CS2Kit does not edit Valve's client
 configuration.
 
-**Where CS2 reads `CS2Video.txt` from under Wine is UNCONFIRMED.** `--video` writes the install-tree copy and says
-so; CS2 may instead read a per-account copy under Steam's `userdata` tree. `--video-path FILE` writes it wherever
-you confirm it belongs - and when you do confirm it, record which one worked in
-[reference/first-launch.md](reference/first-launch.md), where the path is currently **UNRECORDED**.
+**CONFIRMED on the November 18 recovery run:** the per-account `cs2_video.txt` contained
+`-1` width/height after a fullscreen change and Metal aborted with dimensions `4294967295`.
+See [the local evidence](reference/macos-launch-recovery.md). Exit CS2 and Steam before repairing it.
+`--video` discovers the existing account file, preserves unrelated quality settings, and saves the
+first original as `cs2_video.txt.cs2kit-backup`. Multiple account files require `--video-path`;
+CS2Kit does not choose an account for you. If no account file exists, it retains the legacy
+install-tree `CS2Video.txt` fallback and prints the unconfirmed-path caveat.
 
 **Exit:** `0`; `3` when the profile does not exist or fails validation.
 

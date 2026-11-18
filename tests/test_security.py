@@ -70,7 +70,8 @@ def test_launcher_shell_and_plist_round_trip_hostile_values(sandbox, monkeypatch
     app._write_script_app(dest, sandbox.prefix, profile, "A&B <Test>")
     proc = subprocess.run(["bash", str(dest / "Contents/MacOS/cs2kit-launch")], timeout=10)
     assert proc.returncode == 0
-    assert record.read_bytes().decode().split("\0")[:-1] == ["play", "--profile", profile, "--gui", "--detach"]
+    assert record.read_bytes().decode().split("\0")[:-1] == [
+        "play", "--profile", profile, "--steam-only", "--gui", "--detach"]
     assert not marker.exists()
     with (dest / "Contents/Info.plist").open("rb") as file:
         assert plistlib.load(file)["CFBundleName"] == "A&B <Test>"

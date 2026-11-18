@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -75,14 +77,46 @@ def render_cfg(rec: recipe_mod.Recipe) -> str:
     return "\n".join(lines) + "\n"
 
 
-#: Where CS2 actually reads its video settings from under Wine is UNCONFIRMED:
-#: the black-screen workaround is documented as "write CS2Video.txt", but CS2 may
-#: instead read the per-account copy under Steam's userdata tree. We write the
-#: install-tree path, say so out loud, and let --video-path override it until
-#: someone confirms on hardware (docs/reference/first-launch.md).
+#: Retained only for the legacy fallback when no per-account file exists.
+#: The existing userdata cs2_video.txt was confirmed on the recovery machine
+#: (docs/reference/macos-launch-recovery.md).
 VIDEO_TXT_CAVEAT = ("the authoritative CS2Video.txt location under Wine is UNCONFIRMED; "
                     "if the black screen persists, copy this file next to the per-account "
                     "video settings in Steam's userdata tree and report which one worked")
+
+
+def account_video_path() -> Optional[Path]:
+    """Use the existing account config; never guess between multiple accounts."""
+    from cs2kit.launch import steam_exe
+
+    client = steam_exe(wineprefix())
+    if client is None:
+        return None
+    candidates = sorted((client.parent / "userdata").glob("*/730/local/cfg/cs2_video.txt"))
+    if len(candidates) > 1:
+        raise recipe_mod.RecipeError(
+            "multiple Steam accounts have video settings; pass --video-path with the "
+            "account's userdata/<account>/730/local/cfg/cs2_video.txt")
+    return candidates[0] if candidates else None
+
+
+def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
+    """Preserve quality settings while repairing display settings (T-009)."""
+    settings = {
+        "setting.defaultres": rec.display.get("width", 1920),
+        "setting.defaultresheight": rec.display.get("height", 1080),
+        "setting.fullscreen": rec.display.get("fullscreen", 0),
+        "setting.coop_fullscreen": 0,
+    }
+    if "}" not in existing:
+        raise recipe_mod.RecipeError("invalid video settings: expected a KeyValues block")
+    for key, value in settings.items():
+        pattern = r'("' + re.escape(key) + r'"\s*)"[^"\r\n]*"'
+        existing, count = re.subn(pattern, lambda m: m.group(1) + f'"{value}"', existing)
+        if not count:
+            pos = existing.rfind("}")
+            existing = existing[:pos] + f'\t"{key}"\t\t"{value}"\n' + existing[pos:]
+    return existing
 
 
 def render_video_txt(rec: recipe_mod.Recipe) -> str:
@@ -111,6 +145,14 @@ def csgo_cfg_dir() -> Optional[Path]:
 def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = False,
           dry_run: bool = False, video_path: Optional[Path] = None) -> Dict[str, Any]:
     rec.require_valid()
+    target_video = None
+    video_content = None
+    if write_video:
+        target_video = Path(video_path) if video_path else account_video_path()
+        if target_video and target_video.is_file():
+            video_content = update_video_txt(rec, target_video.read_text())
+        else:
+            video_content = render_video_txt(rec)
     written: List[str] = []
     env_path = env_script_path(rec.name)
     if not dry_run:
@@ -129,12 +171,16 @@ def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = Fa
         written.append(cfg_written)
 
     video_written: Optional[str] = None
-    if write_video and (cfg_dir or video_path):
-        target = Path(video_path) if video_path else (cfg_dir / "CS2Video.txt")
+    if write_video and (cfg_dir or target_video):
+        target = target_video or (cfg_dir / "CS2Video.txt")
         if not dry_run:
             target.parent.mkdir(parents=True, exist_ok=True)
         if not dry_run:
-            target.write_text(render_video_txt(rec))
+            if target.is_file():
+                backup = target.with_name(target.name + ".cs2kit-backup")
+                if not backup.exists():
+                    shutil.copy2(target, backup)
+            target.write_text(video_content)
         video_written = str(target)
         written.append(video_written)
 
@@ -232,7 +278,7 @@ def cmd_apply(args) -> int:
     print(f"Applied {record['name']} ({record['hash']}){' [dry run]' if args.dry_run else ''}")
     for path in result["written"]:
         print(f"  wrote {path}")
-    if record["video_txt"]:
+    if record["video_txt"] and Path(record["video_txt"]).name == "CS2Video.txt":
         print(f"  note: {VIDEO_TXT_CAVEAT}")
     if not result["cfg_dir"]:
         print("  note: CS2 is not installed yet, so no game cfg was written (T-008)")
@@ -287,9 +333,8 @@ def register(subparsers) -> None:
     p.add_argument("profile")
     p.add_argument("--no-cfg", action="store_true", help="do not write the game cfg")
     p.add_argument("--video", action="store_true",
-                   help="also write CS2Video.txt (the black-screen workaround, T-009)")
-    p.add_argument("--video-path", help="write CS2Video.txt here instead (its true location "
-                                        "under Wine is unconfirmed)")
+                   help="repair the account's video display settings (T-009); exit CS2 first")
+    p.add_argument("--video-path", help="explicit video config path (required with multiple accounts)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_apply)

@@ -102,6 +102,7 @@ def test_app_bundle_is_double_clickable_and_guarded(sandbox, tmp_path, cs2_tree)
     # The app must not stay attached: `cs2kit play --detach` double-forks, so
     # AppleScript's `do shell script` cannot reap the game or Steam.
     assert "--detach" in body
+    assert "--steam-only" in body, "the app must leave the Play button to the user"
     assert str(sandbox.prefix) in body
     assert "/steamapps/common/" not in body, "no game path may be baked into the app"
     # Problems are reported by `cs2kit play --gui`, which puts up the dialog itself -
@@ -109,6 +110,54 @@ def test_app_bundle_is_double_clickable_and_guarded(sandbox, tmp_path, cs2_tree)
     assert "--gui" in body
 
     assert (dest / "Contents" / "Info.plist").is_file()
+
+
+def test_app_prefers_native_applet_and_preserves_identity(sandbox, tmp_path, monkeypatch):
+    import plistlib
+    from types import SimpleNamespace
+
+    dest = tmp_path / "CS2Kit.app"
+    calls = []
+
+    def compile_app(path, prefix, profile):
+        calls.append((prefix, profile))
+        resources = path / "Contents" / "Resources"
+        resources.mkdir(parents=True)
+        (path / "Contents" / "Info.plist").write_bytes(
+            plistlib.dumps({"CFBundleExecutable": "applet"}))
+        return "applet"
+
+    def no_script(*args, **kwargs):
+        pytest.fail("native applet was replaced with an unlaunchable shell bundle")
+
+    def sign_app(cmd, **kwargs):
+        assert cmd == ["/usr/bin/codesign", "--force", "--sign", "-", str(dest)]
+        info = plistlib.loads((dest / "Contents" / "Info.plist").read_bytes())
+        assert info["CFBundleDisplayName"] == "Counter-Strike 2"
+        assert (dest / "Contents" / "Resources" / "applet.icns").is_file()
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr(app_mod, "_compile_applet", compile_app)
+    monkeypatch.setattr(app_mod, "_write_script_app", no_script)
+    monkeypatch.setattr(app_mod.shutil, "which", lambda name: "/usr/bin/codesign")
+    monkeypatch.setattr(app_mod.subprocess, "run", sign_app)
+    result = app_mod.build_app(dest, tmp_path / "wine", prefix=sandbox.prefix,
+                               profile="balanced-1080p", name="Counter-Strike 2")
+    assert result["kind"] == "applet"
+    assert calls == [(sandbox.prefix, "balanced-1080p")]
+    info = plistlib.loads((dest / "Contents" / "Info.plist").read_bytes())
+    assert info["CFBundleExecutable"] == "applet"
+    assert info["CFBundleIdentifier"] == "org.cs2kit.cs2kit"
+    assert info["CFBundleDisplayName"] == "Counter-Strike 2"
+
+
+def test_app_uses_script_fallback_without_compiler(sandbox, tmp_path, monkeypatch):
+    monkeypatch.setattr(app_mod, "_compile_applet", lambda *args: None)
+    dest = tmp_path / "Fallback.app"
+    result = app_mod.build_app(dest, tmp_path / "wine", prefix=sandbox.prefix)
+    assert result["kind"] == "script"
+    body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
+    assert "--steam-only" in body and "--detach" in body
 
 
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
