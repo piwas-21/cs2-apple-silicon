@@ -119,3 +119,28 @@ session was left open for the user.
 A read-only CoreGraphics mode enumeration exposed only 60 Hz at 3840×1080,
 with no 120/144 Hz mode at that resolution. This establishes what this connection
 currently advertises, not which hub, cable, or monitor input setting is responsible.
+
+## Refresh rate after bypassing the hub
+
+**CONFIRMED, 2026-11-19:** moving HDMI from the hub to the Mac exposed
+3840×1080 at both 60 and 120 Hz. The external display was changed to 120 Hz
+in System Settings and `system_profiler` confirmed the active 120 Hz mode.
+CS2 still reported 60 Hz, even after a game-only restart.
+
+Wine's volatile display data explained the discrepancy. Under
+`HKCC\System\CurrentControlSet\Control\VIDEO`, active output `0001` still had
+a `Current` DEVMODE of 3840×1080 at 60 Hz and its mode list included only 60 Hz
+at that resolution. A different source entry already held the new direct-HDMI
+120 Hz mode, but the active output was still using the old hub source.
+
+After Steam shutdown and a complete prefix-scoped `cs2kit stop`, a new Steam
+session rebuilt the output mapping. The active external output's `Current`
+and `Registry` mode became 3840×1080 at 120 Hz, with both 60 and 120 Hz exposed
+in its mode list. CS2 was then launched again and loaded its startup scene.
+The local launch options retained windowed mode but removed the earlier
+1600×900 size override to respect the user's chosen 3840×1080 resolution.
+
+For this stack, after changing the display connection or desktop refresh rate,
+exit the game and fully stop the bottle before reopening Steam. Reopening only
+the game did not refresh the stale Wine output mapping in this recovery.
+This validates display-mode propagation into Wine, not rendered frame rate.
