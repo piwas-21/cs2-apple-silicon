@@ -170,6 +170,7 @@ def test_video_repair_preserves_comments_strings_and_nested_quality_settings(san
     '', 'garbage }', '"video.cfg" {', '"video.cfg" { "setting.fullscreen" }',
     '"video.cfg" { "unterminated "0" }', '"video.cfg" {} "other" {}',
     '"video.cfg" {} /*', '"video.cfg" { "nested" { "key" "value" }',
+    '"video.cfg" { { "a" "b" } }', '"video.cfg" { "only_key"',
 ])
 def test_invalid_video_config_is_rejected_before_any_write(sandbox, original):
     target = account_video(sandbox)
@@ -191,3 +192,14 @@ def test_video_repair_updates_duplicate_active_keys_and_keeps_crlf(sandbox):
     assert '"SETTING.DEFAULTRES" "1920"' in repaired
     assert repaired.startswith('\ufeff"video.cfg"\r\n')
     assert '\n' not in repaired.replace('\r\n', '')
+    target = account_video(sandbox)
+    target.write_bytes(original.encode("utf-8"))
+    config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True)
+    assert target.read_bytes() == repaired.encode("utf-8")
+    assert target.with_name(target.name + ".cs2kit-backup").read_bytes() == original.encode("utf-8")
+
+
+def test_video_repair_rejects_excessive_nesting(sandbox):
+    original = '"video.cfg" {' + '"nested" {' * 64 + '}' * 65
+    with pytest.raises(recipe_mod.RecipeError, match="invalid video settings"):
+        config.update_video_txt(recipe_mod.resolve("balanced-1080p"), original)

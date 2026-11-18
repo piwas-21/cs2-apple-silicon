@@ -108,6 +108,16 @@ def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
     return "script"
 
 
+def _sign_applet(dest: Path) -> None:
+    # osacompile signs the applet; changing its plist or icon invalidates it.
+    signer = shutil.which("codesign")
+    if signer:
+        signed = subprocess.run([signer, "--force", "--sign", "-", str(dest)],
+                                capture_output=True, text=True, timeout=120)
+        if signed.returncode:
+            raise OSError(f"could not sign launcher: {signed.stderr.strip()}")
+
+
 def default_dest() -> Path:
     """Where a Mac user looks for apps: /Applications.
 
@@ -168,13 +178,7 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
         shutil.copy2(icon, dest / "Contents" / "Resources" / "applet.icns")
         shutil.copy2(icon, dest / "Contents" / "Resources" / "cs2kit.icns")
     if kind == "applet":
-        # osacompile signs the applet; changing its plist or icon invalidates it.
-        signer = shutil.which("codesign")
-        if signer:
-            signed = subprocess.run([signer, "--force", "--sign", "-", str(dest)],
-                                    capture_output=True, text=True, timeout=120)
-            if signed.returncode:
-                raise OSError(f"could not sign launcher: {signed.stderr.strip()}")
+        _sign_applet(dest)
     # Finder caches bundles by path; touching it makes the new icon appear at once.
     os.utime(dest, None)
 

@@ -92,11 +92,11 @@ def steam_running(prefix: Optional[Path] = None) -> bool:
         process = run(["ps", "eww", "-p", pid, "-o", "command="], timeout=10)
         if process.code:
             continue
-        match = re.search(r"(?:^|\s)WINEPREFIX=(.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|$)",
-                          process.out.strip())
-        if match and match.group(1) and Path(match.group(1)).is_absolute():
-            if Path(match.group(1)).resolve() == selected:
-                return True
+        environment = re.split(r"\s+(?=[A-Za-z_]\w*=)", process.out.strip(), flags=re.ASCII)
+        owner = next((field.partition("=")[2] for field in environment
+                      if field.startswith("WINEPREFIX=")), "")
+        if owner and Path(owner).is_absolute() and Path(owner).resolve() == selected:
+            return True
     return False
 
 

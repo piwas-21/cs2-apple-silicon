@@ -143,7 +143,7 @@ def test_steam_ownership_handles_spaces_aliases_and_multiple_clients(sandbox, mo
         if cmd == ["ps", "-axww", "-o", "pid=,comm="]:
             return Proc(0, "41 steam.exe\n42 C:\\Steam\\steam.exe\n", "")
         owner = sandbox.prefix if cmd[3] == "41" else alias
-        return Proc(0, f"steam.exe WINEPREFIX={owner} PATH=/bin", "")
+        return Proc(0, f"steam.exe PATH=/bin WINEPREFIX={owner}", "")
     monkeypatch.setattr(play, "run", fake_run)
     assert play.steam_running(selected)
 
@@ -167,7 +167,8 @@ def test_play_starts_selected_bottle_when_only_another_client_runs(
     monkeypatch.setattr(play, "steam_client", lambda prefix: prefix / "Steam.exe")
     monkeypatch.setattr(play, "_start_steam", lambda prefix, *a: started.append(prefix))
     assert play.cmd_play(args(prefix=str(selected), steam_only=True, print_only=False)) == EXIT_OK
-    assert started == [selected] and checked
+    assert started == [selected]
+    assert checked
     assert "Press Play" in capsys.readouterr().out
 
 

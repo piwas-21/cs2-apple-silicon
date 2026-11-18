@@ -100,52 +100,63 @@ def account_video_path() -> Optional[Path]:
     return candidates[0] if candidates else None
 
 
-def _video_fields(text: str) -> Tuple[Dict[str, List[Tuple[int, int]]], int]:
-    """Validate a KeyValues root and locate its scalar values without reformatting.
+VIDEO_FORMAT_ERROR = "invalid video settings: expected one complete KeyValues block"
 
-    Comments and quoted braces must not affect block boundaries. Nested quality
-    blocks are accepted, but only display keys directly in the root are edited.
-    """
-    token = re.compile(r'\s+|//[^\r\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|[{}]|[^\s{}"]+', re.S)
+
+def _video_tokens(text: str) -> List[Tuple[str, int, int]]:
+    """Keep source spans while skipping whitespace and KeyValues comments."""
+    ignored = re.compile(r'\s+|//[^\r\n]*|/\*.*?\*/', re.S)
+    token = re.compile(r'"(?:\\.|[^"\\])*"|[{}]|[^\s{}"]+', re.S)
     tokens = []
     pos = 1 if text.startswith("\ufeff") else 0
-    invalid = "invalid video settings: expected one complete KeyValues block"
     while pos < len(text):
-        match = token.match(text, pos)
-        if match is None:
-            raise recipe_mod.RecipeError(invalid)
-        raw = match.group()
-        if raw.startswith("/*") and not raw.endswith("*/"):
-            raise recipe_mod.RecipeError(invalid)
-        if not raw.isspace() and not raw.startswith(("//", "/*")):
-            tokens.append((raw, pos, match.end()))
-        pos = match.end()
-    if len(tokens) < 3 or tokens[0][0] in ("{", "}") or tokens[1][0] != "{":
-        raise recipe_mod.RecipeError(invalid)
-    fields: Dict[str, List[Tuple[int, int]]] = {}
-    depth, index = 1, 2
-    while index < len(tokens):
-        raw, start, _ = tokens[index]
-        if raw == "}":
-            depth -= 1
-            index += 1
-            if depth == 0:
-                if index != len(tokens):
-                    raise recipe_mod.RecipeError(invalid)
-                return fields, start
+        skip = ignored.match(text, pos)
+        if skip:
+            pos = skip.end()
             continue
-        if raw == "{" or index + 1 >= len(tokens):
-            raise recipe_mod.RecipeError(invalid)
-        value, value_start, value_end = tokens[index + 1]
-        if value == "}":
-            raise recipe_mod.RecipeError(invalid)
+        match = token.match(text, pos)
+        if match is None or text.startswith("/*", pos):
+            raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+        tokens.append((match.group(), pos, match.end()))
+        pos = match.end()
+    return tokens
+
+
+def _video_pair(tokens, index):
+    raw, _, _ = tokens[index]
+    if raw == "{" or index + 1 >= len(tokens) or tokens[index + 1][0] == "}":
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    return raw, tokens[index + 1]
+
+
+def _video_block(tokens, index, depth=1):
+    # Bound recursion even for malformed, user-supplied --video-path files.
+    if depth > 64:
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    fields: Dict[str, List[Tuple[int, int]]] = {}
+    while index < len(tokens):
+        if tokens[index][0] == "}":
+            return fields, index
+        raw, (value, start, end) = _video_pair(tokens, index)
+        index += 2
         if value == "{":
-            depth += 1
+            _, closing = _video_block(tokens, index, depth + 1)
+            index = closing + 1
         elif depth == 1:
             key = raw[1:-1] if raw.startswith('"') else raw
-            fields.setdefault(key.lower(), []).append((value_start, value_end))
-        index += 2
-    raise recipe_mod.RecipeError(invalid)
+            fields.setdefault(key.lower(), []).append((start, end))
+    raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+
+
+def _video_fields(text: str) -> Tuple[Dict[str, List[Tuple[int, int]]], int]:
+    """Validate one root; only its scalar display fields are eligible for edits."""
+    tokens = _video_tokens(text)
+    if len(tokens) < 3 or tokens[0][0] in ("{", "}") or tokens[1][0] != "{":
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    fields, closing = _video_block(tokens, 2)
+    if closing != len(tokens) - 1:
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    return fields, tokens[closing][1]
 
 
 def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
@@ -204,7 +215,8 @@ def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = Fa
     if write_video:
         target_video = Path(video_path) if video_path else account_video_path()
         if target_video and target_video.is_file():
-            video_content = update_video_txt(rec, target_video.read_text())
+            with target_video.open(encoding="utf-8", newline="") as handle:
+                video_content = update_video_txt(rec, handle.read())
         else:
             video_content = render_video_txt(rec)
     written: List[str] = []
@@ -234,7 +246,8 @@ def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = Fa
                 backup = target.with_name(target.name + ".cs2kit-backup")
                 if not backup.exists():
                     shutil.copy2(target, backup)
-            target.write_text(video_content)
+            with target.open("w", encoding="utf-8", newline="") as handle:
+                handle.write(video_content)
         video_written = str(target)
         written.append(video_written)
 

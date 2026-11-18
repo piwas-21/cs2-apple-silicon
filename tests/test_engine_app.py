@@ -157,7 +157,8 @@ def test_app_uses_script_fallback_without_compiler(sandbox, tmp_path, monkeypatc
     result = app_mod.build_app(dest, tmp_path / "wine", prefix=sandbox.prefix)
     assert result["kind"] == "script"
     body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
-    assert "--steam-only" not in body and "--detach" in body
+    assert "--steam-only" not in body
+    assert "--detach" in body
 
 
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
