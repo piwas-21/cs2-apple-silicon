@@ -102,7 +102,7 @@ def test_app_bundle_is_double_clickable_and_guarded(sandbox, tmp_path, cs2_tree)
     # The app must not stay attached: `cs2kit play --detach` double-forks, so
     # AppleScript's `do shell script` cannot reap the game or Steam.
     assert "--detach" in body
-    assert "--steam-only" in body, "the app must leave the Play button to the user"
+    assert "--steam-only" not in body, "the app must pass profile options through Steam"
     assert str(sandbox.prefix) in body
     assert "/steamapps/common/" not in body, "no game path may be baked into the app"
     # Problems are reported by `cs2kit play --gui`, which puts up the dialog itself -
@@ -157,7 +157,7 @@ def test_app_uses_script_fallback_without_compiler(sandbox, tmp_path, monkeypatc
     result = app_mod.build_app(dest, tmp_path / "wine", prefix=sandbox.prefix)
     assert result["kind"] == "script"
     body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
-    assert "--steam-only" in body and "--detach" in body
+    assert "--steam-only" not in body and "--detach" in body
 
 
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):

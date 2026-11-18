@@ -80,10 +80,24 @@ def steam_ready(prefix: Path, timeout: float = 90.0) -> bool:
     return False
 
 
-def steam_running() -> bool:
-    """Is the Steam *client* up? `steamservice.exe` and `steamwebhelper.exe` are
-    helpers that outlive it and must not be counted."""
-    return bool(_pids("steam.exe"))
+def steam_running(prefix: Optional[Path] = None) -> bool:
+    """Count only clients whose inherited WINEPREFIX identifies this bottle.
+
+    Windows executable paths are identical between bottles. A basename match
+    discovers candidates, but cannot establish ownership. Never log the process
+    environment, which can contain credentials unrelated to CS2Kit.
+    """
+    selected = Path(prefix or wineprefix()).expanduser().resolve()
+    for pid in _pids("steam.exe"):
+        process = run(["ps", "eww", "-p", pid, "-o", "command="], timeout=10)
+        if process.code:
+            continue
+        match = re.search(r"(?:^|\s)WINEPREFIX=(.*?)(?=\s+[A-Za-z_][A-Za-z0-9_]*=|$)",
+                          process.out.strip())
+        if match and match.group(1) and Path(match.group(1)).is_absolute():
+            if Path(match.group(1)).resolve() == selected:
+                return True
+    return False
 
 
 def clean_stale_steam() -> List[str]:
@@ -182,7 +196,7 @@ def cmd_play(args) -> int:
         # Fixing this needs Steam, so open it rather than leaving the player stuck
         # in front of a dialog telling them to use an app that is not running.
         client = steam_client(prefix)
-        if client and not steam_running() and not args.print_only:
+        if client and not steam_running(prefix) and not args.print_only:
             _start_steam(prefix, client)
         message = (f"{verdict.message}. In Steam, right-click CS2 > Properties > "
                    "Installed Files > Verify integrity of game files.")
@@ -194,7 +208,7 @@ def cmd_play(args) -> int:
     if problem and not args.start_steam_anyway:
         # Starting Steam is usually the fix, so do it before complaining about the game.
         client = steam_client(prefix)
-        if not args.print_only and client and probe.cs2_exe() is None and not steam_running():
+        if not args.print_only and client and probe.cs2_exe() is None and not steam_running(prefix):
             _start_steam(prefix, client)
         if getattr(args, "gui", False) and not args.print_only:
             notify(problem)
@@ -205,7 +219,7 @@ def cmd_play(args) -> int:
     except recipe_mod.RecipeError as exc:
         return emit_error("play", str(exc), EXIT_NOT_READY, args.json)
     client = steam_client(prefix)
-    if not args.print_only and client and not steam_running():
+    if not args.print_only and client and not steam_running(prefix):
         # --print-only promises "print the plan, start nothing" (docs/cli-reference.md),
         # measured 2026-09-16: it used to start a whole Steam client before printing.
         _start_steam(prefix, client, plan["env"])
@@ -214,10 +228,8 @@ def cmd_play(args) -> int:
         steam_ready(prefix)
 
     if args.steam_only:
-        # Hand over to Steam and stop. Pressing Play in Steam is the only launch
-        # path that gives the game its proper Steam context: launching cs2.exe
-        # ourselves makes VAC report invalid signatures and refuse secure servers,
-        # and the game starts with default settings (measured 2026-08-25).
+        # Optional manual handoff. The default uses Steam's -applaunch path so
+        # profile launch options reach the game as well as its Steam context.
         message = "Steam is open. Press Play on Counter-Strike 2 to start the game."
         if args.json or args.print_only:
             print(json.dumps({**plan, "via": "steam-ui"}, indent=2, sort_keys=True))
@@ -279,7 +291,7 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
                          env=full, start_new_session=True)
     for _ in range(20):
         time.sleep(2)
-        if steam_running():
+        if steam_running(prefix):
             time.sleep(10)      # let the client finish logging in before -applaunch
             return
 
@@ -294,7 +306,7 @@ def register(subparsers) -> None:
     parser.add_argument("--print-only", action="store_true", help="print the plan, start nothing")
     parser.add_argument("--force", action="store_true", help="start despite an integrity failure")
     parser.add_argument("--steam-only", action="store_true",
-                        help="open Steam and stop - you press Play (the launcher app's default)")
+                        help="open Steam and stop - you press Play; set game options in Steam")
     parser.add_argument("--direct", action="store_true",
                         help="start cs2.exe directly instead of through Steam. VAC then refuses "
                              "secure servers - offline testing only")

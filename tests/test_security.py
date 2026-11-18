@@ -71,7 +71,7 @@ def test_launcher_shell_and_plist_round_trip_hostile_values(sandbox, monkeypatch
     proc = subprocess.run(["bash", str(dest / "Contents/MacOS/cs2kit-launch")], timeout=10)
     assert proc.returncode == 0
     assert record.read_bytes().decode().split("\0")[:-1] == [
-        "play", "--profile", profile, "--steam-only", "--gui", "--detach"]
+        "play", "--profile", profile, "--gui", "--detach"]
     assert not marker.exists()
     with (dest / "Contents/Info.plist").open("rb") as file:
         assert plistlib.load(file)["CFBundleName"] == "A&B <Test>"
@@ -211,7 +211,7 @@ def test_steam_start_uses_an_argument_array_and_no_shell(sandbox, monkeypatch):
     client.write_bytes(b"client")
     monkeypatch.setenv("HOME", str(sandbox.root))
     monkeypatch.setattr(play.bottle, "wine_root", lambda: sandbox.root / "wine")
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     monkeypatch.setattr(play.time, "sleep", lambda seconds: None)
     calls = []
     monkeypatch.setattr(play.subprocess, "Popen", lambda cmd, **kw: calls.append((cmd, kw)))

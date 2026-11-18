@@ -877,7 +877,8 @@ pgrep -ifl "steam.exe" | grep -v steamservice     # is the CLIENT actually up?
 ```
 
 `cs2kit play` only counts the real client executable as "running", including its full Windows
-path. It does not kill helpers belonging to other bottles. Use `cs2kit stop` to stop the selected bottle.
+path, after verifying that its inherited `WINEPREFIX` matches the selected bottle. It does not
+kill helpers belonging to other bottles. Use `cs2kit stop` to stop the selected bottle.
 
 ### c. You cannot find the app in Finder
 
@@ -900,7 +901,7 @@ See [the recovery record](reference/macos-launch-recovery.md).
 |---|---|---|
 | `open` fails, `_LSOpenURLsWithCompletionHandler() failed … error -1712` | the bundle's executable was a **shell script**. LaunchServices waits for it to register as an application and times out | the app is now a compiled **AppleScript applet** — a real application bundle |
 | the app runs, Steam never appears | AppleScript's `do shell script` **reaps whatever it starts**, even with `nohup … &`. Steam logged in and vanished the moment the applet returned | `cs2kit play --detach` double-forks and `setsid`s first, so it is reparented to launchd |
-| the app reports its message but never starts Steam | `pgrep -f steam.exe` matches **any command line** mentioning it — including the shell that is about to launch Steam. CS2Kit believed Steam was already running | process detection compares the executable basename from `ps` `comm`, accepting full Windows paths and excluding shell arguments |
+| the app reports its message but never starts Steam | `pgrep -f steam.exe` matches **any command line** mentioning it — including the shell that is about to launch Steam. CS2Kit believed Steam was already running | process detection compares the executable basename from `ps` `comm`, then checks `WINEPREFIX` ownership; shell arguments and other bottles do not count |
 | the app is nowhere in Finder | it was installed into `~/Applications`, which Finder's sidebar does not show (Spotlight does) | it installs into **`/Applications`** when writable, named **CS2Kit.app**, with an icon |
 
 **Check it yourself:**

@@ -328,7 +328,13 @@ cs2kit play [--profile P] [--prefix P] [--print-only] [--steam-only] [--direct]
 ```
 
 Resolves the current game, bottle and engine, checks integrity, and asks the in-bottle Steam client
-to launch CS2. `--steam-only` opens Steam and leaves the Play button to you. `--direct` bypasses
+to launch CS2 with the selected profile's launch options. The generated app uses this same path.
+Steam detection checks the client's inherited `WINEPREFIX`, so another bottle's client does not
+suppress startup. Process environments are inspected locally and are never logged.
+
+`--steam-only` explicitly opens Steam and leaves the Play button to you. In this manual mode,
+set game launch options in Steam's Properties dialog; CS2Kit does not pass its profile's game
+arguments to a later manual Play click. `--direct` bypasses
 Steam's launch path and is for offline testing only; see [the VAC failure](troubleshooting.md#29-vac-game-files-have-no-signatures-or-invalid-signatures).
 
 `--print-only` prints a JSON plan without starting Steam or the game, waiting for Steam, detaching,

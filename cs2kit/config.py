@@ -15,7 +15,7 @@ import shlex
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from cs2kit import probe, recipe as recipe_mod
 from cs2kit.util import (EXIT_OK, PASS, WARN, Check, emit_error,
@@ -100,6 +100,54 @@ def account_video_path() -> Optional[Path]:
     return candidates[0] if candidates else None
 
 
+def _video_fields(text: str) -> Tuple[Dict[str, List[Tuple[int, int]]], int]:
+    """Validate a KeyValues root and locate its scalar values without reformatting.
+
+    Comments and quoted braces must not affect block boundaries. Nested quality
+    blocks are accepted, but only display keys directly in the root are edited.
+    """
+    token = re.compile(r'\s+|//[^\r\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|[{}]|[^\s{}"]+', re.S)
+    tokens = []
+    pos = 1 if text.startswith("\ufeff") else 0
+    invalid = "invalid video settings: expected one complete KeyValues block"
+    while pos < len(text):
+        match = token.match(text, pos)
+        if match is None:
+            raise recipe_mod.RecipeError(invalid)
+        raw = match.group()
+        if raw.startswith("/*") and not raw.endswith("*/"):
+            raise recipe_mod.RecipeError(invalid)
+        if not raw.isspace() and not raw.startswith(("//", "/*")):
+            tokens.append((raw, pos, match.end()))
+        pos = match.end()
+    if len(tokens) < 3 or tokens[0][0] in ("{", "}") or tokens[1][0] != "{":
+        raise recipe_mod.RecipeError(invalid)
+    fields: Dict[str, List[Tuple[int, int]]] = {}
+    depth, index = 1, 2
+    while index < len(tokens):
+        raw, start, _ = tokens[index]
+        if raw == "}":
+            depth -= 1
+            index += 1
+            if depth == 0:
+                if index != len(tokens):
+                    raise recipe_mod.RecipeError(invalid)
+                return fields, start
+            continue
+        if raw == "{" or index + 1 >= len(tokens):
+            raise recipe_mod.RecipeError(invalid)
+        value, value_start, value_end = tokens[index + 1]
+        if value == "}":
+            raise recipe_mod.RecipeError(invalid)
+        if value == "{":
+            depth += 1
+        elif depth == 1:
+            key = raw[1:-1] if raw.startswith('"') else raw
+            fields.setdefault(key.lower(), []).append((value_start, value_end))
+        index += 2
+    raise recipe_mod.RecipeError(invalid)
+
+
 def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
     """Preserve quality settings while repairing display settings (T-009)."""
     settings = {
@@ -108,14 +156,20 @@ def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
         "setting.fullscreen": rec.display.get("fullscreen", 0),
         "setting.coop_fullscreen": 0,
     }
-    if "}" not in existing:
-        raise recipe_mod.RecipeError("invalid video settings: expected a KeyValues block")
+    fields, closing = _video_fields(existing)
+    changes = []
+    missing = []
     for key, value in settings.items():
-        pattern = r'("' + re.escape(key) + r'"\s*)"[^"\r\n]*"'
-        existing, count = re.subn(pattern, lambda m: m.group(1) + f'"{value}"', existing)
-        if not count:
-            pos = existing.rfind("}")
-            existing = existing[:pos] + f'\t"{key}"\t\t"{value}"\n' + existing[pos:]
+        if key in fields:
+            changes.extend((start, end, f'"{value}"') for start, end in fields[key])
+        else:
+            missing.append(f'\t"{key}"\t\t"{value}"')
+    if missing:
+        newline = "\r\n" if "\r\n" in existing else "\n"
+        lead = "" if existing[:closing].endswith(("\r", "\n")) else newline
+        changes.append((closing, closing, lead + newline.join(missing) + newline))
+    for start, end, value in sorted(changes, reverse=True):
+        existing = existing[:start] + value + existing[end:]
     return existing
 
 

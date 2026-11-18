@@ -11,7 +11,10 @@ general compatibility claim or performance benchmark.
 script. `build_app` unconditionally called `_write_script_app` although the
 native `_compile_applet` implementation was available. Opening the old bundle
 through the app UI timed out. The generated applet now uses a native universal
-Mach-O executable and hands over to Steam with `--steam-only --gui --detach`.
+Mach-O executable. The recovery used `--steam-only --gui --detach` to hand over
+to Steam manually. Following review, generated launchers use `--gui --detach`
+and Steam's `-applaunch` path, preserving the profile's game launch options.
+Manual handoff remains available through the explicit CLI `--steam-only` flag.
 Its plist and icons are applied before ad-hoc signing; editing these after
 `osacompile` otherwise invalidates the signature.
 
@@ -19,6 +22,11 @@ Its plist and icons are applied before ad-hoc signing; editing these after
 `C:\Program Files (x86)\Steam\steam.exe`, while `steam_running()` returned false.
 After changing detection to compare executable basenames in `ps`'s `comm` field,
 it returned true. Shell arguments and Steam service/web helpers do not count.
+Following review, candidates must also carry the selected bottle's `WINEPREFIX`;
+identical Windows paths in another bottle cannot suppress startup. Hermetic
+regression tests cover both process-name forms and multiple bottles. A local
+macOS subprocess smoke check verified environment ownership detection with a
+prefix containing spaces; a second live Wine bottle was not started for testing.
 
 **CONFIRMED:** the user saw the game render normally in a window, changed it to
 fullscreen and 16:9, then reported that applying those settings closed the game.
@@ -50,6 +58,9 @@ existing account file and preserved the original as `.cs2kit-backup`. The comman
 now discovers this file instead of writing only the unused install-tree
 `CS2Video.txt`. It preserves unrelated quality settings and refuses to guess
 between multiple accounts; `--video-path` selects a particular one.
+Following review, repair recognizes quoted strings and comments before locating
+the root block and its display keys. It preserves comments and nested quality
+settings, and rejects incomplete or malformed blocks before writing any files.
 
 **CONFIRMED:** `app create --json` reported `"kind": "applet"`;
 `codesign --verify --verbose /Applications/CS2Kit.app` reported `valid on disk`

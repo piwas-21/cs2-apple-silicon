@@ -4,7 +4,8 @@ The CLI is the right interface for building and diagnosing a bottle, and the
 wrong interface for starting a game. This generates a small `.app` whose
 launcher script runs the same integrity-guarded path as `cs2kit launch`: verify
 the guarded binaries, start the Steam client if it is not up, then start CS2.
-It embeds no third-party code - it is a plist and a shell script.
+It prefers a native AppleScript applet and retains a shell-bundle fallback when
+the compiler is unavailable. It embeds no third-party code.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ set logFile to (POSIX path of (path to home folder)) & "CS2/cs2kit-app.log"
 do shell script "mkdir -p \\"$(dirname " & quoted form of logFile & ")\\""
 do shell script "cd " & quoted form of repoPath & " && CS2KIT_REPO=" & quoted form of repoPath & ¬
     " WINEPREFIX=" & quoted form of winePrefix & ¬
-    " ./bin/cs2kit play --profile " & quoted form of profileName & " --steam-only --gui --detach >> " & ¬
+    " ./bin/cs2kit play --profile " & quoted form of profileName & " --gui --detach >> " & ¬
     quoted form of logFile & " 2>&1"
 '''
 
@@ -41,7 +42,7 @@ export CS2KIT_REPO={repo}
 export WINEPREFIX={prefix}
 LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
-"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --steam-only --gui --detach >>"$LOG" 2>&1
+"$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --gui --detach >>"$LOG" 2>&1
 exit 0
 '''
 
@@ -206,7 +207,7 @@ def cmd_create(args) -> int:
     print(f"  profile  {result['profile'] or '(none)'} -> {result['launch_options']}")
     print("")
     print("Double-click it to play. It verifies game-file integrity (T-021), starts the Steam")
-    print("client if needed, then leaves Play to you. Logs go to ~/CS2/cs2kit-app.log")
+    print("client if needed, then launches CS2. Logs go to ~/CS2/cs2kit-app.log")
     return EXIT_OK
 
 

@@ -128,3 +128,66 @@ def test_multiple_accounts_require_explicit_video_path_before_writing(sandbox):
     assert not config.active_path().exists()
     config.apply(rec, write_video=True, video_path=target)
     assert other.read_bytes() == before
+
+
+def test_video_repair_preserves_comments_strings_and_nested_quality_settings(sandbox):
+    target = account_video(sandbox)
+    original = '''// "setting.defaultres" "640"
+"video.cfg"
+{
+    /* old display settings: } "setting.fullscreen" "1" */
+    "setting.defaultresheight" "-1" // keep this comment
+    "quality" { "setting.defaultres" "777" }
+    "description" "quoted } and \\"escaped quote\\""
+    "setting.msaa_samples" "8"
+}
+// previous closing brace }
+'''
+    target.write_text(original)
+    config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True)
+    repaired = target.read_text()
+    assert '// "setting.defaultres" "640"' in repaired
+    assert '/* old display settings: } "setting.fullscreen" "1" */' in repaired
+    assert '"setting.defaultresheight" "1080" // keep this comment' in repaired
+    assert '"quality" { "setting.defaultres" "777" }' in repaired
+    assert '"description" "quoted } and \\"escaped quote\\""' in repaired
+    assert '"setting.msaa_samples" "8"' in repaired
+    assert repaired.endswith('}\n// previous closing brace }\n')
+    # Parse after removing comments to check actual root values, not comment text.
+    clean = repaired.replace('// "setting.defaultres" "640"', '').replace(
+        '/* old display settings: } "setting.fullscreen" "1" */', '').replace(
+        '// previous closing brace }', '')
+    from cs2kit import probe
+    values = probe.parse_acf(clean)
+    assert values["setting.defaultres"] == "1920"
+    assert values["setting.fullscreen"] == "0"
+    assert values["setting.coop_fullscreen"] == "0"
+    assert target.with_name(target.name + ".cs2kit-backup").read_text() == original
+    assert config.update_video_txt(recipe_mod.resolve("balanced-1080p"), repaired) == repaired
+
+
+@pytest.mark.parametrize("original", [
+    '', 'garbage }', '"video.cfg" {', '"video.cfg" { "setting.fullscreen" }',
+    '"video.cfg" { "unterminated "0" }', '"video.cfg" {} "other" {}',
+    '"video.cfg" {} /*', '"video.cfg" { "nested" { "key" "value" }',
+])
+def test_invalid_video_config_is_rejected_before_any_write(sandbox, original):
+    target = account_video(sandbox)
+    target.write_text(original)
+    rec = recipe_mod.resolve("balanced-1080p")
+    with pytest.raises(recipe_mod.RecipeError, match="invalid video settings"):
+        config.apply(rec, write_video=True)
+    assert target.read_text() == original
+    assert not target.with_name(target.name + ".cs2kit-backup").exists()
+    assert not config.active_path().exists()
+    assert not config.env_script_path(rec.name).exists()
+
+
+def test_video_repair_updates_duplicate_active_keys_and_keeps_crlf(sandbox):
+    original = ('\ufeff"video.cfg"\r\n{\r\n"setting.defaultres" "-1"\r\n'
+                '"SETTING.DEFAULTRES" "800"\r\n}\r\n')
+    repaired = config.update_video_txt(recipe_mod.resolve("balanced-1080p"), original)
+    assert '"setting.defaultres" "1920"' in repaired
+    assert '"SETTING.DEFAULTRES" "1920"' in repaired
+    assert repaired.startswith('\ufeff"video.cfg"\r\n')
+    assert '\n' not in repaired.replace('\r\n', '')
