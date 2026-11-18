@@ -2,6 +2,8 @@
 import os
 import hashlib
 import plistlib
+import shlex
+import shutil
 import subprocess
 
 import pytest
@@ -75,6 +77,38 @@ def test_launcher_shell_and_plist_round_trip_hostile_values(sandbox, monkeypatch
     assert not marker.exists()
     with (dest / "Contents/Info.plist").open("rb") as file:
         assert plistlib.load(file)["CFBundleName"] == "A&B <Test>"
+
+
+@pytest.mark.parametrize("kind", ["script", "applet"])
+def test_quit_launchers_execute_only_stop_with_the_selected_prefix(sandbox, monkeypatch, kind):
+    if kind == "applet" and not shutil.which("osacompile"):
+        pytest.skip("native AppleScript compiler is macOS-only")
+    root = sandbox.root / "checkout ' with spaces"
+    (root / "bin").mkdir(parents=True)
+    record = sandbox.root / "quit-arguments"
+    marker = sandbox.root / "must-not-exist"
+    prefix = str(sandbox.prefix) + f" ' $(touch {marker})"
+    target = root / "bin" / "cs2kit"
+    target.write_text('#!/bin/sh\nprintf "%s\\0" "$WINEPREFIX" "$@" > ' +
+                      shlex.quote(str(record)) + '\n')
+    target.chmod(0o755)
+    monkeypatch.setenv("CS2KIT_REPO", str(root))
+    dest = sandbox.root / "Quit CS2Kit.app"
+    if kind == "script":
+        app._write_script_app(dest, prefix, "unused", "Quit CS2Kit", stop=True)
+        command = ["bash", str(dest / "Contents" / "MacOS" / "cs2kit-launch")]
+    else:
+        result = app.build_app(dest, sandbox.root / "wine", prefix=prefix,
+                               game_dir=sandbox.root / "game", stop=True)
+        assert result["kind"] == "applet"
+        verified = subprocess.run(["codesign", "--verify", "--verbose", str(dest)],
+                                  capture_output=True, text=True, timeout=30)
+        assert verified.returncode == 0, verified.stderr
+        command = ["osascript", str(dest / "Contents" / "Resources" / "Scripts" / "main.scpt")]
+    proc = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    assert record.read_bytes().decode().split("\0")[:-1] == [prefix, "stop"]
+    assert not marker.exists()
 
 
 def test_every_executable_download_has_a_recorded_checksum():

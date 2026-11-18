@@ -167,6 +167,12 @@ def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
         "setting.fullscreen": rec.display.get("fullscreen", 0),
         "setting.coop_fullscreen": 0,
     }
+    if not rec.display.get("fullscreen", 0):
+        # Exclusive refresh rates and borderless state can survive a monitor
+        # change. In windowed recovery, let the desktop choose its refresh rate.
+        settings.update({"setting.refreshrate_numerator": 0,
+                         "setting.refreshrate_denominator": 0,
+                         "setting.nowindowborder": 0})
     fields, closing = _video_fields(existing)
     changes = []
     missing = []
@@ -194,6 +200,9 @@ def render_video_txt(rec: recipe_mod.Recipe) -> str:
         f'\t"setting.defaultresheight"\t\t"{disp.get("height", 1080)}"\n'
         f'\t"setting.fullscreen"\t\t"{disp.get("fullscreen", 0)}"\n'
         '\t"setting.coop_fullscreen"\t\t"0"\n'
+        '\t"setting.refreshrate_numerator"\t\t"0"\n'
+        '\t"setting.refreshrate_denominator"\t\t"0"\n'
+        '\t"setting.nowindowborder"\t\t"0"\n'
         f'\t"setting.hdr_enabled"\t\t"0"\n'
         "}\n"
     )

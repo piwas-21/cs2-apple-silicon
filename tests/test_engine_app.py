@@ -119,7 +119,8 @@ def test_app_prefers_native_applet_and_preserves_identity(sandbox, tmp_path, mon
     dest = tmp_path / "CS2Kit.app"
     calls = []
 
-    def compile_app(path, prefix, profile):
+    def compile_app(path, prefix, profile, stop=False):
+        assert stop is False
         calls.append((prefix, profile))
         resources = path / "Contents" / "Resources"
         resources.mkdir(parents=True)
@@ -152,13 +153,101 @@ def test_app_prefers_native_applet_and_preserves_identity(sandbox, tmp_path, mon
 
 
 def test_app_uses_script_fallback_without_compiler(sandbox, tmp_path, monkeypatch):
-    monkeypatch.setattr(app_mod, "_compile_applet", lambda *args: None)
+    monkeypatch.setattr(app_mod, "_compile_applet", lambda *args, **kw: None)
     dest = tmp_path / "Fallback.app"
     result = app_mod.build_app(dest, tmp_path / "wine", prefix=sandbox.prefix)
     assert result["kind"] == "script"
     body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
     assert "--steam-only" not in body
     assert "--detach" in body
+
+
+def test_quit_app_runs_only_prefix_scoped_stop(sandbox, tmp_path, monkeypatch, capsys):
+    from cs2kit import cli
+
+    monkeypatch.setattr(app_mod, "default_dest", lambda: tmp_path / "CS2Kit.app")
+    parser = cli.build_parser()
+    args = parser.parse_args(["app", "create", "--stop", "--wine-root", str(tmp_path / "wine"),
+                              "--json"])
+    assert args.func(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    dest = tmp_path / "Quit CS2Kit.app"
+    assert result["app"] == str(dest)
+    assert result["action"] == "stop"
+    import shutil
+    import subprocess
+
+    if result["kind"] == "applet":
+        body = subprocess.run([shutil.which("osadecompile"), str(dest)],
+                              capture_output=True, text=True, timeout=60).stdout
+    else:
+        body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
+    assert "cs2kit stop" in body
+    assert str(sandbox.prefix) in body
+    assert "cs2kit play" not in body
+    assert "--detach" not in body
+    assert (tmp_path / "CS2Kit.app").exists() is False, "must not overwrite the play launcher"
+
+
+@pytest.mark.parametrize("form", ["absolute", "extensionless", "tilde", "relative", "symlink-parent"])
+def test_quit_app_preserves_play_launcher_for_equivalent_destinations(
+        sandbox, tmp_path, monkeypatch, capsys, form):
+    from cs2kit import cli
+
+    play_app = tmp_path / "Applications" / "CS2Kit.app"
+    play_app.mkdir(parents=True)
+    marker = play_app / "existing-play-launcher"
+    marker.write_text("keep the play app")
+    monkeypatch.setattr(app_mod, "default_dest", lambda: play_app)
+    monkeypatch.setattr(app_mod, "_compile_applet", lambda *a, **kw: None)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    alias = tmp_path / "apps-alias"
+    alias.symlink_to(play_app.parent, target_is_directory=True)
+    destination = {
+        "absolute": str(play_app),
+        "extensionless": str(play_app.with_suffix("")),
+        "tilde": "~/Applications/CS2Kit",
+        "relative": "Applications/CS2Kit",
+        "symlink-parent": str(alias / "CS2Kit.app"),
+    }[form]
+    args = cli.build_parser().parse_args([
+        "app", "create", "--stop", "--dest", destination,
+        "--wine-root", str(tmp_path / "wine"), "--json"])
+    assert args.func(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    quit_app = play_app.with_name("Quit CS2Kit.app")
+    assert result["app"] == str(quit_app)
+    assert result["action"] == "stop"
+    assert quit_app.is_dir()
+    assert marker.read_text() == "keep the play app"
+
+
+@pytest.mark.parametrize("action", ["play", "stop"])
+def test_app_creation_uses_engine_recorded_in_explicit_prefix(
+        sandbox, tmp_path, monkeypatch, capsys, action):
+    from cs2kit import bottle, cli
+
+    selected = tmp_path / "selected bottle"
+    engine_root = tmp_path / "selected engine"
+    (engine_root / "lib" / "wine").mkdir(parents=True)
+    state = bottle.state_file(selected)
+    state.parent.mkdir(parents=True)
+    state.write_text(json.dumps({"wine_root": str(engine_root)}))
+    monkeypatch.setattr(bottle, "which", lambda name: None)
+    monkeypatch.setattr(app_mod, "default_dest", lambda: tmp_path / "CS2Kit.app")
+    monkeypatch.setattr(app_mod, "_compile_applet", lambda *a, **kw: None)
+    assert bottle.wine_root() is None, "the default bottle has no engine"
+    argv = ["app", "create", "--prefix", str(selected), "--json"]
+    if action == "stop":
+        argv.append("--stop")
+    args = cli.build_parser().parse_args(argv)
+    assert args.func(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["wine_root"] == str(engine_root.resolve())
+    assert result["prefix"] == str(selected.resolve())
+    assert result["action"] == action
+    assert Path(result["app"]).is_dir()
 
 
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
