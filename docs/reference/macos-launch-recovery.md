@@ -109,6 +109,12 @@ persisted configuration successfully. No new Metal assertion or error-reporter
 process appeared during the initial observation. Human confirmation of the
 external window and gameplay remains separate from these startup checks.
 
+**CONFIRMED visual result:** the user supplied a screenshot at 23:58 showing the
+CS2 video menu rendering on monitor 2, Windowed, 16:9, 1600×900, with a desktop
+refresh rate of 60 Hz. This confirms the external-display menu result; it does
+not establish gameplay or exclusive-fullscreen stability. The final test
+session was left open for the user.
+
 **CONFIRMED display-link limit:** the user identified a USB-C hub/dock with HDMI.
 A read-only CoreGraphics mode enumeration exposed only 60 Hz at 3840×1080,
 with no 120/144 Hz mode at that resolution. This establishes what this connection
