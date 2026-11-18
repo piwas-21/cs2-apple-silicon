@@ -974,6 +974,12 @@ down in one step:
 cs2kit stop
 ```
 
+For a double-clickable quit action, run `cs2kit app create --stop` once. It creates
+**Quit CS2Kit.app** in Applications. Exit the game normally to save settings, then open
+that app to stop the selected bottle's Steam and helpers. **CONFIRMED in the external-display
+follow-up:** the main Steam PID stayed alive while its web helper restarted; see the
+[recovery record](reference/macos-launch-recovery.md#external-display-and-steam-exit-follow-up).
+
 The updated command stops only the selected bottle using its recorded Wine engine's `wineserver`
 and waits for termination. Exit Steam first to save settings. It no longer kills global process-name
 matches, which could belong to a different bottle.

@@ -160,6 +160,32 @@ def test_app_uses_script_fallback_without_compiler(sandbox, tmp_path, monkeypatc
     assert "--steam-only" in body and "--detach" in body
 
 
+def test_quit_app_runs_only_prefix_scoped_stop(sandbox, tmp_path, monkeypatch, capsys):
+    from cs2kit import cli
+
+    monkeypatch.setattr(app_mod, "default_dest", lambda: tmp_path / "CS2Kit.app")
+    parser = cli.build_parser()
+    args = parser.parse_args(["app", "create", "--stop", "--wine-root", str(tmp_path / "wine"),
+                              "--json"])
+    assert args.func(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    dest = tmp_path / "Quit CS2Kit.app"
+    assert result["app"] == str(dest)
+    assert result["action"] == "stop"
+    import shutil
+    import subprocess
+
+    if result["kind"] == "applet":
+        body = subprocess.run([shutil.which("osadecompile"), str(dest)],
+                              capture_output=True, text=True, timeout=60).stdout
+    else:
+        body = (dest / "Contents" / "MacOS" / "cs2kit-launch").read_text()
+    assert "cs2kit stop" in body
+    assert str(sandbox.prefix) in body
+    assert "cs2kit play" not in body and "--detach" not in body
+    assert (tmp_path / "CS2Kit.app").exists() is False, "must not overwrite the play launcher"
+
+
 def test_app_points_at_the_real_game_directory(sandbox, cs2_tree, tmp_path):
     wine_root = tmp_path / "wine"
     (wine_root / "bin").mkdir(parents=True)

@@ -270,6 +270,8 @@ See [the local evidence](reference/macos-launch-recovery.md). Exit CS2 and Steam
 first original as `cs2_video.txt.cs2kit-backup`. Multiple account files require `--video-path`;
 CS2Kit does not choose an account for you. If no account file exists, it retains the legacy
 install-tree `CS2Video.txt` fallback and prints the unconfirmed-path caveat.
+For windowed profiles, repair also clears a saved exclusive refresh rate and borderless state;
+it preserves the chosen monitor and unrelated quality settings.
 
 **Exit:** `0`; `3` when the profile does not exist or fails validation.
 
@@ -339,6 +341,21 @@ after a game update can refresh the baseline; a preview leaves the previous base
 **Exit:** `0` for a plan or handoff; `3` when prerequisites are missing; `4` for an integrity failure
 without `--force`. `--json` formats output but does not itself provide the no-start guarantee;
 combine it with `--print-only` when inspecting a plan.
+
+## `cs2kit app create`
+
+```
+cs2kit app create [--dest PATH] [--prefix P] [--profile P] [--wine-root PATH] [--json]
+cs2kit app create --stop [--dest PATH] [--prefix P] [--wine-root PATH] [--json]
+```
+
+Creates the signed native launcher when the macOS compiler is available, otherwise a script
+bundle fallback. The default app opens Steam and leaves Play to you. `--stop` instead creates
+`Quit CS2Kit.app` beside the usual default launcher, without replacing it. Exit CS2 to save
+settings, then open the quit app to run the prefix-scoped `cs2kit stop` command. It does not
+start Steam or leave a background launcher running. JSON includes `action: play|stop`.
+
+**Exit:** `0` on creation; `3` for a missing engine, invalid profile, or a creation/signing error.
 
 ## `cs2kit stop`
 

@@ -128,3 +128,31 @@ def test_multiple_accounts_require_explicit_video_path_before_writing(sandbox):
     assert not config.active_path().exists()
     config.apply(rec, write_video=True, video_path=target)
     assert other.read_bytes() == before
+
+
+def test_windowed_repair_clears_stale_monitor_mode(sandbox):
+    target = account_video(sandbox)
+    text = target.read_text().replace('"setting.fullscreen" "1"',
+        '"setting.fullscreen" "1"\n"setting.refreshrate_numerator" "120000"\n'
+        '"setting.refreshrate_denominator" "1000"\n"setting.nowindowborder" "1"\n'
+        '"setting.monitor_index" "1"')
+    target.write_text(text)
+    config.apply(recipe_mod.resolve("thermal-limited"), write_video=True)
+    from cs2kit import probe
+
+    values = probe.parse_acf(target.read_text())
+    assert values["setting.fullscreen"] == "0"
+    assert values["setting.refreshrate_numerator"] == "0"
+    assert values["setting.refreshrate_denominator"] == "0"
+    assert values["setting.nowindowborder"] == "0"
+    assert values["setting.monitor_index"] == "1", "preserve the selected external display"
+    assert values["setting.msaa_samples"] == "2"
+
+
+def test_fullscreen_profile_preserves_requested_refresh(sandbox):
+    target = account_video(sandbox)
+    original = target.read_text().replace('"setting.fullscreen" "1"',
+        '"setting.fullscreen" "1"\n"setting.refreshrate_numerator" "120000"')
+    target.write_text(original)
+    config.apply(recipe_mod.resolve("competitive-lowest-latency"), write_video=True)
+    assert '"setting.refreshrate_numerator" "120000"' in target.read_text()

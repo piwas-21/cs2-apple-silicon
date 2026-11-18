@@ -63,3 +63,53 @@ persisted a positive window size and `setting.fullscreen = 0`.
 by this change; another switch can reproduce the crash. Use windowed mode on
 this configuration. Post-repair gameplay, performance, and secure-server play
 were not measured. No game executable or DLL was modified.
+
+## External display and Steam exit follow-up
+
+**CONFIRMED, 2026-11-18:** after more video-menu changes, the saved mode was
+1728×1117, exclusive fullscreen, 120 Hz, monitor index 0, and borderless enabled.
+The connected laptop was the main display; the Samsung C49HG9x external display
+was 3840×1080 at 60 Hz. Steam's CS2 `LaunchOptions` was empty. The startup log
+showed repeated exclusive display-mode switches and another Metal encoder abort.
+**LIKELY:** persisting the laptop's exclusive mode across a monitor change is
+the trigger; the exact upstream graphics defect remains unisolated.
+
+**CONFIRMED:** Steam's main macOS PID stayed 41833 from 23:29 through the apparent
+relaunches at 23:47. Its web helper restarted with start counts 1, 2, and 3, while
+the bootstrap log showed no new Steam startup. There was no active CS2Kit
+launcher/watchdog process. This was the client recreating its UI rather than a
+new Steam client being launched. A `steam.exe -shutdown` request removed the main
+client, then `cs2kit stop` confirmed the selected bottle was down. It stayed down
+until explicitly started for the next test.
+
+Local recovery backed up the current account files, restored 1600×900 windowed
+mode, selected monitor index 1, and saved `-windowed -w 1600 -h 900 -novid` in
+Steam's CS2 launch-options field. Only that field of `localconfig.vdf` changed;
+no authentication data was edited. The next `steam.exe -applaunch 730` request
+supplied no temporary video arguments, and Steam's game-process log confirmed
+it appended those persisted options. The saved video file showed 1600×900,
+fullscreen 0, monitor 1, refresh numerator/denominator 0/0, and borderless 0.
+
+The profile repair now clears stale exclusive refresh and borderless settings
+when applying a windowed profile. `cs2kit app create --stop` creates a separate
+native, signed Quit CS2Kit app which runs only the existing prefix-scoped stop
+command. This makes the working shutdown path accessible from Finder.
+
+**CONFIRMED shutdown test:** opening `/Applications/Quit CS2Kit.app` with
+`open -W` returned successfully; the client, web-helper, and game PID lists were
+all empty. Seven samples over the following 60 seconds remained empty. The
+native play app then started a new Steam session, and only newly appended
+connection-log entries were used to confirm that it logged in.
+
+The user reported another apparent closure during this testing, so a live
+process alone was not accepted as proof of successful rendering. The next
+launch enabled `-condebug`: it logged the persisted windowed arguments, created
+its DX11 swap chain, initialized the game server, loaded the UI scene, and
+persisted configuration successfully. No new Metal assertion or error-reporter
+process appeared during the initial observation. Human confirmation of the
+external window and gameplay remains separate from these startup checks.
+
+**CONFIRMED display-link limit:** the user identified a USB-C hub/dock with HDMI.
+A read-only CoreGraphics mode enumeration exposed only 60 Hz at 3840×1080,
+with no 120/144 Hz mode at that resolution. This establishes what this connection
+currently advertises, not which hub, cable, or monitor input setting is responsible.
