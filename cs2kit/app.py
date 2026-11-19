@@ -1,18 +1,18 @@
 """`cs2kit app create` - a double-clickable launcher, so playing needs no terminal.
 
-The CLI is the right interface for building and diagnosing a bottle, and the
-wrong interface for starting a game. This generates a small `.app` whose
-launcher script runs the same integrity-guarded path as `cs2kit launch`: verify
-the guarded binaries, start the Steam client if it is not up, then start CS2.
-It embeds no third-party code - it is a plist and a shell script.
+Generate a native applet that verifies the guarded binaries and launches CS2
+through Steam, or a separate quit applet that stops only the selected bottle.
+Both delegate to the CLI at runtime and embed no third-party code.
 """
 from __future__ import annotations
 
 import json
 import os
+import plistlib
 import shlex
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 from html import escape
@@ -31,6 +31,12 @@ do shell script "cd " & quoted form of repoPath & " && CS2KIT_REPO=" & quoted fo
     quoted form of logFile & " 2>&1"
 '''
 
+STOP_APPLESCRIPT = '''set repoPath to "{repo}"
+set winePrefix to "{prefix}"
+do shell script "cd " & quoted form of repoPath & " && WINEPREFIX=" & ¬
+    quoted form of winePrefix & " ./bin/cs2kit stop"
+'''
+
 #: Fallback for a machine without osacompile: a plain script bundle. It works,
 #: but LaunchServices is fussier about it (see docs/troubleshooting.md #25d).
 LAUNCHER = r'''#!/bin/bash
@@ -41,6 +47,12 @@ LOG="$HOME/CS2/cs2kit-app.log"
 mkdir -p "$(dirname "$LOG")"
 "$CS2KIT_REPO/bin/cs2kit" play --profile {profile} --gui --detach >>"$LOG" 2>&1
 exit 0
+'''
+
+STOP_LAUNCHER = r'''#!/bin/bash
+set -euo pipefail
+export WINEPREFIX={prefix}
+{repo}/bin/cs2kit stop
 '''
 
 PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -63,7 +75,7 @@ PLIST = '''<?xml version="1.0" encoding="UTF-8"?>
 '''
 
 
-def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
+def _compile_applet(dest: Path, prefix: Path, profile: str, stop: bool = False) -> Optional[str]:
     """Build the launcher as an AppleScript applet.
 
     A bundle whose executable is a shell script is not reliably launchable:
@@ -78,7 +90,8 @@ def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
     def literal(value) -> str:
         return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\r", "\\r").replace("\n", "\\n")
 
-    script = APPLESCRIPT.format(repo=literal(repo_root()), prefix=literal(prefix), profile=literal(profile))
+    template = STOP_APPLESCRIPT if stop else APPLESCRIPT
+    script = template.format(repo=literal(repo_root()), prefix=literal(prefix), profile=literal(profile))
     if dest.exists():
         shutil.rmtree(dest)
     proc = subprocess.run([osacompile, "-o", str(dest), "-e", script],
@@ -88,7 +101,7 @@ def _compile_applet(dest: Path, prefix: Path, profile: str) -> Optional[str]:
     return "applet"
 
 
-def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
+def _write_script_app(dest: Path, prefix: Path, profile: str, name: str, stop: bool = False) -> str:
     from cs2kit import __version__
 
     exe_name = "cs2kit-launch"
@@ -96,13 +109,24 @@ def _write_script_app(dest: Path, prefix: Path, profile: str, name: str) -> str:
     macos.mkdir(parents=True, exist_ok=True)
     (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
     target = macos / exe_name
-    target.write_text(LAUNCHER.format(repo=shlex.quote(str(repo_root())),
+    template = STOP_LAUNCHER if stop else LAUNCHER
+    target.write_text(template.format(repo=shlex.quote(str(repo_root())),
                                       prefix=shlex.quote(str(prefix)), profile=shlex.quote(profile)))
     target.chmod(target.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     (dest / "Contents" / "Info.plist").write_text(PLIST.format(
         name=escape(name), ident=escape(dest.stem.lower().replace(" ", "-")), version=__version__, exe=exe_name))
     (dest / "Contents" / "PkgInfo").write_text("APPL????")
     return "script"
+
+
+def _sign_applet(dest: Path) -> None:
+    # osacompile signs the applet; changing its plist or icon invalidates it.
+    signer = shutil.which("codesign")
+    if signer:
+        signed = subprocess.run([signer, "--force", "--sign", "-", str(dest)],
+                                capture_output=True, text=True, timeout=120)
+        if signed.returncode:
+            raise OSError(f"could not sign launcher: {signed.stderr.strip()}")
 
 
 def default_dest() -> Path:
@@ -125,13 +149,24 @@ def default_game_dir() -> Optional[Path]:
     return (install / "game" / "bin" / "win64") if install else None
 
 
+def _app_path(dest: Path) -> Path:
+    dest = Path(dest).expanduser()
+    return dest if dest.suffix == ".app" else dest.with_suffix(".app")
+
+
+def _creation_dest(dest: Path, stop: bool) -> Path:
+    dest = _app_path(dest)
+    default = _app_path(default_dest())
+    if stop and dest.resolve() == default.resolve():
+        return default.with_name("Quit CS2Kit.app")
+    return dest
+
+
 def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
               game_dir: Optional[Path] = None, profile: Optional[str] = None,
-              name: str = "CS2Kit") -> Dict[str, Any]:
+              name: str = "CS2Kit", stop: bool = False) -> Dict[str, Any]:
 
-    dest = Path(dest).expanduser()
-    if dest.suffix != ".app":
-        dest = dest.with_suffix(".app")
+    dest = _app_path(dest)
     prefix = Path(prefix or wineprefix())
     game_dir = Path(game_dir or (default_game_dir() or (prefix / "cs2-not-installed")))
 
@@ -144,19 +179,33 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     profile_name = rec.name if rec else "balanced-1080p"
     if dest.exists():
         shutil.rmtree(dest)
-    # A script bundle that `exec`s the game keeps the process inside this bundle,
-    # so the Dock shows this app's name and icon instead of a bare "wine".
-    kind = _write_script_app(dest, prefix, profile_name, name)
+    # LaunchServices requires a native executable that registers as an app.
+    # A shell bundle can hang in the Dock before its script ever runs (#26).
+    kind = _compile_applet(dest, prefix, profile_name, stop=stop)
+    if kind is None:
+        kind = _write_script_app(dest, prefix, profile_name, name, stop=stop)
+    else:
+        from cs2kit import __version__
+
+        info = dest / "Contents" / "Info.plist"
+        metadata = plistlib.loads(info.read_bytes())
+        metadata.update(CFBundleName=name, CFBundleDisplayName=name,
+                        CFBundleIdentifier="org.cs2kit." + dest.stem.lower().replace(" ", "-"),
+                        CFBundleVersion=__version__, CFBundleShortVersionString=__version__)
+        info.write_bytes(plistlib.dumps(metadata))
 
     icon = repo_root() / "assets" / "cs2kit.icns"
     if icon.is_file():
         (dest / "Contents" / "Resources").mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon, dest / "Contents" / "Resources" / "applet.icns")
         shutil.copy2(icon, dest / "Contents" / "Resources" / "cs2kit.icns")
+    if kind == "applet":
+        _sign_applet(dest)
     # Finder caches bundles by path; touching it makes the new icon appear at once.
     os.utime(dest, None)
 
-    return {"app": str(dest), "kind": kind, "wine_root": str(wine_root),
+    return {"app": str(dest), "kind": kind, "action": "stop" if stop else "play",
+            "wine_root": str(wine_root),
             "prefix": str(prefix), "game_dir": str(game_dir),
             "profile": (rec.name if rec else None), "launch_options": options}
 
@@ -165,20 +214,29 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
 def cmd_create(args) -> int:
     from cs2kit import bottle
 
-    wine_root = Path(args.wine_root) if args.wine_root else bottle.wine_root()
+    prefix = Path(args.prefix or wineprefix()).expanduser().resolve()
+    wine_root = Path(args.wine_root) if args.wine_root else bottle.wine_root(prefix=prefix)
     if not wine_root:
         return emit_error("app create",
                           "cannot locate the Wine installation - pass --wine-root or run "
                           "`cs2kit engine install` first", json_mode=args.json)
     try:
-        result = build_app(Path(args.dest), wine_root, prefix=args.prefix,
-                           game_dir=args.game_dir, profile=args.profile, name=args.name)
+        stop = getattr(args, "stop", False)
+        dest = _creation_dest(Path(args.dest), stop)
+        name = args.name
+        if stop and name == "CS2Kit":
+            name = "Quit CS2Kit"
+        result = build_app(dest, wine_root, prefix=prefix,
+                           game_dir=args.game_dir, profile=args.profile, name=name, stop=stop)
     except (recipe_mod.RecipeError, OSError) as exc:
         return emit_error("app create", str(exc), json_mode=args.json)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return EXIT_OK
     print(f"Created {result['app']}")
+    if result["action"] == "stop":
+        print("Exit CS2 first to save settings, then double-click to stop this bottle's Steam and helpers.")
+        return EXIT_OK
     print(f"  wine     {result['wine_root']}")
     print(f"  prefix   {result['prefix']}")
     print(f"  game     {result['game_dir']}")
@@ -205,6 +263,8 @@ def register(subparsers) -> None:
     create.add_argument("--profile", default="balanced-1080p",
                         help="profile whose env and launch options to bake in")
     create.add_argument("--name", default="CS2Kit")
+    create.add_argument("--stop", action="store_true",
+                        help="create Quit CS2Kit.app to stop the selected bottle")
     create.add_argument("--json", action="store_true")
     create.set_defaults(func=cmd_create)
 
