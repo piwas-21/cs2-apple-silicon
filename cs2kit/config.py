@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
+import shutil
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from cs2kit import probe, recipe as recipe_mod
 from cs2kit.util import (EXIT_OK, PASS, WARN, Check, emit_error,
@@ -75,14 +77,117 @@ def render_cfg(rec: recipe_mod.Recipe) -> str:
     return "\n".join(lines) + "\n"
 
 
-#: Where CS2 actually reads its video settings from under Wine is UNCONFIRMED:
-#: the black-screen workaround is documented as "write CS2Video.txt", but CS2 may
-#: instead read the per-account copy under Steam's userdata tree. We write the
-#: install-tree path, say so out loud, and let --video-path override it until
-#: someone confirms on hardware (docs/reference/first-launch.md).
+#: Retained only for the legacy fallback when no per-account file exists.
+#: The existing userdata cs2_video.txt was confirmed on the recovery machine
+#: (docs/reference/macos-launch-recovery.md).
 VIDEO_TXT_CAVEAT = ("the authoritative CS2Video.txt location under Wine is UNCONFIRMED; "
                     "if the black screen persists, copy this file next to the per-account "
                     "video settings in Steam's userdata tree and report which one worked")
+
+
+def account_video_path() -> Optional[Path]:
+    """Use the existing account config; never guess between multiple accounts."""
+    from cs2kit.launch import steam_exe
+
+    client = steam_exe(wineprefix())
+    if client is None:
+        return None
+    candidates = sorted((client.parent / "userdata").glob("*/730/local/cfg/cs2_video.txt"))
+    if len(candidates) > 1:
+        raise recipe_mod.RecipeError(
+            "multiple Steam accounts have video settings; pass --video-path with the "
+            "account's userdata/<account>/730/local/cfg/cs2_video.txt")
+    return candidates[0] if candidates else None
+
+
+VIDEO_FORMAT_ERROR = "invalid video settings: expected one complete KeyValues block"
+
+
+def _video_tokens(text: str) -> List[Tuple[str, int, int]]:
+    """Keep source spans while skipping whitespace and KeyValues comments."""
+    ignored = re.compile(r'\s+|//[^\r\n]*|/\*.*?\*/', re.S)
+    token = re.compile(r'"(?:\\.|[^"\\])*"|[{}]|[^\s{}"]+', re.S)
+    tokens = []
+    pos = 1 if text.startswith("\ufeff") else 0
+    while pos < len(text):
+        skip = ignored.match(text, pos)
+        if skip:
+            pos = skip.end()
+            continue
+        match = token.match(text, pos)
+        if match is None or text.startswith("/*", pos):
+            raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+        tokens.append((match.group(), pos, match.end()))
+        pos = match.end()
+    return tokens
+
+
+def _video_pair(tokens, index):
+    raw, _, _ = tokens[index]
+    if raw == "{" or index + 1 >= len(tokens) or tokens[index + 1][0] == "}":
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    return raw, tokens[index + 1]
+
+
+def _video_block(tokens, index, depth=1):
+    # Bound recursion even for malformed, user-supplied --video-path files.
+    if depth > 64:
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    fields: Dict[str, List[Tuple[int, int]]] = {}
+    while index < len(tokens):
+        if tokens[index][0] == "}":
+            return fields, index
+        raw, (value, start, end) = _video_pair(tokens, index)
+        index += 2
+        if value == "{":
+            _, closing = _video_block(tokens, index, depth + 1)
+            index = closing + 1
+        elif depth == 1:
+            key = raw[1:-1] if raw.startswith('"') else raw
+            fields.setdefault(key.lower(), []).append((start, end))
+    raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+
+
+def _video_fields(text: str) -> Tuple[Dict[str, List[Tuple[int, int]]], int]:
+    """Validate one root; only its scalar display fields are eligible for edits."""
+    tokens = _video_tokens(text)
+    if len(tokens) < 3 or tokens[0][0] in ("{", "}") or tokens[1][0] != "{":
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    fields, closing = _video_block(tokens, 2)
+    if closing != len(tokens) - 1:
+        raise recipe_mod.RecipeError(VIDEO_FORMAT_ERROR)
+    return fields, tokens[closing][1]
+
+
+def update_video_txt(rec: recipe_mod.Recipe, existing: str) -> str:
+    """Preserve quality settings while repairing display settings (T-009)."""
+    settings = {
+        "setting.defaultres": rec.display.get("width", 1920),
+        "setting.defaultresheight": rec.display.get("height", 1080),
+        "setting.fullscreen": rec.display.get("fullscreen", 0),
+        "setting.coop_fullscreen": 0,
+    }
+    if not rec.display.get("fullscreen", 0):
+        # Exclusive refresh rates and borderless state can survive a monitor
+        # change. In windowed recovery, let the desktop choose its refresh rate.
+        settings.update({"setting.refreshrate_numerator": 0,
+                         "setting.refreshrate_denominator": 0,
+                         "setting.nowindowborder": 0})
+    fields, closing = _video_fields(existing)
+    changes = []
+    missing = []
+    for key, value in settings.items():
+        if key in fields:
+            changes.extend((start, end, f'"{value}"') for start, end in fields[key])
+        else:
+            missing.append(f'\t"{key}"\t\t"{value}"')
+    if missing:
+        newline = "\r\n" if "\r\n" in existing else "\n"
+        lead = "" if existing[:closing].endswith(("\r", "\n")) else newline
+        changes.append((closing, closing, lead + newline.join(missing) + newline))
+    for start, end, value in sorted(changes, reverse=True):
+        existing = existing[:start] + value + existing[end:]
+    return existing
 
 
 def render_video_txt(rec: recipe_mod.Recipe) -> str:
@@ -95,6 +200,9 @@ def render_video_txt(rec: recipe_mod.Recipe) -> str:
         f'\t"setting.defaultresheight"\t\t"{disp.get("height", 1080)}"\n'
         f'\t"setting.fullscreen"\t\t"{disp.get("fullscreen", 0)}"\n'
         '\t"setting.coop_fullscreen"\t\t"0"\n'
+        '\t"setting.refreshrate_numerator"\t\t"0"\n'
+        '\t"setting.refreshrate_denominator"\t\t"0"\n'
+        '\t"setting.nowindowborder"\t\t"0"\n'
         f'\t"setting.hdr_enabled"\t\t"0"\n'
         "}\n"
     )
@@ -111,6 +219,15 @@ def csgo_cfg_dir() -> Optional[Path]:
 def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = False,
           dry_run: bool = False, video_path: Optional[Path] = None) -> Dict[str, Any]:
     rec.require_valid()
+    target_video = None
+    video_content = None
+    if write_video:
+        target_video = Path(video_path) if video_path else account_video_path()
+        if target_video and target_video.is_file():
+            with target_video.open(encoding="utf-8", newline="") as handle:
+                video_content = update_video_txt(rec, handle.read())
+        else:
+            video_content = render_video_txt(rec)
     written: List[str] = []
     env_path = env_script_path(rec.name)
     if not dry_run:
@@ -129,12 +246,17 @@ def apply(rec: recipe_mod.Recipe, write_cfg: bool = True, write_video: bool = Fa
         written.append(cfg_written)
 
     video_written: Optional[str] = None
-    if write_video and (cfg_dir or video_path):
-        target = Path(video_path) if video_path else (cfg_dir / "CS2Video.txt")
+    if write_video and (cfg_dir or target_video):
+        target = target_video or (cfg_dir / "CS2Video.txt")
         if not dry_run:
             target.parent.mkdir(parents=True, exist_ok=True)
         if not dry_run:
-            target.write_text(render_video_txt(rec))
+            if target.is_file():
+                backup = target.with_name(target.name + ".cs2kit-backup")
+                if not backup.exists():
+                    shutil.copy2(target, backup)
+            with target.open("w", encoding="utf-8", newline="") as handle:
+                handle.write(video_content)
         video_written = str(target)
         written.append(video_written)
 
@@ -232,7 +354,7 @@ def cmd_apply(args) -> int:
     print(f"Applied {record['name']} ({record['hash']}){' [dry run]' if args.dry_run else ''}")
     for path in result["written"]:
         print(f"  wrote {path}")
-    if record["video_txt"]:
+    if record["video_txt"] and Path(record["video_txt"]).name == "CS2Video.txt":
         print(f"  note: {VIDEO_TXT_CAVEAT}")
     if not result["cfg_dir"]:
         print("  note: CS2 is not installed yet, so no game cfg was written (T-008)")
@@ -287,9 +409,8 @@ def register(subparsers) -> None:
     p.add_argument("profile")
     p.add_argument("--no-cfg", action="store_true", help="do not write the game cfg")
     p.add_argument("--video", action="store_true",
-                   help="also write CS2Video.txt (the black-screen workaround, T-009)")
-    p.add_argument("--video-path", help="write CS2Video.txt here instead (its true location "
-                                        "under Wine is unconfirmed)")
+                   help="repair the account's video display settings (T-009); exit CS2 first")
+    p.add_argument("--video-path", help="explicit video config path (required with multiple accounts)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_apply)
