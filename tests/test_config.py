@@ -1,5 +1,7 @@
 import argparse
 
+import pytest
+
 from cs2kit import config, recipe as recipe_mod
 from cs2kit.util import EXIT_NOT_READY, EXIT_OK, PASS, WARN
 
@@ -77,3 +79,155 @@ def test_video_path_override(sandbox, tmp_path):
     result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, video_path=target)
     assert result["record"]["video_txt"] == str(target)
     assert "setting.fullscreen" in target.read_text()
+
+
+def account_video(sandbox, account="123"):
+    steam = sandbox.prefix / "drive_c" / "Program Files (x86)" / "Steam"
+    steam.mkdir(parents=True, exist_ok=True)
+    (steam / "steam.exe").write_bytes(b"MZ")
+    target = steam / "userdata" / account / "730" / "local" / "cfg" / "cs2_video.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('"video.cfg"\n{\n"setting.defaultres" "-1"\n'
+                      '"setting.defaultresheight" "-1"\n"setting.fullscreen" "1"\n'
+                      '"setting.msaa_samples" "2"\n}\n')
+    return target
+
+
+def test_video_repair_finds_account_and_preserves_quality_and_backup(sandbox):
+    target = account_video(sandbox)
+    before = target.read_bytes()
+    rec = recipe_mod.resolve("balanced-1080p")
+    result = config.apply(rec, write_video=True)
+    assert result["record"]["video_txt"] == str(target)
+    assert '"setting.defaultres" "1920"' in target.read_text()
+    assert '"setting.defaultresheight" "1080"' in target.read_text()
+    assert '"setting.fullscreen" "0"' in target.read_text()
+    assert '"setting.msaa_samples" "2"' in target.read_text()
+    backup = target.with_name(target.name + ".cs2kit-backup")
+    assert backup.read_bytes() == before
+    config.apply(rec, write_video=True)
+    assert backup.read_bytes() == before
+
+
+def test_account_video_dry_run_preserves_original(sandbox):
+    target = account_video(sandbox)
+    before = target.read_bytes()
+    result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, dry_run=True)
+    assert result["record"]["video_txt"] == str(target)
+    assert target.read_bytes() == before
+    assert not target.with_name(target.name + ".cs2kit-backup").exists()
+
+
+def test_multiple_accounts_require_explicit_video_path_before_writing(sandbox):
+    target = account_video(sandbox)
+    other = account_video(sandbox, "456")
+    before = other.read_bytes()
+    rec = recipe_mod.resolve("balanced-1080p")
+    with pytest.raises(recipe_mod.RecipeError, match="multiple Steam accounts"):
+        config.apply(rec, write_video=True)
+    assert not config.active_path().exists()
+    config.apply(rec, write_video=True, video_path=target)
+    assert other.read_bytes() == before
+
+
+def test_video_repair_preserves_comments_strings_and_nested_quality_settings(sandbox):
+    target = account_video(sandbox)
+    original = '''// "setting.defaultres" "640"
+"video.cfg"
+{
+    /* old display settings: } "setting.fullscreen" "1" */
+    "setting.defaultresheight" "-1" // keep this comment
+    "quality" { "setting.defaultres" "777" }
+    "description" "quoted } and \\"escaped quote\\""
+    "setting.msaa_samples" "8"
+}
+// previous closing brace }
+'''
+    target.write_text(original)
+    config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True)
+    repaired = target.read_text()
+    assert '// "setting.defaultres" "640"' in repaired
+    assert '/* old display settings: } "setting.fullscreen" "1" */' in repaired
+    assert '"setting.defaultresheight" "1080" // keep this comment' in repaired
+    assert '"quality" { "setting.defaultres" "777" }' in repaired
+    assert '"description" "quoted } and \\"escaped quote\\""' in repaired
+    assert '"setting.msaa_samples" "8"' in repaired
+    assert repaired.endswith('}\n// previous closing brace }\n')
+    # Parse after removing comments to check actual root values, not comment text.
+    clean = repaired.replace('// "setting.defaultres" "640"', '').replace(
+        '/* old display settings: } "setting.fullscreen" "1" */', '').replace(
+        '// previous closing brace }', '')
+    from cs2kit import probe
+    values = probe.parse_acf(clean)
+    assert values["setting.defaultres"] == "1920"
+    assert values["setting.fullscreen"] == "0"
+    assert values["setting.coop_fullscreen"] == "0"
+    assert target.with_name(target.name + ".cs2kit-backup").read_text() == original
+    assert config.update_video_txt(recipe_mod.resolve("balanced-1080p"), repaired) == repaired
+
+
+@pytest.mark.parametrize("original", [
+    '', 'garbage }', '"video.cfg" {', '"video.cfg" { "setting.fullscreen" }',
+    '"video.cfg" { "unterminated "0" }', '"video.cfg" {} "other" {}',
+    '"video.cfg" {} /*', '"video.cfg" { "nested" { "key" "value" }',
+    '"video.cfg" { { "a" "b" } }', '"video.cfg" { "only_key"',
+])
+def test_invalid_video_config_is_rejected_before_any_write(sandbox, original):
+    target = account_video(sandbox)
+    target.write_text(original)
+    rec = recipe_mod.resolve("balanced-1080p")
+    with pytest.raises(recipe_mod.RecipeError, match="invalid video settings"):
+        config.apply(rec, write_video=True)
+    assert target.read_text() == original
+    assert not target.with_name(target.name + ".cs2kit-backup").exists()
+    assert not config.active_path().exists()
+    assert not config.env_script_path(rec.name).exists()
+
+
+def test_video_repair_updates_duplicate_active_keys_and_keeps_crlf(sandbox):
+    original = ('\ufeff"video.cfg"\r\n{\r\n"setting.defaultres" "-1"\r\n'
+                '"SETTING.DEFAULTRES" "800"\r\n}\r\n')
+    repaired = config.update_video_txt(recipe_mod.resolve("balanced-1080p"), original)
+    assert '"setting.defaultres" "1920"' in repaired
+    assert '"SETTING.DEFAULTRES" "1920"' in repaired
+    assert repaired.startswith('\ufeff"video.cfg"\r\n')
+    assert '\n' not in repaired.replace('\r\n', '')
+    target = account_video(sandbox)
+    target.write_bytes(original.encode("utf-8"))
+    config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True)
+    assert target.read_bytes() == repaired.encode("utf-8")
+    assert target.with_name(target.name + ".cs2kit-backup").read_bytes() == original.encode("utf-8")
+
+
+def test_video_repair_rejects_excessive_nesting(sandbox):
+    original = '"video.cfg" {' + '"nested" {' * 64 + '}' * 65
+    with pytest.raises(recipe_mod.RecipeError, match="invalid video settings"):
+        config.update_video_txt(recipe_mod.resolve("balanced-1080p"), original)
+
+
+def test_windowed_repair_clears_stale_monitor_mode(sandbox):
+    target = account_video(sandbox)
+    text = target.read_text().replace('"setting.fullscreen" "1"',
+        '"setting.fullscreen" "1"\n"setting.refreshrate_numerator" "120000"\n'
+        '"setting.refreshrate_denominator" "1000"\n"setting.nowindowborder" "1"\n'
+        '"setting.monitor_index" "1"')
+    target.write_text(text)
+    config.apply(recipe_mod.resolve("thermal-limited"), write_video=True)
+    from cs2kit import probe
+
+    values = probe.parse_acf(target.read_text())
+    assert values["setting.fullscreen"] == "0"
+    assert values["setting.refreshrate_numerator"] == "0"
+    assert values["setting.refreshrate_denominator"] == "0"
+    assert values["setting.nowindowborder"] == "0"
+    assert values["setting.monitor_index"] == "1", "preserve the selected external display"
+    assert values["setting.msaa_samples"] == "2"
+
+
+def test_fullscreen_profile_preserves_requested_refresh(sandbox):
+    target = account_video(sandbox)
+    original = target.read_text().replace('"setting.fullscreen" "1"',
+        '"setting.fullscreen" "1"\n"setting.refreshrate_numerator" "120000"')
+    target.write_text(original)
+    config.apply(recipe_mod.resolve("competitive-lowest-latency"), write_video=True)
+    assert '"setting.refreshrate_numerator" "120000"' in target.read_text()

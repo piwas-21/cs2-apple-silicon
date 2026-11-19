@@ -26,7 +26,7 @@ def make_bottle(sandbox, with_steam=True):
 
 
 def test_diagnose_names_the_next_action_at_every_stage(sandbox, monkeypatch):
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     assert "cs2kit setup" in play.diagnose(sandbox.prefix)          # no bottle
 
     make_bottle(sandbox, with_steam=False)
@@ -53,14 +53,14 @@ def test_play_refuses_a_modified_game(sandbox, cs2_tree, monkeypatch, capsys):
 
 def test_play_without_a_game_explains_instead_of_crashing(sandbox, monkeypatch, capsys):
     make_bottle(sandbox)
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     assert play.cmd_play(args(json=True)) == EXIT_NOT_READY
     assert "install CS2" in json.loads(capsys.readouterr().out)["detail"]
 
 
 def test_the_plan_is_resolved_from_disk_not_baked(sandbox, cs2_tree, monkeypatch):
     make_bottle(sandbox)
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     plan = play.build(sandbox.prefix)
     assert plan["cs2_exe"] == str(cs2_tree / "cs2.exe")
     assert plan["env"]["WINEMSYNC"] == "1"
@@ -85,24 +85,91 @@ def test_the_game_is_found_in_a_bottle_only_library(sandbox, tmp_path, monkeypat
     assert probe.cs2_exe() == win64 / "cs2.exe"
 
 
-def test_steam_running_matches_the_process_name_not_the_command_line(monkeypatch):
-    """`pgrep -f steam.exe` matches any shell whose command line mentions it -
-    including our own. That made the launcher skip starting Steam entirely."""
+@pytest.mark.parametrize("executable", [
+    "steam.exe", r"C:\Program Files (x86)\Steam\steam.exe",
+    "/bottle/drive_c/Program Files (x86)/Steam/Steam.exe",
+])
+def test_steam_running_matches_executable_basename(sandbox, monkeypatch, executable):
     from cs2kit.util import Proc
 
-    seen = {}
-
     def fake_run(cmd, **kw):
-        seen["cmd"] = cmd
-        return Proc(0, "4242", "") if "-ix" in cmd else Proc(0, "9999", "")
+        if cmd == ["ps", "-axww", "-o", "pid=,comm="]:
+            return Proc(0, "4242 " + executable + "\n", "")
+        assert cmd == ["ps", "eww", "-p", "4242", "-o", "command="]
+        return Proc(0, f"steam.exe WINEPREFIX={sandbox.prefix} PATH=/bin", "")
 
     monkeypatch.setattr(play, "run", fake_run)
     assert play.steam_running() is True
-    assert "-ix" in seen["cmd"], "must match the exact process name"
-    assert "-f" not in seen["cmd"], "must not match command lines"
 
-    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", ""))
+
+def test_steam_detection_ignores_helpers_and_shell_arguments(sandbox, monkeypatch):
+    from cs2kit.util import Proc
+
+    listing = ("21 /bin/zsh\n22 /bin/bash\n"
+               "23 C:\\Steam\\steamservice.exe\n24 C:\\Steam\\steamwebhelper.exe\n"
+               "25 /bin/zsh -c wine steam.exe\n26 /tmp/notsteam.exe\ninvalid\n")
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(0, listing, ""))
     assert play.steam_running() is False
+    monkeypatch.setattr(play, "run", lambda cmd, **kw: Proc(1, "", "ps failed"))
+    assert play.steam_running() is False
+
+
+@pytest.mark.parametrize("ownership", ["other", "missing", "relative", "unreadable"])
+def test_steam_in_another_bottle_cannot_suppress_startup(sandbox, monkeypatch, ownership):
+    from cs2kit.util import Proc
+
+    selected = sandbox.root / "selected bottle"
+    selected.mkdir()
+    owner = {"other": str(sandbox.prefix), "missing": "", "relative": "."}.get(ownership, "")
+    def fake_run(cmd, **kw):
+        if cmd == ["ps", "-axww", "-o", "pid=,comm="]:
+            return Proc(0, "42 C:\\Steam\\steam.exe\n", "")
+        assert cmd == ["ps", "eww", "-p", "42", "-o", "command="]
+        if ownership == "unreadable":
+            return Proc(1, "", "process exited")
+        return Proc(0, f"steam.exe WINEPREFIX={owner} PATH=/bin", "")
+    monkeypatch.setattr(play, "run", fake_run)
+    assert not play.steam_running(selected)
+
+
+def test_steam_ownership_handles_spaces_aliases_and_multiple_clients(sandbox, monkeypatch):
+    from cs2kit.util import Proc
+
+    selected = sandbox.root / "selected bottle"
+    selected.mkdir()
+    alias = sandbox.root / "bottle-alias"
+    alias.symlink_to(selected, target_is_directory=True)
+    def fake_run(cmd, **kw):
+        if cmd == ["ps", "-axww", "-o", "pid=,comm="]:
+            return Proc(0, "41 steam.exe\n42 C:\\Steam\\steam.exe\n", "")
+        owner = sandbox.prefix if cmd[3] == "41" else alias
+        return Proc(0, f"steam.exe PATH=/bin WINEPREFIX={owner}", "")
+    monkeypatch.setattr(play, "run", fake_run)
+    assert play.steam_running(selected)
+
+
+def test_play_starts_selected_bottle_when_only_another_client_runs(
+        sandbox, cs2_tree, monkeypatch, capsys):
+    from cs2kit.util import Proc
+
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    selected = sandbox.root / "selected bottle"
+    selected.mkdir()
+    checked, started = [], []
+    def fake_run(cmd, **kw):
+        if cmd == ["ps", "-axww", "-o", "pid=,comm="]:
+            return Proc(0, "42 C:\\Steam\\steam.exe\n", "")
+        checked.append(cmd)
+        return Proc(0, f"steam.exe WINEPREFIX={sandbox.prefix} PATH=/bin", "")
+    monkeypatch.setattr(play, "run", fake_run)
+    monkeypatch.setattr(play, "diagnose", lambda prefix: None)
+    monkeypatch.setattr(play, "steam_client", lambda prefix: prefix / "Steam.exe")
+    monkeypatch.setattr(play, "_start_steam", lambda prefix, *a: started.append(prefix))
+    assert play.cmd_play(args(prefix=str(selected), steam_only=True, print_only=False)) == EXIT_OK
+    assert started == [selected]
+    assert checked
+    assert "Press Play" in capsys.readouterr().out
 
 
 def test_starting_steam_does_not_kill_unowned_helpers(monkeypatch):
@@ -134,7 +201,7 @@ def test_a_steam_update_re_baselines_itself(sandbox, cs2_tree, monkeypatch, caps
     (cs2_tree / "client.dll").write_bytes(b"MZ-new-build")
     manifest = sandbox.steam / "steamapps" / "appmanifest_730.acf"
     manifest.write_text(manifest.read_text().replace("24828357", "24916958"))
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
 
     # Exercise a real launch path; previews must never write a new baseline.
     assert play.cmd_play(args(print_only=False, steam_only=True)) == EXIT_OK
@@ -159,7 +226,7 @@ def test_print_only_does_not_launch_wait_detach_or_notify(
         sandbox, cs2_tree, monkeypatch, capsys, mode, via):
     make_bottle(sandbox)
     integrity.create_baseline()
-    monkeypatch.setattr(play, "steam_running", lambda: False)
+    monkeypatch.setattr(play, "steam_running", lambda *a: False)
     forbid_play_side_effects(monkeypatch)
 
     assert play.cmd_play(args(detach=True, gui=True, **mode)) == EXIT_OK
@@ -168,7 +235,7 @@ def test_print_only_does_not_launch_wait_detach_or_notify(
 
 def test_print_only_missing_game_does_not_start_steam(sandbox, monkeypatch, capsys):
     make_bottle(sandbox)
-    monkeypatch.setattr(play, "steam_running", lambda: False)
+    monkeypatch.setattr(play, "steam_running", lambda *a: False)
     forbid_play_side_effects(monkeypatch)
 
     assert play.cmd_play(args(json=True, gui=True)) == EXIT_NOT_READY
@@ -180,7 +247,7 @@ def test_print_only_integrity_failure_does_not_start_steam(
     make_bottle(sandbox)
     integrity.create_baseline()
     (cs2_tree / "client.dll").write_bytes(b"modified")
-    monkeypatch.setattr(play, "steam_running", lambda: False)
+    monkeypatch.setattr(play, "steam_running", lambda *a: False)
     forbid_play_side_effects(monkeypatch)
 
     assert play.cmd_play(args(json=True, gui=True)) == EXIT_INTEGRITY
@@ -209,7 +276,7 @@ def test_tampering_within_one_build_still_refuses(sandbox, cs2_tree, monkeypatch
     make_bottle(sandbox)
     integrity.create_baseline()
     (cs2_tree / "client.dll").write_bytes(b"MZ-tampered")   # same buildid
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     assert play.cmd_play(args(print_only=True)) == EXIT_INTEGRITY
 
 
@@ -218,7 +285,7 @@ def test_the_default_launch_goes_through_steam(sandbox, cs2_tree, monkeypatch, c
     "game files have no signatures or invalid signatures" (measured 2026-08-25)."""
     make_bottle(sandbox)
     integrity.create_baseline()
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
 
     assert play.cmd_play(args(json=True)) == EXIT_OK
     plan = json.loads(capsys.readouterr().out)
@@ -230,18 +297,34 @@ def test_the_default_launch_goes_through_steam(sandbox, cs2_tree, monkeypatch, c
 def test_direct_launch_is_opt_in_only(sandbox, cs2_tree, monkeypatch, capsys):
     make_bottle(sandbox)
     integrity.create_baseline()
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     assert play.cmd_play(args(json=True, direct=True)) == EXIT_OK
     plan = json.loads(capsys.readouterr().out)
     assert plan["via"] == "direct" and plan["command"][1] == "cs2.exe"
 
 
-def test_steam_only_hands_over_instead_of_launching(sandbox, cs2_tree, monkeypatch, capsys):
-    """The launcher app opens Steam and stops: pressing Play there is the only
-    path that gives CS2 its Steam context (VAC signatures, cloud settings)."""
+def test_app_launch_passes_profile_and_extra_options_to_steam(sandbox, cs2_tree, monkeypatch):
+    from cs2kit import recipe
+
     make_bottle(sandbox)
     integrity.create_baseline()
-    monkeypatch.setattr(play, "steam_running", lambda: True)
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
+    monkeypatch.setattr(play, "steam_ready", lambda prefix: True)
+    monkeypatch.setattr(play.os, "chdir", lambda path: None)
+    executed = []
+    monkeypatch.setattr(play.os, "execve", lambda exe, argv, env: executed.append((argv, env)))
+    profile = "competitive-lowest-latency"
+    assert play.cmd_play(args(profile=profile, extra=["-windowed"], print_only=False)) == EXIT_OK
+    argv, env = executed[0]
+    assert argv[2:] == ["-applaunch", "730", *recipe.resolve(profile).launch_options, "-windowed"]
+    assert env["WINEPREFIX"] == str(sandbox.prefix)
+
+
+def test_steam_only_hands_over_instead_of_launching(sandbox, cs2_tree, monkeypatch, capsys):
+    """Explicit manual mode opens Steam without asking it to launch the game."""
+    make_bottle(sandbox)
+    integrity.create_baseline()
+    monkeypatch.setattr(play, "steam_running", lambda *a: True)
     assert play.cmd_play(args(steam_only=True, json=False, print_only=False)) == EXIT_OK
     assert "Press Play" in capsys.readouterr().out
 
