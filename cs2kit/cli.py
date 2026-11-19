@@ -21,6 +21,7 @@ COMMAND_MODULES = [
     "cs2kit.setup",
     "cs2kit.play",
     "cs2kit.stop",
+    "cs2kit.uninstall",
     "cs2kit.doctor",
     "cs2kit.engine",
     "cs2kit.bottle",
@@ -45,6 +46,7 @@ Typical order:
   cs2kit launch                       integrity-guarded start
   cs2kit bench run                    the T-011 protocol
   cs2kit report                       a redacted bundle to share
+  cs2kit uninstall                    read-only inventory of what was created
 """
 
 

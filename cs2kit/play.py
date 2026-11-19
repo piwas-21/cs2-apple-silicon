@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from cs2kit import bottle, integrity, probe, recipe as recipe_mod
+from cs2kit import bottle, integrity, probe, procs, recipe as recipe_mod
 from cs2kit.util import (EXIT_INTEGRITY, EXIT_NOT_READY, EXIT_OK, FAIL, WARN, emit_error, run,
                          which, wineprefix)
 
@@ -29,31 +29,17 @@ def steam_client(prefix: Path) -> Optional[Path]:
     return steam_exe(prefix)
 
 
-def _pids(name: str) -> List[str]:
-    """PIDs by exact process NAME first.
+def _pids(name: str, prefix: Optional[Path] = None) -> List[str]:
+    """Executable PIDs, optionally restricted to one bottle.
 
-    Deliberately not bare `pgrep -f`: that matches any command line that merely
-    mentions the name, which once made the launcher believe Steam was already
-    running and silently skip starting it (measured 2026-08-25).
-
-    Exact name alone is not enough either: Wine's wow64 loader does not put the
-    Windows exe name into the macOS process table, so a running client shows up
-    in `pgrep -ix steam.exe` as nothing at all while its window is on screen
-    (measured 2026-10-31). Every launch then looked dead, `clean_stale_steam`
-    killed the helpers of the live client, and Steam shut itself down cleanly
-    seconds after appearing. The fallback reads ps and matches the name as a
-    *path component*, which a mere mention is not: `C:\\...\\steam.exe -flag`
-    matches, `echo steam.exe` does not."""
-    exact = [p for p in run(["pgrep", "-ix", name], timeout=10).out.split() if p.isdigit()]
-    if exact:
-        return exact
-    pattern = re.compile(r"(?:^|[/\\])%s(?:\s|$)" % re.escape(name), re.IGNORECASE)
-    out: List[str] = []
-    for line in run(["ps", "-axo", "pid=,command="], timeout=15).out.splitlines():
-        pid, _, command = line.strip().partition(" ")
-        if pid.isdigit() and pattern.search(command):
-            out.append(pid)
-    return out
+    `pgrep -f` matches any command line that merely mentions the name, which
+    once made the launcher believe Steam was already running and silently skip
+    starting it (measured 2026-08-25). Wine's wow64 loader also hides the exe
+    name from `pgrep -ix`, so look at `comm` instead - shared with `cs2kit stop`
+    in `cs2kit.procs`, together with WINEPREFIX ownership checks."""
+    if prefix is None:
+        return procs.executable_pids(name, runner=run)
+    return procs.select(name, prefix, runner=run).pids
 
 
 def game_running() -> bool:
@@ -74,7 +60,7 @@ def game_running() -> bool:
 _LOGON_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \[Logged On", re.M)
 
 
-def _steam_started_at() -> Optional[float]:
+def _steam_started_at(prefix: Optional[Path] = None) -> Optional[float]:
     """Epoch time when the current steam.exe processes started (earliest one).
 
     Steam re-execs itself during bootstrap, so the client that ends up logged in
@@ -82,7 +68,7 @@ def _steam_started_at() -> Optional[float]:
     the honest lower bound. Locale-free on purpose: `ps -o lstart` renders month
     names per LC_TIME, so elapsed time is read and subtracted from now instead."""
     best: Optional[float] = None
-    for pid in _pids("steam.exe"):
+    for pid in _pids("steam.exe", prefix):
         out = run(["ps", "-o", "etime=", "-p", pid], timeout=10).out.strip()
         if not out:
             continue
@@ -126,7 +112,7 @@ def steam_ready(prefix: Path, timeout: float = 90.0) -> bool:
            "connection_log.txt")
     deadline = time.time() + timeout
     while time.time() < deadline:
-        started = _steam_started_at()
+        started = _steam_started_at(prefix)
         try:
             text = log.read_text(errors="ignore")[-4000:]
         except OSError:
@@ -140,23 +126,24 @@ def steam_ready(prefix: Path, timeout: float = 90.0) -> bool:
     return False
 
 
-def wineserver_running() -> bool:
-    """Is a wineserver alive? Steam's whole Windows side hangs off it."""
-    return bool(_pids("wineserver"))
+def wineserver_running(prefix: Optional[Path] = None) -> bool:
+    """Is the selected bottle's wineserver alive? Steam's Windows side needs it."""
+    return bool(_pids("wineserver", prefix))
 
 
-def steam_running() -> bool:
-    """Is the Steam *client* up? `steamservice.exe` and `steamwebhelper.exe` are
-    helpers that outlive it and must not be counted.
+def steam_running(prefix: Optional[Path] = None) -> bool:
+    """Is this bottle's Steam *client* up? Helpers do not count, and neither
+    does a process in another bottle.
 
-    A steam.exe whose wineserver has exited is debris, not a client: it can do
-    nothing, but counting it as running made every launch skip starting Steam
-    and send `-applaunch` into a dead process - the app looked like it started
-    nothing, for as long as the husk lived (measured 2026-11-11). A client only
-    counts when its wineserver is up too."""
-    if not _pids("steam.exe"):
+    A steam.exe whose wineserver has exited is debris, not a client: it cannot
+    act, and counting it made every launch skip starting Steam and send
+    `-applaunch` into a dead process (measured 2026-11-11). Both checks are
+    scoped to the selected WINEPREFIX; an ambiguous process is not selected at
+    all, so it can never suppress startup."""
+    selected = Path(prefix or wineprefix()).expanduser().resolve()
+    if not _pids("steam.exe", selected):
         return False
-    return wineserver_running()
+    return wineserver_running(selected)
 
 
 def native_steam_running() -> bool:
@@ -173,25 +160,13 @@ def native_steam_running() -> bool:
 
 
 def clean_stale_steam() -> List[str]:
-    """Kill helpers left behind by a previous client.
+    """Compatibility hook: no global process-name kills from the launcher.
 
-    Measured 2026-08-25: four orphaned `steamservice.exe` processes stopped a new
-    client from starting at all - it logged in, then exited silently, and the app
-    looked broken.
-
-    With steam_running() now requiring a live wineserver, a wineserver-less
-    steam.exe falls through here: such a husk cannot be signalled by Steam's own
-    instance check and a fresh client must not inherit it, so it is killed like
-    any other debris (measured 2026-11-11)."""
-    killed = []
-    if steam_running():
-        return killed
-    for pattern in ("steamservice.exe", "steamwebhelper.exe", "steam.exe"):
-        pids = _pids(pattern)
-        if pids:
-            run(["kill", "-9", *pids], timeout=10)
-            killed.extend(pids)
-    return killed
+    A PID found by name cannot establish which bottle owns it, and this path
+    issued SIGKILL without `--force` (measured 2026-11-19 in review). A stuck
+    bottle is stopped explicitly with the prefix-scoped `cs2kit stop`, which
+    uses that bottle's wineserver and never signals an unrelated process."""
+    return []
 
 
 def diagnose(prefix: Path) -> Optional[str]:
@@ -387,7 +362,7 @@ def cmd_play(args) -> int:
         # Fixing this needs Steam, so open it rather than leaving the player stuck
         # in front of a dialog telling them to use an app that is not running.
         client = steam_client(prefix)
-        if client and not steam_running() and not args.print_only:
+        if client and not steam_running(prefix) and not args.print_only:
             _start_steam(prefix, client)
         message = (f"{verdict.message}. Steam is opening: right-click CS2 > Properties > "
                    "Installed Files > Verify integrity of game files.")
@@ -399,7 +374,7 @@ def cmd_play(args) -> int:
     if problem and not args.start_steam_anyway:
         # Starting Steam is usually the fix, so do it before complaining about the game.
         client = steam_client(prefix)
-        if client and probe.cs2_exe() is None and not steam_running():
+        if client and probe.cs2_exe() is None and not steam_running(prefix):
             _start_steam(prefix, client)
         if getattr(args, "gui", False):
             notify(problem)
@@ -407,7 +382,7 @@ def cmd_play(args) -> int:
 
     plan = build(prefix, args.profile, args.extra)
     client = steam_client(prefix)
-    if client and not steam_running():
+    if client and not steam_running(prefix):
         if getattr(args, "gui", False):
             # Say something before the long wait: a cold start takes a minute
             # (Steam, then the login, then the game) and until the window shows
@@ -535,7 +510,7 @@ def _follow_launch(prefix: Path, timeout: float = 1800.0) -> None:
                         "is done - it can take a few minutes.")
             time.sleep(5)
             continue
-        if not steam_running():
+        if not steam_running(prefix):
             _report("The Steam client closed before it could start CS2. "
                     "Run `cs2kit doctor` to see why.")
             return
@@ -590,7 +565,7 @@ def _start_steam(prefix: Path, client: Path, env: Optional[Dict[str, str]] = Non
         env=full, start_new_session=True, preexec_fn=_default_signals)
     for _ in range(20):
         time.sleep(2)
-        if steam_running():
+        if steam_running(prefix):
             time.sleep(10)      # let the client finish logging in before -applaunch
             return
 

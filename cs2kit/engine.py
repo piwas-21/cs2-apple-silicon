@@ -13,11 +13,13 @@ import json
 import os
 import shutil
 import tarfile
+import tempfile
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Dict, List, Optional
 
+from cs2kit.archive import UnsafeArchive, unpack
 from cs2kit.util import EXIT_FAIL, EXIT_NOT_READY, EXIT_OK, emit_error, run, state_dir
 
 #: Wrapper dylibs the Sikarugir/CrossOver engines link against. Without them
@@ -108,10 +110,23 @@ def _fetch(url: str, tmp: Path, progress=None) -> None:
 def download(url: str, dest: Path, sha256: Optional[str] = None,
              progress=None) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.is_symlink():
+        raise EngineError("refusing a symbolic-link download destination")
     if not dest.exists():
-        tmp = dest.with_suffix(dest.suffix + ".part")
-        _fetch(url, tmp, progress)
-        tmp.replace(dest)
+        with tempfile.NamedTemporaryFile(prefix=".download-", dir=str(dest.parent),
+                                         delete=False) as file:
+            tmp = Path(file.name)
+        try:
+            _fetch(url, tmp, progress)
+            # Verify the bytes before publishing them: the file that is hashed
+            # here is the one that gets installed, never a second fetch.
+            digest = sha256_of(tmp)
+            if sha256 and digest != sha256:
+                raise EngineError(
+                    f"{dest.name}: downloaded sha256 {digest} does not match the recorded {sha256}")
+            tmp.replace(dest)
+        finally:
+            tmp.unlink(missing_ok=True)
     digest = sha256_of(dest)
     if sha256 and digest != sha256:
         dest.unlink(missing_ok=True)
@@ -127,46 +142,19 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def _safe_members(tar: "tarfile.TarFile", dest: Path) -> List[tarfile.TarInfo]:
-    """Members that are safe to extract: no absolute paths, no `..`, no links
-    resolving outside dest, no device nodes. Python 3.12+ has tarfile's own
-    `data` filter; 3.9-3.11 have nothing, so the check lives here.
-
-    The link rule mirrors the data filter exactly: a *relative* link may climb
-    (`../..`) as long as it lands back inside dest - macOS framework bundles
-    (GStreamer.framework inside the Wine wrapper) are built from dozens of such
-    intra-bundle links, and refusing them broke a legitimate archive. A link
-    whose resolution leaves dest is still refused."""
-    dest = Path(os.path.abspath(dest))
-    out = []
-    for member in tar.getmembers():
-        name = member.name
-        if name.startswith(("/", "\\")) or ":" in name[:2]:
-            raise EngineError(f"{name}: absolute path inside the archive")
-        parts = PurePosixPath(name).parts
-        if ".." in parts:
-            raise EngineError(f"{name}: path traversal inside the archive")
-        if member.issym() or member.islnk():
-            resolved = Path(os.path.normpath(
-                os.path.join(str(dest), name, "..", member.linkname)))
-            if not (resolved == dest or dest in resolved.parents):
-                raise EngineError(f"{name}: link target {member.linkname} escapes the destination")
-        if member.isdev():
-            continue
-        out.append(member)
-    return out
-
-
 def extract(archive: Path, dest: Path) -> Path:
-    dest.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive) as tar:
-        members = _safe_members(tar, dest)    # validate FIRST, on every interpreter
-        try:                                  # Python 3.12+: refuse paths outside dest
-            tar.extractall(dest, filter="data", members=members)
-        except TypeError:                 # 3.9-3.11 have no filter argument
-            for member in members:        # extract one by one; no unfiltered extractall
-                tar.extract(member, dest)
-    return dest
+    """Unpack into a private staging directory, then publish safely.
+
+    `cs2kit.archive` applies the same policy on every interpreter, including
+    Python 3.9's unfiltered `tarfile`: member names are validated, symlink
+    chains are resolved inside the staged tree, hard links are rooted at the
+    archive, and publication goes through directory descriptors so a swapped
+    destination directory cannot redirect a write. No `tar.extract*` API is
+    used, so there is nothing to fall back to on older Pythons."""
+    try:
+        return unpack(archive, dest)
+    except UnsafeArchive as exc:
+        raise EngineError(str(exc)) from exc
 
 
 def stage_dylibs(engine_root: Path, source: Path) -> List[str]:

@@ -4,6 +4,9 @@ Covers: tar path-traversal refusal (engine.extract on Python < 3.12), sha256
 pinning of the wrapper dylib bundle, and shell/AppleScript escaping of profile
 values in generated scripts.
 """
+import os
+import subprocess
+
 import tarfile
 
 import pytest
@@ -86,6 +89,26 @@ def test_extract_refuses_links_that_escape_dest_without_a_dotdot_prefix(tmp_path
     assert not (tmp_path.parent / "escaped.txt").exists()
 
 
+def test_download_refuses_bad_bytes_before_publishing(sandbox, monkeypatch):
+    dest = sandbox.root / "installer.exe"
+    monkeypatch.setattr(engine, "_fetch",
+                        lambda url, path, progress: path.write_bytes(b"wrong"))
+    with pytest.raises(engine.EngineError):
+        engine.download("https://example.invalid/installer", dest, "0" * 64)
+    assert not dest.exists()
+    assert not list(sandbox.root.glob(".download-*"))
+
+
+def test_download_never_follows_a_destination_symlink(sandbox):
+    outside = sandbox.root / "retained"
+    outside.write_bytes(b"keep")
+    dest = sandbox.root / "installer.exe"
+    dest.symlink_to(outside)
+    with pytest.raises(engine.EngineError):
+        engine.download("https://example.invalid/installer", dest, "0" * 64)
+    assert outside.read_bytes() == b"keep"
+
+
 def test_dylib_bundle_is_checksum_pinned():
     assert engine.DYLIB_BUNDLE.get("sha256"), "wrapper dylibs are executed code - pin them"
 
@@ -102,6 +125,49 @@ def test_env_script_quotes_values(sandbox):
     # plain `export WINEDEBUG="x; touch ..."` would execute on source.
     assert "export WINEDEBUG='x; touch /tmp/pwned'" in script
     assert 'export WINEDEBUG="x; touch /tmp/pwned"' not in script
+
+
+@pytest.mark.parametrize("existing", [None, "", "a set prefix with ' quotes"])
+def test_env_script_round_trips_prefix_when_sourced(sandbox, monkeypatch, existing):
+    """Execute the generated script: a shlex-quoted default must not sit inside
+    ${WINEPREFIX:-...}, where its single quotes are literal and any $(...) in
+    the recorded prefix still runs. Unset, empty and already-set values must
+    all survive with their exact bytes."""
+    marker = sandbox.root / "marker must not exist"
+    prefix = f"{sandbox.root / 'prefix with spaces'} ' $(touch {marker})"
+    monkeypatch.setenv("WINEPREFIX", prefix)
+    rec = recipe_mod.loads(
+        'schema: 1\nname: quotedsafe\nkind: profile\nprovenance: measured\n'
+        'env:\n  WINEDEBUG: "x; touch marker"\n'
+        'display:\n  width: 1920\n  height: 1080\n')
+    script = config.render_env_script(rec)
+
+    env = dict(os.environ)
+    env.pop("WINEPREFIX", None)
+    if existing is not None:
+        env["WINEPREFIX"] = existing
+    probe = subprocess.run(["bash", "-c", script + '\nprintf "%s\\0" "$WINEPREFIX"'],
+                           capture_output=True, env=env, timeout=10)
+    assert probe.returncode == 0, probe.stderr
+    assert probe.stdout.decode().split("\0")[:-1] == [existing or prefix]
+    assert not marker.exists()
+
+
+def test_env_script_keeps_shell_payloads_inert_when_sourced(sandbox, monkeypatch):
+    marker = sandbox.root / "payload marker"
+    payload = f"'\"; $(touch {marker})"
+    monkeypatch.setenv("WINEPREFIX", str(sandbox.prefix))
+    rec = recipe_mod.Recipe("payload", {
+        "schema": 1, "name": "payload", "kind": "profile", "provenance": "measured",
+        "env": {"WINEDEBUG": payload},
+        "display": {"width": 1920, "height": 1080},
+    })
+    script = config.render_env_script(rec)
+    probe = subprocess.run(["bash", "-c", script + '\nprintf "%s" "$WINEDEBUG"'],
+                           capture_output=True, env=dict(os.environ), timeout=10)
+    assert probe.returncode == 0, probe.stderr
+    assert probe.stdout.decode() == payload
+    assert not marker.exists()
 
 
 def test_env_script_rejects_non_identifier_keys():

@@ -10,17 +10,23 @@ The app never reaches into the checkout at launch time. A checkout usually
 lives in ~/Documents, and macOS (TCC) silently denies Finder-launched apps
 access there - the exec fails with `Operation not permitted` and the app looks
 dead (measured 2026-10-31). So `build_app` first stages a self-contained
-runtime - the `cs2kit` package, `bin/cs2kit` and `profiles/` - into
-`~/.cs2kit/runtime`, and the generated scripts point there. Re-run
-`cs2kit app create` after updating the checkout to refresh the copy.
+runtime - the `cs2kit` package, the upstream `bin/cs2kit` entry point and
+`profiles/` - into `~/.cs2kit/runtime`, and the generated scripts point there.
+The copy is built and verified beside the live one and only then swapped in,
+so a failed refresh cannot break the installed app. Re-run `cs2kit app create`
+after updating the checkout to refresh the copy.
 """
 from __future__ import annotations
 
+import ast
+import fcntl
 import json
 import os
 import re
 import shutil
 import stat
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -166,37 +172,110 @@ def _write_script_app(dest: Path, prefix: Path, profile: str, name: str,
     return "script"
 
 
-RUNTIME_SHIM = r'''#!/usr/bin/env bash
-set -euo pipefail
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
-export CS2KIT_REPO="${CS2KIT_REPO:-$here}"
-exec /usr/bin/env python3 -m cs2kit "$@"
-'''
+def _upstream_launcher(root: Path) -> Path:
+    """The single source of truth for the runtime's entry point."""
+    launcher = root / "bin" / "cs2kit"
+    if not launcher.is_file():
+        raise OSError(f"{launcher}: upstream launcher is missing from the checkout")
+    return launcher
+
+
+def _runtime_is_complete(root: Path, candidate: Path) -> bool:
+    """Cheap structural check, used both before publishing and on fallback."""
+    if not candidate.is_dir():
+        return False
+    package = candidate / "cs2kit"
+    launcher = candidate / "bin" / "cs2kit"
+    if not (package / "__main__.py").is_file() or not (package / "cli.py").is_file():
+        return False
+    if not launcher.is_file() or not os.access(launcher, os.X_OK):
+        return False
+    if (root / "profiles").is_dir() and not (candidate / "profiles").is_dir():
+        return False
+    return True
+
+
+def _verify_staged(root: Path, staged: Path) -> None:
+    """Refuse to publish a tree that cannot start the CLI.
+
+    Parsing rather than importing avoids leaving __pycache__ in the staged
+    tree. Comparing the launcher byte-for-byte with the checkout keeps one
+    entry point: a hand-written shim used to drift from the real bin/cs2kit."""
+    if not _runtime_is_complete(root, staged):
+        raise OSError(f"staged runtime at {staged} is incomplete")
+    installed = staged / "bin" / "cs2kit"
+    if installed.read_bytes() != _upstream_launcher(root).read_bytes():
+        raise OSError("staged launcher differs from the upstream bin/cs2kit")
+    for path in sorted((staged / "cs2kit").glob("*.py")):
+        try:
+            ast.parse(path.read_bytes(), filename=str(path))
+        except SyntaxError as exc:
+            raise OSError(f"staged runtime has a syntax error in {path}: {exc}") from exc
+
+
+def _last_good_runtime() -> Optional[Path]:
+    """The previously published copy, if it is still complete."""
+    candidate = state_dir() / "runtime"
+    return candidate if _runtime_is_complete(repo_root(), candidate) else None
 
 
 def stage_runtime() -> Path:
-    """Copy the runtime bits of the checkout next to the state dir.
+    """Publish a fresh runtime without ever breaking the live one.
 
-    Only what launch actually needs: the `cs2kit` package, an entry-point
-    script and the profiles. Docs, tests and caches stay behind, so the copy
-    is a few hundred kilobytes. Fresh on every build - `app create` is the
-    refresh, and the printed output says so."""
-    root = repo_root()
-    runtime = state_dir() / "runtime"
-    if runtime.exists():
-        shutil.rmtree(runtime)
-    runtime.mkdir(parents=True)
-    ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "*.egg-info")
-    shutil.copytree(root / "cs2kit", runtime / "cs2kit", ignore=ignore)
-    if (root / "profiles").is_dir():
-        shutil.copytree(root / "profiles", runtime / "profiles")
-    bin_dir = runtime / "bin"
-    bin_dir.mkdir()
-    shim = bin_dir / "cs2kit"
-    shim.write_text(RUNTIME_SHIM)
-    shim.chmod(shim.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-    return runtime
+    The new tree is built in a sibling staging directory (same filesystem, so
+    the final rename is atomic), verified, and only then swapped in: the live
+    copy moves to a backup first and is restored if publishing fails. A lock
+    serialises concurrent `app create` runs, and checkout/runtime paths are
+    checked for overlap so a tree can never be copied into itself."""
+    root = repo_root().resolve()
+    state = state_dir().resolve()
+    runtime = state / "runtime"
+
+    def is_within(path: Path, parent: Path) -> bool:
+        return path == parent or parent in path.parents
+
+    # A runtime that contains the checkout would be moved out from under the
+    # source; one inside a copied subtree would make copytree recurse into its
+    # own destination. A state dir elsewhere under the checkout is fine.
+    copied = (root / "cs2kit", root / "profiles")
+    if is_within(root, runtime) or any(is_within(runtime, tree) for tree in copied):
+        raise OSError(
+            f"the checkout {root} overlaps the runtime directory {runtime}; "
+            "set CS2KIT_HOME outside the source subtrees before building the app")
+
+    lock = state / ".runtime.lock"
+    with open(lock, "a+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        staged = Path(tempfile.mkdtemp(prefix=".runtime-", dir=state))
+        backup = staged.with_name(staged.name + ".old")
+        try:
+            ignore = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache",
+                                            "*.egg-info")
+            shutil.copytree(root / "cs2kit", staged / "cs2kit", ignore=ignore)
+            if (root / "profiles").is_dir():
+                shutil.copytree(root / "profiles", staged / "profiles")
+            (staged / "bin").mkdir()
+            shutil.copy2(_upstream_launcher(root), staged / "bin" / "cs2kit")
+            _verify_staged(root, staged)
+
+            if runtime.exists():
+                os.rename(runtime, backup)       # keep the working copy intact
+            try:
+                os.rename(staged, runtime)       # atomic publish, same filesystem
+            except OSError:
+                if backup.exists():
+                    os.rename(backup, runtime)   # restore what we moved aside
+                raise
+            # A running app may still hold the old tree open. Leaving it behind
+            # is harmless; failing the build because of it is not.
+            if backup.exists():
+                shutil.rmtree(backup, ignore_errors=True)
+            return runtime
+        finally:
+            # Only our own staging directory is disposable. A backup left by a
+            # failed restore is the user's working copy - never delete it.
+            if staged.exists():
+                shutil.rmtree(staged, ignore_errors=True)
 
 
 def default_dest() -> Path:
@@ -241,8 +320,11 @@ def build_app(dest: Path, wine_root: Path, prefix: Optional[Path] = None,
     # ~/Documents, which TCC hides from Finder-launched apps. See module docstring.
     try:
         repo = stage_runtime()
-    except OSError:
-        repo = repo_root()
+    except OSError as exc:
+        # A failed refresh must not break a working launcher: keep the last
+        # verified copy (or the checkout, if this is the very first build).
+        repo = _last_good_runtime() or repo_root()
+        print(f"warning: runtime refresh failed ({exc}); using {repo}", file=sys.stderr)
     if dest.exists():
         shutil.rmtree(dest)
     # The applet is a real application (no endless Dock bouncing); the script

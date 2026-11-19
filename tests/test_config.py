@@ -1,4 +1,6 @@
 import argparse
+import os
+import subprocess
 from pathlib import Path
 
 from cs2kit import config, recipe as recipe_mod
@@ -93,3 +95,61 @@ def test_video_path_override(sandbox, tmp_path):
     result = config.apply(recipe_mod.resolve("balanced-1080p"), write_video=True, video_path=target)
     assert result["record"]["video_txt"] == str(target)
     assert "setting.fullscreen" in target.read_text()
+
+
+def _source_wineprefix(script: Path, value=None, unset=False) -> str:
+    """Run the generated script in a fresh bash and report what it exported."""
+    env = dict(os.environ)
+    env.pop("WINEPREFIX", None)
+    if not unset:
+        env["WINEPREFIX"] = value
+    proc = subprocess.run(
+        ["/bin/bash", "-c",
+         'set -u; source "$1" >/dev/null; printf "%s" "$WINEPREFIX"', "bash", str(script)],
+        env=env, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
+def _minimal_profile():
+    return recipe_mod.loads(
+        "schema: 1\nname: wineprefix-probe\nkind: profile\nprovenance: test\n")
+
+
+def test_env_script_wineprefix_falls_back_when_unset_or_empty(tmp_path, monkeypatch):
+    # The generated script must keep ${VAR:-default} semantics: unset *and*
+    # empty both select the recorded prefix, with spaces intact.
+    default = str(tmp_path / "recorded prefix")
+    monkeypatch.setattr(config, "wineprefix", lambda: Path(default))
+    script = tmp_path / "env.sh"
+    script.write_text(config.render_env_script(_minimal_profile()))
+
+    assert _source_wineprefix(script, unset=True) == default
+    assert _source_wineprefix(script, value="") == default
+
+
+def test_env_script_keeps_caller_wineprefix_verbatim(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "wineprefix", lambda: tmp_path / "default")
+    script = tmp_path / "env.sh"
+    script.write_text(config.render_env_script(_minimal_profile()))
+    marker = tmp_path / "caller-injected"
+
+    with_spaces = str(tmp_path / "prefix with spaces")
+    with_substitution = f"{tmp_path}/prefix $(touch {marker})"
+    assert _source_wineprefix(script, value=with_spaces) == with_spaces
+    assert _source_wineprefix(script, value=with_substitution) == with_substitution
+    assert not marker.exists()
+
+
+def test_env_script_does_not_execute_substitution_in_recorded_prefix(tmp_path, monkeypatch):
+    # shlex.quote() inside ${WINEPREFIX:-...} leaves the single quotes literal
+    # AND still runs $(...) during the expansion. Sourcing must not touch the
+    # marker, and the exported value must be the exact recorded string.
+    marker = tmp_path / "injected"
+    default = f"{tmp_path}/recorded $(touch {marker})"
+    monkeypatch.setattr(config, "wineprefix", lambda: Path(default))
+    script = tmp_path / "env.sh"
+    script.write_text(config.render_env_script(_minimal_profile()))
+
+    assert _source_wineprefix(script, unset=True) == default
+    assert not marker.exists()

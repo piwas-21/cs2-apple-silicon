@@ -32,6 +32,17 @@ def rec(sandbox):
     return recipe_mod.load_default()
 
 
+def test_install_hint_keeps_the_extraction_steps_executable():
+    """A `#` in the hint comments out the rest of the line: users were told to
+    'shasum ... # must equal ..., then: mkdir ... tar ...' and the unpack never
+    ran when the line was copied. The hint must be a real command."""
+    hint = bottle.INSTALL_HINT
+    assert "#" not in hint
+    assert "shasum -a 256" in hint and bottle.WINE_TARBALL_SHA256 in hint
+    assert "tar -xJf" in hint and bottle.WINE_TARBALL in hint
+    assert hint.index("shasum") < hint.index("tar -xJf")
+
+
 def test_desired_registry_sets_windows_versions_and_no_dxmt_overrides(sandbox):
     """The shipped recipe uses DXMT's builtin build, so the registry must carry
     the Windows versions and NOT a d3d11/dxgi override."""
@@ -188,7 +199,8 @@ def test_cmd_diff_exit_codes(sandbox, monkeypatch, capsys):
 
 def test_link_library_maps_a_drive_and_refuses_nonsense(sandbox, tmp_path):
     (sandbox.prefix / "dosdevices").mkdir(parents=True)
-    (sandbox.steam / "steamapps").mkdir(exist_ok=True)
+    if not (sandbox.steam / "steamapps").is_dir():
+        (sandbox.steam / "steamapps").mkdir()
     result = bottle.link_library(sandbox.prefix, sandbox.steam, "s")
     link = sandbox.prefix / "dosdevices" / "s:"
     assert link.is_symlink() and link.resolve() == sandbox.steam.resolve()

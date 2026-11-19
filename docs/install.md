@@ -321,8 +321,9 @@ shasum -a 256 SteamSetup.exe          # must equal the digest in reference/toolc
 wine SteamSetup.exe /S                # /S = silent; the interactive installer works too
 ```
 
-`cs2kit setup` enforces that same digest for you: on a mismatch it refuses and waits for `--trust-steam-sha`, because
-Valve reissues the installer in place and a newer one must be checked, not silently executed.
+`cs2kit setup` enforces that same digest for you: on a mismatch it refuses and asks for
+`--steam-sha256 <digest>` with the value printed by the check, because Valve reissues the installer in place and a
+newer one must be checked, not silently executed. The digest is verified against the exact file that is installed.
 
 **Always start the client with `-no-cef-sandbox`.** This is not a tuning flag: with the Chromium sandbox on, the
 helper process cannot establish its transport under Wine and the client dies on *"Unexpected transport error

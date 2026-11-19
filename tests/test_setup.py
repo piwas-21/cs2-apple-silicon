@@ -61,6 +61,8 @@ def test_steam_setup_is_pinned():
     # The one artifact whose digest can legitimately drift (Valve reissues it),
     # and therefore the one that must never silently run unverified.
     assert setup.STEAM_SETUP["sha256"] and len(setup.STEAM_SETUP["sha256"]) == 64
+    assert setup.expected_steam_sha() == setup.STEAM_SETUP["sha256"]
+    assert setup.expected_steam_sha("A" * 64) == "a" * 64
 
 
 class _FakeDownload:
@@ -85,19 +87,30 @@ def test_steam_installer_refuses_a_digest_outside_the_pin(monkeypatch, tmp_path)
     monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
     fake = _FakeDownload("0" * 64)
     monkeypatch.setattr(setup.engine, "download", fake)
-    with pytest.raises(setup.SetupError, match="--trust-steam-sha"):
+    with pytest.raises(setup.SetupError, match="--steam-sha256"):
         setup.fetch_steam_installer(log=lambda m: None)
     assert not (tmp_path / "downloads" / "SteamSetup.exe").exists()   # nothing left to run later
+    assert fake.pins_seen == [setup.STEAM_SETUP["sha256"]], \
+        "a refusal must not follow with a second, unverified download"
 
 
-def test_steam_installer_trust_flag_accepts_the_new_file(monkeypatch, tmp_path):
+def test_steam_installer_explicit_digest_checks_the_bytes_it_installs(monkeypatch, tmp_path):
     monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
     fake = _FakeDownload("0" * 64)
     monkeypatch.setattr(setup.engine, "download", fake)
-    installer = setup.fetch_steam_installer(log=lambda m: None, trust_unpinned=True)
+    installer = setup.fetch_steam_installer(log=lambda m: None, expected_sha256="0" * 64)
     assert installer.read_bytes() == b"MZ installer"
-    # the second download must be genuinely unpinned, not a re-check of the stale pin
-    assert fake.pins_seen == [setup.STEAM_SETUP["sha256"], None]
+    assert fake.pins_seen == ["0" * 64], \
+        "the explicit digest must verify the one file that wine will run"
+
+
+def test_steam_installer_rejects_a_malformed_digest_without_downloading(monkeypatch, tmp_path):
+    monkeypatch.setenv("CS2KIT_SETUP_HOME", str(tmp_path))
+    fake = _FakeDownload("0" * 64)
+    monkeypatch.setattr(setup.engine, "download", fake)
+    with pytest.raises(setup.SetupError, match="64-character"):
+        setup.fetch_steam_installer(log=lambda m: None, expected_sha256="trust me")
+    assert fake.pins_seen == []
 
 
 def test_steam_installer_downloads_once_when_the_pin_matches(monkeypatch, tmp_path):

@@ -61,6 +61,7 @@ take the CLI down - which matters when the CLI is what you are using to diagnose
 | [`bench`](#cs2kit-bench) | T-011 / T-026 | Run, store and compare benchmarks |
 | [`report`](#cs2kit-report) | T-028 | Build a redacted, shareable diagnostic bundle |
 | [`watch`](#cs2kit-watch) | T-030 | Detect CS2 `buildid` changes and print the regression drill |
+| [`uninstall`](#cs2kit-uninstall) | issue #3 | Inventory what CS2Kit created, without changing anything |
 
 **Every command that prints results supports `--json` and prints a single JSON object to stdout.** The two
 exceptions are deliberate: `cs2kit env` always emits JSON (that is its whole output), and `cs2kit verify baseline`
@@ -413,6 +414,50 @@ for that environment, so a drill run before any benchmark honestly reports `?`.
 
 **Exit:** `0`; `5` from `check --exit-on-change` when the buildid changed; `3` from `record` when there is no
 buildid to record.
+
+---
+
+## `cs2kit uninstall`
+
+```
+cs2kit uninstall [--json] [--dry-run] [--prefix <path> ...] [--setup-home <dir>]
+                 [--state-home <dir>] [--library <dir>] [--app-dest <path> ...]
+                 [--engine-dest <dir> ...] [--shader-cache <dir> ...] [--apply]
+```
+
+Read-only discovery of a CS2Kit installation. This is the first slice of issue #3, not a removal
+tool: the default invocation, `--json` and `--dry-run` read the filesystem and print a plan, and
+create nothing - not even the state directory. No process is started and no network request is
+made. `--apply` is registered only so scripts get a clear refusal: it exits with `EXIT_USAGE` (2)
+before discovery and changes nothing.
+
+`--prefix`, `--app-dest`, `--engine-dest` and `--shader-cache` are repeatable. The other overrides
+replace the defaults derived from `CS2KIT_SETUP_HOME`, `CS2KIT_HOME`, `CS2KIT_LIBRARY`,
+`WINEPREFIX` and the two standard launcher locations. Current environment variables are hints,
+not evidence of what an earlier install used; paths not supplied and not recorded cannot be found
+reliably, so `complete` is always `false`.
+
+The JSON object contains:
+
+| Field | Meaning |
+|---|---|
+| `read_only`, `apply_available`, `complete` | Always `true`, `false`, `false` in this slice. |
+| `roots` | Resolved setup/state/library/Steam paths, all prefix and override paths, source checkout. |
+| `environment_hints` | Relevant environment variables present in this shell. |
+| `groups.candidate` | Paths with positive CS2Kit evidence, proposed for future bounded removal. |
+| `groups.retain` | Game libraries, `userdata`, symlink targets, source checkout and native Steam. |
+| `groups.review`, `groups.refused`, `groups.missing` | Ambiguous ownership, forbidden roots, and absent paths. |
+| `notes` | Why discovery is incomplete and which records were unreadable. |
+| `counts` | Item count per group. |
+
+Each item has `id`, `component`, `path`, `kind`, `proposal`, `ownership`, `reason`, `evidence`,
+`target` (for symlinks) and `retained` (targets that must survive). A prefix with a corrupt record
+or real userdata inside it is moved from `candidate` to `review`. A symlink and its target are
+separate items: only the link can ever be a candidate. Filesystem/home roots are `refused`.
+
+**Exit:** `0` for a completed inventory, even when nothing is installed; `2` for `--apply`.
+Removal and quarantine are future work; the supported manual procedure is
+[the uninstall guide](uninstall.md).
 
 ---
 

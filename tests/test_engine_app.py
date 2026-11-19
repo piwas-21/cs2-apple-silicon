@@ -142,6 +142,86 @@ def test_app_never_points_at_the_checkout_tcc(sandbox, tmp_path, cs2_tree):
     assert str(repo_root()) not in body, "the launcher must never point at the checkout"
 
 
+def test_staged_launcher_is_the_upstream_entry_point(sandbox, tmp_path, cs2_tree):
+    """A hand-written shim drifted from bin/cs2kit. The staged launcher must be
+    the real entry point, byte for byte, with no temporary trees left behind."""
+    from cs2kit.util import repo_root, state_dir
+
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    result = app_mod.build_app(tmp_path / "Upstream.app", wine_root, prefix=sandbox.prefix)
+    runtime = Path(result["runtime"])
+    assert runtime == state_dir() / "runtime"
+    assert (runtime / "bin" / "cs2kit").read_bytes() == \
+        (repo_root() / "bin" / "cs2kit").read_bytes()
+    assert not hasattr(app_mod, "RUNTIME_SHIM")
+    assert not list(sandbox.home.glob(".runtime-*")), "staging/backup trees must be cleaned up"
+
+
+def test_a_failed_verification_keeps_the_last_working_runtime(sandbox, tmp_path, monkeypatch):
+    """A failed refresh must never delete the copy the installed app points at."""
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    first = app_mod.build_app(tmp_path / "One.app", wine_root, prefix=sandbox.prefix)
+    runtime = Path(first["runtime"])
+    marker = runtime / "cs2kit" / "marker.txt"
+    marker.write_text("last known good")
+    before = {p.relative_to(runtime): p.read_bytes()
+              for p in runtime.rglob("*") if p.is_file()}
+
+    def broken_verify(root, staged):
+        raise OSError("simulated verification failure")
+
+    monkeypatch.setattr(app_mod, "_verify_staged", broken_verify)
+    second = app_mod.build_app(tmp_path / "Two.app", wine_root, prefix=sandbox.prefix)
+
+    assert Path(second["runtime"]) == runtime
+    assert marker.read_text() == "last known good"
+    after = {p.relative_to(runtime): p.read_bytes() for p in runtime.rglob("*") if p.is_file()}
+    assert after == before
+    assert not list(sandbox.home.glob(".runtime-*"))
+
+
+def test_a_failed_publish_restores_the_working_copy(sandbox, tmp_path, monkeypatch):
+    """If the final rename fails after the old tree was moved aside, the old
+    tree has to come back - not leave the app pointing at an empty path."""
+    wine_root = tmp_path / "wine"
+    (wine_root / "bin").mkdir(parents=True)
+    app_mod.build_app(tmp_path / "One.app", wine_root, prefix=sandbox.prefix)
+    runtime = sandbox.home / "runtime"
+    marker = runtime / "cs2kit" / "marker.txt"
+    marker.write_text("still here")
+
+    real_rename = app_mod.os.rename
+
+    def flaky_rename(src, dst):
+        source = Path(src)
+        if source.parent == sandbox.home and source.name.startswith(".runtime-") \
+                and not source.name.endswith(".old"):
+            raise OSError("simulated publish failure")
+        return real_rename(src, dst)
+
+    monkeypatch.setattr(app_mod.os, "rename", flaky_rename)
+    with pytest.raises(OSError, match="simulated publish failure"):
+        app_mod.stage_runtime()
+
+    assert marker.read_text() == "still here"
+    assert not list(sandbox.home.glob(".runtime-*"))
+
+
+def test_staging_refuses_an_overlapping_checkout(sandbox, tmp_path, monkeypatch):
+    """Copying a tree into itself (or through the state dir) must be refused
+    before anything is moved or deleted."""
+    runtime = sandbox.home / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "sentinel").write_text("keep")
+    monkeypatch.setattr(app_mod, "repo_root", lambda: runtime)
+    with pytest.raises(OSError, match="overlaps"):
+        app_mod.stage_runtime()
+    assert (runtime / "sentinel").read_text() == "keep"
+    assert not list(sandbox.home.glob(".runtime-*"))
+
+
 def test_app_create_without_wine_is_not_ready(sandbox, monkeypatch, tmp_path, capsys):
     from cs2kit import bottle
 

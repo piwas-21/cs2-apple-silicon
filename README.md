@@ -47,6 +47,10 @@ To quit everything cleanly (Wine's menu bar only closes a window — Steam puts 
 Every check ends in one line telling you what to run. If that is not enough,
 [docs/troubleshooting.md](docs/troubleshooting.md) covers 23 known failures.
 
+Before removing anything, `cs2kit uninstall` prints a read-only inventory of what CS2Kit created,
+what it will keep (games, saves, symlink targets) and what needs a human decision. It changes
+nothing; see [docs/uninstall.md](docs/uninstall.md).
+
 ## What to expect
 
 Measured on a MacBook Pro M2 Pro (32 GB, macOS 26.5.2):
@@ -73,6 +77,7 @@ Apple Silicon Mac · macOS 13+ · Rosetta 2 · ~90 GB free · a Steam account th
 |---|---|
 | Full install walkthrough | [docs/install.md](docs/install.md) |
 | Every command | [docs/cli-reference.md](docs/cli-reference.md) |
+| Safe uninstall / inventory | [docs/uninstall.md](docs/uninstall.md) |
 | Why this Wine build and not another | [docs/architecture.md](docs/architecture.md) |
 | What was actually measured | [docs/project/measured-results.md](docs/project/measured-results.md) |
 
