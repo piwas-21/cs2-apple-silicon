@@ -75,16 +75,15 @@ grep -ri "setting.fullscreen" "$HOME/Library/Application Support/Steam/steamapps
 cs2kit config apply balanced-1080p --video
 ```
 
-That writes `CS2Video.txt` into `<install>/game/csgo/cfg/`. **Which copy CS2 actually reads under Wine is
-UNCONFIRMED** - it may instead read the per-account copy under Steam's `userdata` tree. If the black screen
-persists, point the tool at the other location and report which one worked:
+Exit CS2 and Steam first. The command repairs the existing
+`<bottle>/drive_c/Program Files (x86)/Steam/userdata/<account>/730/local/cfg/cs2_video.txt`,
+preserves quality settings, and keeps an original `.cs2kit-backup`. With multiple accounts,
+select the intended file using `--video-path`.
 
-```bash
-cs2kit config apply balanced-1080p --video --video-path "<the path that worked>"
-```
-
-Record it in [reference/first-launch.md](reference/first-launch.md), where the path is **UNRECORDED** until somebody
-confirms it on hardware.
+**CONFIRMED locally on macOS 27.2:** switching to fullscreen wrote width and height `-1`;
+Metal then aborted with texture dimensions `4294967295 × 4294967295`.
+[Recovery evidence and limits](reference/macos-launch-recovery.md). Use windowed mode for this
+configuration; recovery does not fix the upstream exclusive-fullscreen transition.
 
 **Evidence.** CONFIRMED, multiple independent reports (CodeWeavers forum thread *"Black screen when I load CS2
 (mac M1)"*, plus a video walkthrough) - [../research/performance-alternatives-findings.md](../research/performance-alternatives-findings.md)
@@ -877,8 +876,9 @@ running.
 pgrep -ifl "steam.exe" | grep -v steamservice     # is the CLIENT actually up?
 ```
 
-`cs2kit play` now kills orphaned `steamservice.exe` / `steamwebhelper.exe` before starting the client,
-and only counts the real client as "running".
+`cs2kit play` only counts the real client executable as "running", including its full Windows
+path, after verifying that its inherited `WINEPREFIX` matches the selected bottle. It does not
+kill helpers belonging to other bottles. Use `cs2kit stop` to stop the selected bottle.
 
 ### c. You cannot find the app in Finder
 
@@ -892,21 +892,23 @@ installed into the home one, so the app looked missing. `cs2kit app create` now 
 
 ## 26. The launcher app will not open, or opens and nothing happens
 
-Four separate faults produced this over one afternoon. All are fixed; if your app predates
-2026-08-25, regenerate it with `cs2kit app create`.
+Regenerate the launcher with `cs2kit app create` if it stays in the Dock without opening Steam.
+**CONFIRMED:** the November 18 recovery found that app creation had regressed to a shell bundle;
+it now prefers the native applet again and signs it after applying metadata and icons.
+See [the recovery record](reference/macos-launch-recovery.md).
 
 | symptom | cause | fix |
 |---|---|---|
 | `open` fails, `_LSOpenURLsWithCompletionHandler() failed … error -1712` | the bundle's executable was a **shell script**. LaunchServices waits for it to register as an application and times out | the app is now a compiled **AppleScript applet** — a real application bundle |
 | the app runs, Steam never appears | AppleScript's `do shell script` **reaps whatever it starts**, even with `nohup … &`. Steam logged in and vanished the moment the applet returned | `cs2kit play --detach` double-forks and `setsid`s first, so it is reparented to launchd |
-| the app reports its message but never starts Steam | `pgrep -f steam.exe` matches **any command line** mentioning it — including the shell that is about to launch Steam. CS2Kit believed Steam was already running | process detection is now `pgrep -ix steam.exe`, an exact **process name** match |
+| the app reports its message but never starts Steam | `pgrep -f steam.exe` matches **any command line** mentioning it — including the shell that is about to launch Steam. CS2Kit believed Steam was already running | process detection compares the executable basename from `ps` `comm`, then checks `WINEPREFIX` ownership; shell arguments and other bottles do not count |
 | the app is nowhere in Finder | it was installed into `~/Applications`, which Finder's sidebar does not show (Spotlight does) | it installs into **`/Applications`** when writable, named **CS2Kit.app**, with an icon |
 
 **Check it yourself:**
 
 ```bash
 open -a CS2Kit ; echo "rc=$?"     # must be 0
-pgrep -ix steam.exe                # the client, not steamservice/steamwebhelper
+ps -axww -o pid=,comm=             # inspect executable names, including full Windows paths
 tail -5 ~/CS2/cs2kit-app.log       # what the launcher actually did
 ```
 
@@ -972,6 +974,12 @@ down in one step:
 ```bash
 cs2kit stop
 ```
+
+For a double-clickable quit action, run `cs2kit app create --stop` once. It creates
+**Quit CS2Kit.app** in Applications. Exit the game normally to save settings, then open
+that app to stop the selected bottle's Steam and helpers. **CONFIRMED in the external-display
+follow-up:** the main Steam PID stayed alive while its web helper restarted; see the
+[recovery record](reference/macos-launch-recovery.md#external-display-and-steam-exit-follow-up).
 
 The updated command stops only the selected bottle using its recorded Wine engine's `wineserver`
 and waits for termination. Exit Steam first to save settings. It no longer kills global process-name

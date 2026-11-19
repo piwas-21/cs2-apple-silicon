@@ -52,12 +52,13 @@ Symptom: the game runs, you hear the menu, the window is black.
 
 Fix, in order of cost:
 1. Alt-tab away and back, or toggle fullscreen manually.
-2. Permanent: set `setting.fullscreen` to `0` in `CS2Video.txt`. `cs2kit config apply <profile> --video` writes it
-   to `<install>/game/csgo/cfg/CS2Video.txt`, which is the path CS2Kit uses.
+2. Permanent: exit CS2 and Steam, then run `cs2kit config apply balanced-1080p --video`.
+   It repairs the existing per-account `userdata/<account>/730/local/cfg/cs2_video.txt` when
+   present, retaining the legacy install-tree fallback for an account that has not launched yet.
 
-CS2 can also keep per-account video settings under the Steam `userdata` tree. **Which file this bottle actually
-reads is UNRECORDED** - confirm it on the first run and write the answer into the table below, because every later
-reader will copy whichever path is recorded here.
+**CONFIRMED follow-up, 2026-11-18:** the per-account file controls display settings on the
+recovery machine. Invalid fullscreen dimensions caused a Metal abort; restoring windowed
+settings allowed another launch. [Evidence and validation limits](macos-launch-recovery.md).
 
 Evidence: CONFIRMED, multiple independent reports - CodeWeavers forum thread "Black screen when I load CS2 (mac M1)"
 and a video walkthrough, `research/performance-alternatives-findings.md` item 2.
